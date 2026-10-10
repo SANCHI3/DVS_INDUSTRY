@@ -12,6 +12,9 @@ import securityRouter from './security.routes';
 import workforceRouter from './workforce.routes';
 import { prisma } from '../lib/prismaClient';
 import { env } from '../config/env';
+import { authenticate } from '../middleware/authenticate';
+import { authorize } from '../middleware/authorize';
+import { ROLES } from '../constants';
 
 const router = Router();
 
@@ -55,7 +58,8 @@ router.get(`${API_PREFIX}/health`, async (_req, res) => {
   }
 });
 
-router.get(`${API_PREFIX}/metrics`, (_req, res) => {
+// Process internals are operational data — admins only.
+router.get(`${API_PREFIX}/metrics`, authenticate, authorize(ROLES.ADMIN), (_req, res) => {
   const memory = process.memoryUsage();
   res.status(200).json({
     uptimeSeconds: Math.round(process.uptime()),

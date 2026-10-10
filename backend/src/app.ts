@@ -10,9 +10,17 @@ import { env } from './config/env';
 import { requestLogger } from './middleware/requestLogger';
 import { notFoundHandler } from './middleware/notFound';
 import { errorHandler } from './middleware/errorHandler';
+import { auditLog } from './middleware/auditLog';
 import router from './routes';
 
 const app = express();
+
+// ── Reverse proxy ──────────────────────────────────────────────────────────
+// Behind nginx, req.ip would otherwise be the proxy's address for every
+// request, collapsing all users into a single rate-limit bucket.
+if (env.TRUST_PROXY > 0) {
+  app.set('trust proxy', env.TRUST_PROXY);
+}
 
 // ── Security headers ───────────────────────────────────────────────────────
 app.use(helmet());
@@ -36,7 +44,48 @@ app.use(
   }),
 );
 
-// ── Global rate limiter ────────────────────────────────────────────────────
+// ── Audit trail — records writes and sign-in attempts (including throttled
+// ones) once the response finishes, so it is registered before the limiters.
+app.use(auditLog);
+
+// ── Rate limiting ──────────────────────────────────────────────────────────
+// NOTE: the default store is in-memory and per process. Under pm2 cluster
+// mode each worker counts separately; set PM2_INSTANCES=1 or plug in a shared
+// store (e.g. rate-limit-redis) if exact limits matter.
+
+// Brute-force protection for credential endpoints — counts only failures.
+const credentialLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'Too many failed attempts. Please try again in 15 minutes.',
+    },
+  },
+});
+app.use('/api/v1/auth/login', credentialLimiter);
+app.use('/api/v1/auth/reset-password', credentialLimiter);
+
+// Password-reset requests always return 200, so count every request.
+app.use(
+  '/api/v1/auth/forgot-password',
+  rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+      success: false,
+      error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests' },
+    },
+  }),
+);
+
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes

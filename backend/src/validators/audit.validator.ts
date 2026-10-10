@@ -10,6 +10,7 @@ export const auditQuerySchema = z.object({
       'UPDATE',
       'DELETE',
       'LOGIN',
+      'LOGIN_FAILED',
       'LOGOUT',
       'EXPORT',
       'STATUS_CHANGE',

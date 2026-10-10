@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   AlertTriangle,
@@ -72,7 +73,7 @@ function EmptyState({
   title,
   detail,
 }: {
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  icon: LucideIcon;
   title: string;
   detail: string;
 }) {

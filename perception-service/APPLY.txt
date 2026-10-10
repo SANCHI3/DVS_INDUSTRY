@@ -1,4 +1,0 @@
-Extract this ZIP into the perception-service project root.
-It adds the rgb_fight_model folder and does not replace the pose-LSTM model.
-Follow the command sequence in chat: create the manifest, run a one-epoch
-smoke training test, then start full training only if GPU memory is stable.

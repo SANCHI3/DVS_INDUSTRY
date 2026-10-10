@@ -18,6 +18,7 @@ import type {
   SecurityKPIs,
   IncidentStatus,
 } from '../interfaces';
+import { Prisma } from '@prisma/client';
 import { NotFoundError, BadRequestError } from '../errors';
 import { logger } from '../logger';
 
@@ -35,7 +36,7 @@ import { logger } from '../logger';
  *
  * Alerts:
  *  6. EXPIRED and RESOLVED are terminal — cannot transition back
- *  7. Must ACKNOWLEDGE before RESOLVE (unless admin override via direct update)
+ *  7. ACTIVE or ACKNOWLEDGED alerts can be resolved (acknowledging first is optional)
  *  8. Auto-expire: if expiresAt is past and status is ACTIVE → mark EXPIRED
  *  9. Cannot delete ACTIVE/CRITICAL alerts directly — must resolve first
  */
@@ -69,9 +70,26 @@ export class SecurityService {
       }
     }
 
-    const incident = await this.repo.createIncident(data);
-    logger.info('Security incident created', { id: incident.id, number: incident.incidentNumber });
-    return incident;
+    try {
+      const incident = await this.repo.createIncident(data);
+      logger.info('Security incident created', {
+        id: incident.id,
+        number: incident.incidentNumber,
+      });
+      return incident;
+    } catch (err) {
+      // Two concurrent reports with the same external number: the loser of the
+      // unique-constraint race returns the winner's row (idempotent create).
+      if (
+        incidentNumber &&
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        const existing = await this.repo.findIncidentByNumber(incidentNumber);
+        if (existing) return existing;
+      }
+      throw err;
+    }
   }
 
   async updateIncident(id: number, data: UpdateIncidentData): Promise<SecurityIncidentDto> {

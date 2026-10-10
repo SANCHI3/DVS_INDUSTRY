@@ -34,6 +34,10 @@ export interface DashboardKPIs {
   // Departments
   totalDepartments:  number;
   activeDepartments: number;
+  // Security
+  activeAlerts:      number;
+  criticalAlerts:    number;
+  criticalIncidents: number;
 }
 
 export interface OrderStatusCount   { name: string; value: number; color: string }

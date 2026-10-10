@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prismaClient';
+import { nextDocumentNumber, withUniqueNumberRetry } from '../utils/documentNumber';
 import type {
   SecurityIncidentDto,
   SecurityIncidentDetail,
@@ -122,55 +123,40 @@ function toAlertDto(r: PrismaAlert): SecurityAlertDto {
 
 // ── Auto-number helpers ───────────────────────────────────────────────────────
 
-async function nextIncidentNumber(): Promise<string> {
-  const candidates = await prisma.securityIncident.findMany({
-    where: { incidentNumber: { startsWith: 'INC-' } },
-    orderBy: { id: 'desc' },
-    select: { incidentNumber: true },
-  });
-  const last = candidates.find(({ incidentNumber }) => /^INC-\d{4}$/.test(incidentNumber));
-  const seq = last ? parseInt(last.incidentNumber.replace('INC-', ''), 10) + 1 : 1;
-  return `INC-${String(seq).padStart(4, '0')}`;
-}
-
-async function nextAlertNumber(): Promise<string> {
-  const last = await prisma.securityAlert.findFirst({
-    where: { alertNumber: { startsWith: 'ALT-' } },
-    orderBy: { id: 'desc' },
-    select: { alertNumber: true },
-  });
-  const seq = last ? parseInt(last.alertNumber.replace('ALT-', ''), 10) + 1 : 1;
-  return `ALT-${String(seq).padStart(4, '0')}`;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class SecurityRepository {
   // ══ INCIDENTS ════════════════════════════════════════════════════════════
 
   async createIncident(data: CreateIncidentData): Promise<SecurityIncidentDto> {
-    const incidentNumber = data.incidentNumber?.trim() || (await nextIncidentNumber());
-    const raw = await prisma.securityIncident.create({
-      data: {
-        incidentNumber,
-        title: data.title,
-        description: data.description,
-        aiSummary: data.aiSummary ?? null,
-        type: data.type,
-        confidenceScore: data.confidenceScore ?? null,
-        severity: data.severity ?? 'MEDIUM',
-        location: data.location ?? null,
-        departmentId: data.departmentId ?? null,
-        departmentName: data.departmentName ?? null,
-        reportedById: data.reportedById ?? null,
-        reportedByName: data.reportedByName ?? null,
-        assignedToId: data.assignedToId ?? null,
-        assignedToName: data.assignedToName ?? null,
-        occurredAt: data.occurredAt ?? new Date(),
-      },
-      select: incidentSelect,
-    });
-    return toIncidentDto(raw);
+    const externalNumber = data.incidentNumber?.trim();
+    // A caller-supplied number is an idempotency key: never retry with another
+    const create = async (): Promise<SecurityIncidentDto> => {
+      const incidentNumber =
+        externalNumber || (await nextDocumentNumber('securityIncident', 'INC-', { pad: 4 }));
+      const raw = await prisma.securityIncident.create({
+        data: {
+          incidentNumber,
+          title: data.title,
+          description: data.description,
+          aiSummary: data.aiSummary ?? null,
+          type: data.type,
+          confidenceScore: data.confidenceScore ?? null,
+          severity: data.severity ?? 'MEDIUM',
+          location: data.location ?? null,
+          departmentId: data.departmentId ?? null,
+          departmentName: data.departmentName ?? null,
+          reportedById: data.reportedById ?? null,
+          reportedByName: data.reportedByName ?? null,
+          assignedToId: data.assignedToId ?? null,
+          assignedToName: data.assignedToName ?? null,
+          occurredAt: data.occurredAt ?? new Date(),
+        },
+        select: incidentSelect,
+      });
+      return toIncidentDto(raw);
+    };
+    return externalNumber ? create() : withUniqueNumberRetry(create);
   }
 
   async updateIncident(id: number, data: UpdateIncidentData): Promise<SecurityIncidentDto> {
@@ -333,25 +319,27 @@ export class SecurityRepository {
   // ══ ALERTS ═══════════════════════════════════════════════════════════════
 
   async createAlert(data: CreateAlertData): Promise<SecurityAlertDto> {
-    const alertNumber = await nextAlertNumber();
-    const raw = await prisma.securityAlert.create({
-      data: {
-        alertNumber,
-        title: data.title,
-        message: data.message,
-        type: data.type,
-        severity: data.severity ?? 'MEDIUM',
-        source: data.source ?? null,
-        location: data.location ?? null,
-        departmentId: data.departmentId ?? null,
-        departmentName: data.departmentName ?? null,
-        incidentId: data.incidentId ?? null,
-        expiresAt: data.expiresAt ?? null,
-        createdById: data.createdById ?? null,
-      },
-      select: alertSelect,
+    return withUniqueNumberRetry(async () => {
+      const alertNumber = await nextDocumentNumber('securityAlert', 'ALT-', { pad: 4 });
+      const raw = await prisma.securityAlert.create({
+        data: {
+          alertNumber,
+          title: data.title,
+          message: data.message,
+          type: data.type,
+          severity: data.severity ?? 'MEDIUM',
+          source: data.source ?? null,
+          location: data.location ?? null,
+          departmentId: data.departmentId ?? null,
+          departmentName: data.departmentName ?? null,
+          incidentId: data.incidentId ?? null,
+          expiresAt: data.expiresAt ?? null,
+          createdById: data.createdById ?? null,
+        },
+        select: alertSelect,
+      });
+      return toAlertDto(raw);
     });
-    return toAlertDto(raw);
   }
 
   async updateAlert(id: number, data: UpdateAlertData): Promise<SecurityAlertDto> {

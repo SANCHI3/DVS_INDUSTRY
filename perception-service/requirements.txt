@@ -1,15 +1,25 @@
+# Core pipeline (main.py)
 ultralytics>=8.2.0
 opencv-python>=4.9.0
 supervision>=0.20.0
 pyyaml>=6.0
-numpy>=1.24
+numpy>=1.24,<3
+pydantic>=2.5,<3
 
-# If you're deploying this on a headless server (no display, e.g. a Docker
-# container or a remote box you SSH into), swap the opencv-python line
-# above for opencv-python-headless instead -- it's smaller but has no
-# cv2.imshow() GUI support, so always run with --no-display if you use it.
-#   opencv-python-headless>=4.9.0
+# main.py imports the RGB fight model (R3D-18) at startup, so torch and
+# torchvision are always required. For GPU builds install them from the
+# PyTorch index first, e.g.:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+torch>=2.2,<3
+torchvision>=0.17
 
-# Only needed if you train/run the fight-detection LSTM (config: fight_detection.mode: "model").
-# The default "heuristic" mode works without it.
-# torch>=2.2.0
+# Optional local incident store: uvicorn backend.api:app
+fastapi>=0.110
+uvicorn>=0.29
+
+# Tests
+pytest>=8
+httpx>=0.27
+
+# On a headless server (no display), replace opencv-python with
+# opencv-python-headless and always run main.py with --no-display.

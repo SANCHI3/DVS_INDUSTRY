@@ -1,19 +1,39 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Toaster } from "sonner";
 import { HomePage } from "./components/HomePage";
 import { LoginPage } from "./components/LoginPage";
+import { ResetPasswordPage } from "./components/ResetPasswordPage";
 import { AdminApp } from "./components/admin/AdminApp";
 import { SupplierApp } from "./components/supplier/SupplierApp";
 import { ClientApp } from "./components/client/ClientApp";
-import { logout as apiLogout } from "../lib/auth";
+import { logout as apiLogout, getStoredFrontendRole } from "../lib/auth";
+import { SESSION_EXPIRED_EVENT } from "../lib/api";
 import type { FrontendRole } from "../lib/auth";
 
-type Page = "home" | "login" | FrontendRole;
-type Role = "admin" | "supplier" | "client" | "production" | "store" | "unauthorized";
+type Page = "home" | "login" | "reset" | FrontendRole;
+type Role = "admin" | "supplier" | "client" | "production" | "store";
+
+function readResetToken(): string | null {
+  return new URLSearchParams(window.location.search).get("resetToken");
+}
+
+/** Restore the signed-in app after a reload instead of dropping to the home page. */
+function initialPage(): Page {
+  if (readResetToken() !== null) return "reset";
+  return getStoredFrontendRole() ?? "home";
+}
 
 export default function App() {
-  const [page, setPage]           = useState<Page>("home");
+  const [page, setPage]           = useState<Page>(initialPage);
   const [loginRole, setLoginRole] = useState<Role>("admin");
+  const [resetToken]              = useState(readResetToken);
+
+  // The API client fires this when the session can no longer be refreshed
+  useEffect(() => {
+    const onExpired = () => setPage("login");
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, []);
 
   const goToLogin = (role: Role = "admin") => {
     setLoginRole(role);
@@ -29,6 +49,12 @@ export default function App() {
     setPage("home");
   };
 
+  const leaveReset = () => {
+    // Drop the single-use token from the address bar and history
+    window.history.replaceState(null, "", window.location.pathname);
+    setPage("login");
+  };
+
   return (
     <>
       <Toaster position="top-right" richColors closeButton />
@@ -40,6 +66,7 @@ export default function App() {
           onLoginSuccess={handleLoginSuccess}
         />
       )}
+      {page === "reset" && resetToken !== null && <ResetPasswordPage token={resetToken} onDone={leaveReset} />}
       {page === "admin"      && <AdminApp onLogout={handleLogout} userRole="admin" />}
       {page === "production" && <AdminApp onLogout={handleLogout} userRole="production" />}
       {page === "store"      && <AdminApp onLogout={handleLogout} userRole="store" />}

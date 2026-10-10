@@ -129,3 +129,17 @@ export function updateStoredUser(partial: Partial<AuthUser>): void {
   const current = loadUser();
   if (current) persistUser({ ...current, ...partial });
 }
+
+/**
+ * Frontend role of the stored session, or null when nobody is signed in.
+ * Used to restore the right app after a page reload.
+ */
+export function getStoredFrontendRole(): FrontendRole | null {
+  const user = loadUser();
+  return user ? getFrontendRole(getBackendRoleName(user.role)) : null;
+}
+
+/** Complete a password reset using the token from the emailed link. */
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  await api.post('/auth/reset-password', { token, newPassword, confirmPassword: newPassword });
+}

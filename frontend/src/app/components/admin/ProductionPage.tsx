@@ -24,7 +24,7 @@ import {
   getAttendanceSummary,
   getAttendanceTrend,
   type AttendanceDto,
-  type AttendanceTrendEntry,
+  type WorkforceAttendanceTrendEntry as AttendanceTrendEntry,
   type DailyAttendanceSummary,
 } from "../../../lib/services/workforce.service";
 

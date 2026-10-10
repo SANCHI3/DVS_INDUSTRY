@@ -43,7 +43,7 @@ Thumbs.db
 generated/prisma/
 
 # ── Root-level lock file (not a workspace root package) ───────────
-package-lock.json
+/package-lock.json
 
 # Perception service: local datasets and generated outputs
 perception-service/data/

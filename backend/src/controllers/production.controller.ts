@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import type { AuthenticatedRequest } from '../types';
 import { ProductionService } from '../services/production.service';
 import { sendSuccess, sendCreated, sendNoContent } from '../utils/response';
 import type {
@@ -31,7 +32,7 @@ function parseId(raw: string | string[] | undefined): number {
 
 // ══ WORK ORDERS ══════════════════════════════════════════════════════════════
 
-export async function createWorkOrder(req: Request, res: Response): Promise<void> {
+export async function createWorkOrder(req: AuthenticatedRequest, res: Response): Promise<void> {
   const body = req.body as CreateWorkOrderInput;
   const data: CreateWorkOrderData = {
     product: body.product,
@@ -46,6 +47,7 @@ export async function createWorkOrder(req: Request, res: Response): Promise<void
     assignedToName: body.assignedToName ?? null,
     clientOrderId: body.clientOrderId ?? null,
     notes: body.notes ?? null,
+    createdById: req.user?.id ?? null,
   };
   const wo = await svc.createWorkOrder(data);
   sendCreated(res, wo, 'Work order created successfully');
@@ -129,7 +131,7 @@ export async function deleteWorkOrder(req: Request, res: Response): Promise<void
 
 // ══ OUTPUTS ══════════════════════════════════════════════════════════════════
 
-export async function addOutput(req: Request, res: Response): Promise<void> {
+export async function addOutput(req: AuthenticatedRequest, res: Response): Promise<void> {
   const workOrderId = parseId(req.params['id']);
   const body = req.body as CreateOutputInput;
   const data: Omit<CreateOutputData, 'workOrderId'> = {
@@ -137,8 +139,9 @@ export async function addOutput(req: Request, res: Response): Promise<void> {
     rejectedQty: body.rejectedQty,
     scrapQty: body.scrapQty,
     recordedAt: body.recordedAt,
-    recordedById: body.recordedById ?? null,
-    recordedByName: body.recordedByName ?? null,
+    // The recorder is always the authenticated user, never a body field
+    recordedById: req.user?.id ?? null,
+    recordedByName: req.user?.fullName ?? body.recordedByName ?? null,
     remarks: body.remarks ?? null,
   };
   const output = await svc.addOutput(workOrderId, data);

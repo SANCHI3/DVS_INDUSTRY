@@ -105,7 +105,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
     kpis.overdueWorkOrders > 0
       ? { type: "warn", msg: `${kpis.overdueWorkOrders} work order(s) past scheduled end — review production` }
       : { type: "success", msg: "All work orders on schedule" },
-    kpis.criticalAlerts !== undefined && Number(kpis.criticalAlerts ?? 0) > 0
+    kpis.criticalAlerts > 0
       ? { type: "warn", msg: `${kpis.criticalAlerts} critical security alert(s) active — immediate attention required` }
       : { type: "info", msg: "No critical security alerts active" },
     { type: "info", msg: `Order fulfillment rate: ${kpis.orderFulfillmentRate} · Production: ${kpis.productionCompletionRate}` },
@@ -117,7 +117,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
   // ── KPI values (real or fallback) ──────────────────────────────────────────
 
   const hasKpis = kpis !== null;
-  const activeAlertCnt = kpis === null ? "—" : String(Number((kpis as unknown as { activeAlerts?: number }).activeAlerts ?? 0) + Number(kpis.criticalIncidents ?? 0));
+  const activeAlertCnt = kpis === null ? dataMessage(loading, dashboardError) : String(kpis.activeAlerts);
 
   return (
     <div className="p-6">
@@ -157,7 +157,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
         <KPICard label="Inventory Value" value={hasKpis ? fmt(parseFloat(kpis.totalInventoryValue)) : dataMessage(loading, dashboardError)} sub={hasKpis ? `${kpis.lowStockCount} low stock` : undefined} icon={Package} accent="#4E342E" />
         <KPICard label="Active Orders" value={hasKpis ? String(kpis.activeClientOrders) : dataMessage(loading, dashboardError)} sub={hasKpis ? `${kpis.pendingClientOrders} pending` : undefined} icon={ShoppingCart} accent="#E65100" />
         <KPICard label="Pending POs" value={hasKpis ? String(kpis.pendingPurchaseOrders) : dataMessage(loading, dashboardError)} icon={Truck} accent="#C0392B" />
-        <KPICard label="Security Alerts" value={activeAlertCnt} sub={hasKpis ? `${kpis.criticalIncidents} critical` : undefined} icon={Shield} accent="#C0392B" />
+        <KPICard label="Security Alerts" value={activeAlertCnt} sub={hasKpis ? `${kpis.criticalAlerts} critical · ${kpis.criticalIncidents} open critical incidents` : undefined} icon={Shield} accent="#C0392B" />
         <KPICard label="Scrap This Month" value={hasKpis ? `${parseFloat(kpis.totalScrapThisMonth).toFixed(1)} kg` : dataMessage(loading, dashboardError)} icon={AlertTriangle} accent="#E65100" />
       </div>
 

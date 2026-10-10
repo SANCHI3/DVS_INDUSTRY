@@ -2,7 +2,15 @@
 // Pure domain objects — zero Prisma imports.
 
 export type AuditAction =
-  'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'EXPORT' | 'STATUS_CHANGE' | 'BULK_ACTION';
+  | 'CREATE'
+  | 'UPDATE'
+  | 'DELETE'
+  | 'LOGIN'
+  | 'LOGIN_FAILED'
+  | 'LOGOUT'
+  | 'EXPORT'
+  | 'STATUS_CHANGE'
+  | 'BULK_ACTION';
 
 export interface AuditLogDto {
   id: number;

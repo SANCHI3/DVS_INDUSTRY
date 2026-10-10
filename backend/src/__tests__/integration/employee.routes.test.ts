@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
-import { adminToken, managerToken } from '../helpers/app';
+import { adminToken, managerToken, mirrorTokenUser } from '../helpers/app';
 
 vi.mock('../../config/env', () => ({
   env: {
@@ -35,6 +35,7 @@ vi.mock('../../lib/prismaClient', () => ({
     department: { findFirst: vi.fn() },
     shift: { findUnique: vi.fn() },
     user: { findUnique: vi.fn() },
+    $queryRawUnsafe: vi.fn().mockResolvedValue([{ max: null }]),
     $transaction: vi.fn((arg: unknown) => {
       if (Array.isArray(arg)) return Promise.all(arg as Promise<unknown>[]);
       if (typeof arg === 'function') return arg({});
@@ -113,6 +114,7 @@ afterAll(() => vi.clearAllMocks());
 const { verifyAccessToken } = (await import('../../utils/token')) as {
   verifyAccessToken: ReturnType<typeof vi.fn>;
 };
+mirrorTokenUser(prisma.user.findUnique as ReturnType<typeof vi.fn>, verifyAccessToken);
 
 describe('GET /api/v1/employees', () => {
   it('returns 401 without token', async () => {

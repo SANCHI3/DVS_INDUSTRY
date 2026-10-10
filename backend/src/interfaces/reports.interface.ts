@@ -43,6 +43,11 @@ export interface DashboardKPIs {
   // Departments
   totalDepartments: number;
   activeDepartments: number;
+
+  // Security
+  activeAlerts: number; // alerts with status ACTIVE
+  criticalAlerts: number; // ACTIVE alerts with CRITICAL severity
+  criticalIncidents: number; // CRITICAL incidents still OPEN or INVESTIGATING
 }
 
 export interface OrderStatusCount {

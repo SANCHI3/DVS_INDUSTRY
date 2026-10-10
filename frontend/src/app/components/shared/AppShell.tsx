@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import { useState, ReactNode } from "react";
 import { useERP } from "../admin/ERPContext";
 import {
@@ -13,7 +14,7 @@ export type SystemUserRole = "admin" | "production" | "store";
 interface NavItem {
   id: string;
   label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: LucideIcon;
   children?: { id: string; label: string }[];
 }
 

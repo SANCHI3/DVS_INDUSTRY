@@ -39,6 +39,7 @@ export function buildPrismaMock() {
   });
 
   return {
+    $queryRawUnsafe: vi.fn().mockResolvedValue([{ max: null }]),
     $transaction: vi.fn((arg: unknown) => {
       // If passed an array, resolve each fn; if a callback, call it
       if (Array.isArray(arg)) return Promise.all(arg as Promise<unknown>[]);
@@ -84,6 +85,29 @@ export function adminToken(): string {
 
 export function managerToken(): string {
   return signTestToken({ sub: 2, email: 'manager@test.com', role: 'MANAGER' });
+}
+
+/**
+ * authenticate() looks the user up after verifying the token. Integration
+ * tests stub verifyAccessToken per test, so make the user lookup return an
+ * active account matching whatever the token stub most recently returned.
+ */
+export function mirrorTokenUser(
+  findUnique: ReturnType<typeof vi.fn>,
+  verifyAccessToken: ReturnType<typeof vi.fn>,
+): void {
+  findUnique.mockImplementation(() => {
+    const last = verifyAccessToken.mock.results.at(-1);
+    if (last === undefined || last.type !== 'return') return Promise.resolve(null);
+    const payload = last.value as { sub: number; email: string; role: string };
+    return Promise.resolve({
+      id: payload.sub,
+      email: payload.email,
+      fullName: payload.email,
+      isActive: true,
+      role: { name: payload.role },
+    });
+  });
 }
 
 // ── App loader (lazy — avoids connecting Prisma at import time) ───────────────

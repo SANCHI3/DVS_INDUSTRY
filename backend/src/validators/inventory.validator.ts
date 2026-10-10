@@ -75,16 +75,27 @@ export const materialQuerySchema = z.object({
 
 // ── Stock adjustment schema ───────────────────────────────────────────────────
 
-export const stockAdjustmentSchema = z.object({
-  type: z.enum(['IN', 'OUT', 'ADJUSTMENT', 'SCRAP', 'RETURN']),
-  quantity: positiveDecimalString('Quantity'),
-  referenceNo: z.string().max(50).trim().optional().nullable(),
-  reason: z.string().max(500).trim().optional().nullable(),
-  performedById: z.coerce.number().int().positive().optional().nullable(),
-  performedByName: z.string().max(150).trim().optional().nullable(),
-  departmentId: z.coerce.number().int().positive().optional().nullable(),
-  departmentName: z.string().max(150).trim().optional().nullable(),
-});
+// ADJUSTMENT quantities are signed (e.g. "-2.5" after a stock count found a
+// shortfall); every other movement type takes a positive quantity and the
+// type decides the direction.
+export const stockAdjustmentSchema = z
+  .object({
+    type: z.enum(['IN', 'OUT', 'ADJUSTMENT', 'SCRAP', 'RETURN']),
+    quantity: z
+      .string()
+      .regex(/^-?\d+(\.\d{1,3})?$/, 'Quantity must be a valid decimal (e.g. 100.500)')
+      .refine((v) => parseFloat(v) !== 0, 'Quantity must not be zero'),
+    referenceNo: z.string().max(50).trim().optional().nullable(),
+    reason: z.string().max(500).trim().optional().nullable(),
+    performedById: z.coerce.number().int().positive().optional().nullable(),
+    performedByName: z.string().max(150).trim().optional().nullable(),
+    departmentId: z.coerce.number().int().positive().optional().nullable(),
+    departmentName: z.string().max(150).trim().optional().nullable(),
+  })
+  .refine((v) => v.type === 'ADJUSTMENT' || !v.quantity.startsWith('-'), {
+    message: 'Quantity must be positive; only ADJUSTMENT accepts a negative value',
+    path: ['quantity'],
+  });
 
 // ── Transaction query ─────────────────────────────────────────────────────────
 

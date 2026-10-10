@@ -29,16 +29,19 @@ const router = Router();
 router.use(authenticate);
 
 // ── Role groups ───────────────────────────────────────────────────────────────
-const ALL_ROLES = [
+// Client records and client orders: internal staff + the client themselves
+// (CLIENT requests are further scoped to their own records in the controller).
+// Suppliers must not see customer orders or values.
+const CLIENT_READ_ROLES = [
   ROLES.ADMIN,
   ROLES.MANAGER,
   ROLES.HR,
   ROLES.STORE,
   ROLES.PRODUCTION,
   ROLES.SALES,
-  ROLES.SUPPLIER,
   ROLES.CLIENT,
 ] as const;
+// SUPPLIER requests are scoped to their own supplier record in the controller.
 const SUPPLIER_ORDER_READ_ROLES = [
   ROLES.ADMIN,
   ROLES.MANAGER,
@@ -114,7 +117,7 @@ router.patch(
 /** GET /api/v1/orders/clients */
 router.get(
   '/clients',
-  authorize(...ALL_ROLES),
+  authorize(...CLIENT_READ_ROLES),
   validateRequest({ query: clientQuerySchema }),
   asyncHandler(OrdersController.getAllClients),
 );
@@ -130,7 +133,7 @@ router.post(
 /** GET /api/v1/orders/clients/:id */
 router.get(
   '/clients/:id',
-  authorize(...ALL_ROLES),
+  authorize(...CLIENT_READ_ROLES),
   validateRequest({ params: clientIdParamSchema }),
   asyncHandler(OrdersController.getClientById),
 );
@@ -164,7 +167,7 @@ router.patch(
 /** GET /api/v1/orders/client-orders */
 router.get(
   '/client-orders',
-  authorize(...ALL_ROLES),
+  authorize(...CLIENT_READ_ROLES),
   validateRequest({ query: clientOrderQuerySchema }),
   asyncHandler(OrdersController.getAllClientOrders),
 );
@@ -180,7 +183,7 @@ router.post(
 /** GET /api/v1/orders/client-orders/:id */
 router.get(
   '/client-orders/:id',
-  authorize(...ALL_ROLES),
+  authorize(...CLIENT_READ_ROLES),
   validateRequest({ params: clientOrderIdParamSchema }),
   asyncHandler(OrdersController.getClientOrderById),
 );

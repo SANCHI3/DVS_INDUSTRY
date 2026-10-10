@@ -1,4 +1,6 @@
 import type { Request, Response } from 'express';
+import { ForbiddenError } from '../errors';
+import { ROLES } from '../constants';
 import type { AuthenticatedRequest } from '../types';
 import { SecurityService } from '../services/security.service';
 import { sendSuccess, sendCreated, sendNoContent } from '../utils/response';
@@ -12,8 +14,6 @@ import type {
   CreateAlertInput,
   UpdateAlertInput,
   AlertQueryInput,
-  AcknowledgeAlertInput,
-  ResolveAlertInput,
   SecurityKpiQueryInput,
   IncidentAiSummaryInput,
 } from '../validators/security.validator';
@@ -36,6 +36,16 @@ function parseId(raw: string | string[] | undefined): number {
   return parseInt(String(raw ?? '0'), 10);
 }
 
+/** Actor fields always come from the authenticated account, never the body. */
+function actorOf(req: AuthenticatedRequest): { id: number | null; name: string | null } {
+  return { id: req.user?.id ?? null, name: req.user?.fullName ?? null };
+}
+
+// Roles allowed to create incidents with a caller-chosen external number. The
+// number doubles as an idempotency key, so a matching existing incident is
+// returned — which must not become a read path for roles without SEC_READ.
+const EXTERNAL_ID_ROLES: readonly string[] = [ROLES.ADMIN, ROLES.PERCEPTION_SERVICE];
+
 // ══ KPIs ══════════════════════════════════════════════════════════════════════
 
 export async function getKPIs(req: Request, res: Response): Promise<void> {
@@ -47,6 +57,10 @@ export async function getKPIs(req: Request, res: Response): Promise<void> {
 
 export async function createIncident(req: AuthenticatedRequest, res: Response): Promise<void> {
   const body = req.body as CreateIncidentInput;
+  if (body.incident_id !== undefined && !EXTERNAL_ID_ROLES.includes(req.user?.role ?? '')) {
+    throw new ForbiddenError('Only the perception service or an admin may set incident_id');
+  }
+  const actor = actorOf(req);
   const data: CreateIncidentData = {
     incidentNumber: body.incident_id,
     title: body.title,
@@ -58,8 +72,8 @@ export async function createIncident(req: AuthenticatedRequest, res: Response): 
     location: body.location ?? null,
     departmentId: body.departmentId ?? null,
     departmentName: body.departmentName ?? null,
-    reportedById: body.reportedById ?? req.user?.id ?? null,
-    reportedByName: body.reportedByName ?? null,
+    reportedById: actor.id,
+    reportedByName: actor.name ?? body.reportedByName ?? null,
     assignedToId: body.assignedToId ?? null,
     assignedToName: body.assignedToName ?? null,
     occurredAt: body.occurredAt,
@@ -147,8 +161,8 @@ export async function transitionStatus(req: AuthenticatedRequest, res: Response)
     id,
     body.status as IncidentStatus,
     body.comment ?? null,
-    body.updatedById ?? req.user?.id ?? null,
-    body.updatedByName ?? null,
+    actorOf(req).id,
+    actorOf(req).name,
     body.rootCause ?? null,
     body.correctiveAction ?? null,
   );
@@ -179,8 +193,8 @@ export async function addIncidentUpdate(req: AuthenticatedRequest, res: Response
   const update = await svc.addUpdate(incidentId, {
     comment: body.comment,
     statusChange: (body.statusChange ?? null) as IncidentStatus | null,
-    updatedById: body.updatedById ?? req.user?.id ?? null,
-    updatedByName: body.updatedByName ?? null,
+    updatedById: actorOf(req).id,
+    updatedByName: actorOf(req).name,
   });
   sendCreated(res, update, 'Incident update added');
 }
@@ -212,7 +226,7 @@ export async function createAlert(req: AuthenticatedRequest, res: Response): Pro
     departmentName: body.departmentName ?? null,
     incidentId: body.incidentId ?? null,
     expiresAt: body.expiresAt ?? null,
-    createdById: body.createdById ?? req.user?.id ?? null,
+    createdById: actorOf(req).id,
   };
   sendCreated(res, await svc.createAlert(data), 'Security alert created successfully');
 }
@@ -269,20 +283,18 @@ export async function updateAlert(req: Request, res: Response): Promise<void> {
 
 export async function acknowledgeAlert(req: AuthenticatedRequest, res: Response): Promise<void> {
   const id = parseId(req.params['id']);
-  const body = req.body as AcknowledgeAlertInput;
   const alert = await svc.acknowledgeAlert(id, {
-    acknowledgedById: body.acknowledgedById ?? req.user?.id ?? null,
-    acknowledgedByName: body.acknowledgedByName ?? null,
+    acknowledgedById: actorOf(req).id,
+    acknowledgedByName: actorOf(req).name,
   });
   sendSuccess(res, alert, 200, 'Alert acknowledged');
 }
 
 export async function resolveAlert(req: AuthenticatedRequest, res: Response): Promise<void> {
   const id = parseId(req.params['id']);
-  const body = req.body as ResolveAlertInput;
   const alert = await svc.resolveAlert(id, {
-    resolvedById: body.resolvedById ?? req.user?.id ?? null,
-    resolvedByName: body.resolvedByName ?? null,
+    resolvedById: actorOf(req).id,
+    resolvedByName: actorOf(req).name,
   });
   sendSuccess(res, alert, 200, 'Alert resolved');
 }

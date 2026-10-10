@@ -37,8 +37,11 @@ const ALL_ROLES = [
   ROLES.SALES,
 ] as const;
 const SEC_READ = [ROLES.ADMIN, ROLES.MANAGER, ROLES.PRODUCTION] as const;
-const SEC_WRITE = [ROLES.ADMIN, ROLES.MANAGER, ROLES.PERCEPTION_SERVICE] as const;
+const SEC_WRITE = [ROLES.ADMIN, ROLES.MANAGER] as const;
 const SEC_MANAGE = [ROLES.ADMIN] as const;
+// The perception service may only report incidents and attach AI summaries.
+const INCIDENT_REPORTERS = [...ALL_ROLES, ROLES.PERCEPTION_SERVICE] as const;
+const AI_SUMMARY_WRITERS = [...SEC_WRITE, ROLES.PERCEPTION_SERVICE] as const;
 
 // ════════════════════════════════════════════════════════════════
 // KPIs (before parameterised routes)
@@ -65,11 +68,11 @@ router.get(
  * PATCH /api/v1/security/incidents/ai-summary
  * Update an existing incident summary using its external incident number.
  * Body: { incident_id, summary }
- * Access: ADMIN, MANAGER
+ * Access: ADMIN, MANAGER, PERCEPTION_SERVICE
  */
 router.patch(
   '/incidents/ai-summary',
-  authorize(...SEC_WRITE),
+  authorize(...AI_SUMMARY_WRITERS),
   validateRequest({ body: incidentAiSummarySchema }),
   asyncHandler(SecurityController.updateIncidentAiSummary),
 );
@@ -90,11 +93,11 @@ router.get(
 /**
  * POST /api/v1/security/incidents
  * Report a new security incident (INC-NNNN auto-generated).
- * Access: All roles (anyone can report)
+ * Access: All internal roles + PERCEPTION_SERVICE
  */
 router.post(
   '/incidents',
-  authorize(...ALL_ROLES),
+  authorize(...INCIDENT_REPORTERS),
   validateRequest({ body: createIncidentSchema }),
   asyncHandler(SecurityController.createIncident),
 );

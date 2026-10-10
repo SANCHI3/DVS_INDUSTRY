@@ -1,11 +1,13 @@
 {
-  "name": "@figma/my-make-file",
+  "name": "dvs-industry-frontend",
   "private": true,
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "dev": "vite",
     "build": "vite build",
-    "dev": "vite"
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -73,6 +75,7 @@
     "@tailwindcss/vite": "4.1.12",
     "@vitejs/plugin-react": "4.7.0",
     "tailwindcss": "4.1.12",
+    "typescript": "5.8.3",
     "vite": "^6.4.3"
   },
   "peerDependencies": {

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import subprocess
 import sys
+import threading
 import urllib.request
 import uuid
 from datetime import datetime, timezone
@@ -56,7 +58,13 @@ class IncidentReporter:
         output_path: str,
         camera_locations: dict,
         backend_url: Optional[str] = None,
+        background: bool = False,
     ):
+        """
+        background=True moves every network call (legacy POST, dashboard
+        create, LLM enrichment) onto a single worker thread, so a slow backend
+        or LLM never stalls the video loop. Call close() on shutdown to drain.
+        """
         self.output_path = output_path
         self.camera_locations = camera_locations
         self.backend_url = backend_url.rstrip("/") if backend_url else None
@@ -73,6 +81,59 @@ class IncidentReporter:
             os.path.dirname(output_path) or ".",
             exist_ok=True,
         )
+
+        # Dashboard creates that failed (backend down, network error) are kept
+        # here and retried before the next create, so incidents are not lost.
+        self.outbox_path = os.path.join(
+            os.path.dirname(output_path) or ".",
+            "dashboard_outbox.jsonl",
+        )
+        self.summaries_path = os.path.join(
+            os.path.dirname(output_path) or ".",
+            "llm_summaries.jsonl",
+        )
+
+        self._queue: Optional[queue.Queue] = None
+        self._worker: Optional[threading.Thread] = None
+        if background:
+            self._queue = queue.Queue()
+            self._worker = threading.Thread(
+                target=self._run_worker,
+                name="incident-reporter",
+                daemon=True,
+            )
+            self._worker.start()
+
+    # ── Background dispatch ──────────────────────────────────────────────────
+
+    def _dispatch(self, job) -> None:
+        if self._queue is None:
+            job()
+        else:
+            self._queue.put(job)
+
+    def _run_worker(self) -> None:
+        assert self._queue is not None
+        while True:
+            job = self._queue.get()
+            try:
+                if job is None:
+                    return
+                job()
+            except Exception as exc:  # never let one job kill the worker
+                print(f"[reporter] background job failed: {type(exc).__name__}: {exc}")
+            finally:
+                self._queue.task_done()
+
+    def close(self, timeout: float = 120.0) -> None:
+        """Finish queued dashboard/LLM work, then stop the worker."""
+
+        if self._queue is None or self._worker is None:
+            return
+        self._queue.put(None)
+        self._worker.join(timeout=timeout)
+        if self._worker.is_alive():
+            print("[reporter] shutdown timed out; pending work stays in the outbox")
 
     def build_and_save(
         self,
@@ -133,8 +194,16 @@ class IncidentReporter:
             mode="json",
         )
 
-        # Save first. LLM failure must not discard the incident.
-        self.save(report)
+        # Save locally first. Network/LLM failures must not discard the incident.
+        self._append_local(report)
+        self._dispatch(lambda: self._publish(report))
+        return report
+
+    def _publish(self, report: dict) -> None:
+        """Forward a saved incident: legacy API, dashboard, then LLM enrichment."""
+
+        if self.backend_url:
+            self._send_json("/api/incidents", report, "POST")
 
         # Enrich confirmed incidents only. Never use latest_record() here.
         production_llm_events = {"fight", "crowd", "fire", "smoke"}
@@ -159,8 +228,6 @@ class IncidentReporter:
                 f"{report['incident_id']}"
             )
 
-        return report
-
     def _create_dashboard_incident(self, report: dict) -> None:
         """Create the dashboard incident before LLM enrichment starts."""
 
@@ -180,17 +247,84 @@ class IncidentReporter:
             "occurredAt": report["detected_at"],
             "reportedByName": "Perception Service",
         }
+        self._flush_outbox()
         try:
-            self.dashboard_client.request(
-                "/api/v1/security/incidents",
-                payload,
-                "POST",
-            )
+            self._post_dashboard_incident(payload)
         except DashboardClientError as exc:
-            print(
-                "[reporter] dashboard incident creation failed: "
-                f"{exc}"
-            )
+            if exc.retryable:
+                self._append_outbox(payload)
+                print(
+                    "[reporter] dashboard incident creation failed: "
+                    f"{exc}; queued for retry"
+                )
+            else:
+                print(
+                    "[reporter] dashboard incident creation failed: "
+                    f"{exc}"
+                )
+
+    def _post_dashboard_incident(self, payload: dict) -> None:
+        self.dashboard_client.request(
+            "/api/v1/security/incidents",
+            payload,
+            "POST",
+        )
+
+    # ── Outbox (durable retry for dashboard creates) ─────────────────────────
+
+    def _append_outbox(self, payload: dict) -> None:
+        with open(self.outbox_path, "a", encoding="utf-8") as file:
+            file.write(json.dumps(payload, ensure_ascii=False) + "\n")
+
+    def _local_summary(self, incident_id: str) -> Optional[str]:
+        """LLM summary saved locally while the dashboard was unreachable."""
+
+        if not os.path.exists(self.summaries_path):
+            return None
+        summary = None
+        with open(self.summaries_path, encoding="utf-8") as file:
+            for line in file:
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if row.get("incident_id") == incident_id:
+                    analysis = row.get("llm_analysis") or {}
+                    summary = analysis.get("summary") or summary
+        return summary
+
+    def _flush_outbox(self) -> None:
+        """Retry queued creates. The backend dedupes on incident_id, so a
+        create that actually succeeded before a timeout is harmless to resend."""
+
+        if not os.path.exists(self.outbox_path):
+            return
+        with open(self.outbox_path, encoding="utf-8") as file:
+            pending = [json.loads(line) for line in file if line.strip()]
+
+        remaining = []
+        for index, payload in enumerate(pending):
+            summary = self._local_summary(payload.get("incident_id", ""))
+            if summary:
+                payload = {**payload, "summary": summary[:1000]}
+            try:
+                self._post_dashboard_incident(payload)
+                print(f"[reporter] delivered queued incident {payload.get('incident_id')}")
+            except DashboardClientError as exc:
+                if not exc.retryable and exc.status_code is not None:
+                    # The backend rejected this payload (4xx); resending won't help
+                    print(f"[reporter] dropping undeliverable incident {payload.get('incident_id')}: {exc}")
+                    continue
+                # Backend unavailable or client not configured: keep this and
+                # everything after it for the next attempt
+                remaining = pending[index:]
+                break
+
+        temporary = self.outbox_path + ".tmp"
+        with open(temporary, "w", encoding="utf-8") as file:
+            for payload in remaining:
+                file.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        os.replace(temporary, self.outbox_path)
 
     def _trigger_llm_enrichment(self, incident_id: str) -> None:
         """Run the existing exact-ID LLM enrichment module."""
@@ -253,6 +387,15 @@ class IncidentReporter:
     def save(self, report: dict) -> None:
         """Append the incident locally and optionally POST it to the backend."""
 
+        self._append_local(report)
+        if self.backend_url:
+            self._send_json(
+                "/api/incidents",
+                report,
+                "POST",
+            )
+
+    def _append_local(self, report: dict) -> None:
         with open(
             self.output_path,
             "a",
@@ -264,13 +407,6 @@ class IncidentReporter:
                     ensure_ascii=False,
                 )
                 + "\n"
-            )
-
-        if self.backend_url:
-            self._send_json(
-                "/api/incidents",
-                report,
-                "POST",
             )
 
     def _send_json(
@@ -291,6 +427,8 @@ class IncidentReporter:
             data=body,
             headers={
                 "Content-Type": "application/json",
+                # Required by backend/api.py; never logged
+                "X-API-Key": os.getenv("INCIDENT_API_KEY", ""),
             },
             method=method,
         )

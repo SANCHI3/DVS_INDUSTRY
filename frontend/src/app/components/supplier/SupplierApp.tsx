@@ -11,6 +11,7 @@ import { AppShell } from "../shared/AppShell";
 import { PageHeader, KPICard, Card, CardHeader, StatusBadge, Btn, DataTable, TabBar } from "../shared/UI";
 
 import { getUser } from "../../../lib/auth";
+import { isApiError } from "../../../lib/api";
 import {
   getPurchaseOrders,
   getSuppliers,
@@ -278,8 +279,12 @@ export function SupplierApp({ onLogout }: { onLogout: () => void }) {
         loading: false,
         error: profile ? null : "No supplier record matches the authenticated user's email.",
       });
-    }).catch(() => {
-      if (!cancelled) setData({ profile: null, purchaseOrders: [], loading: false, error: "Supplier data could not be loaded." });
+    }).catch((err: unknown) => {
+      // The API answers 404 when no supplier record is linked to this login
+      const error = isApiError(err) && err.status === 404
+        ? "No supplier record matches the authenticated user's email."
+        : "Supplier data could not be loaded.";
+      if (!cancelled) setData({ profile: null, purchaseOrders: [], loading: false, error });
     });
 
     return () => { cancelled = true; };
@@ -294,7 +299,7 @@ export function SupplierApp({ onLogout }: { onLogout: () => void }) {
       case "communication": return <Communication />;
       case "performance": return <SupplierPerformance data={data} />;
       case "reports": return <SupplierReports />;
-      default: return <SupplierDashboard onNavigate={setSection} />;
+      default: return <SupplierDashboard onNavigate={setSection} data={data} />;
     }
   };
 

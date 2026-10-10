@@ -22,6 +22,7 @@ vi.mock('../../config/env', () => ({
 
 vi.mock('../../lib/prismaClient', () => ({
   prisma: {
+    user: { findUnique: vi.fn() },
     workOrder: {
       findFirst: vi.fn(),
       create: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock('../../lib/prismaClient', () => ({
         .fn()
         .mockResolvedValue({ _sum: { goodQty: null, rejectedQty: null, scrapQty: null } }),
     },
+    $queryRawUnsafe: vi.fn().mockResolvedValue([{ max: null }]),
     $transaction: vi.fn((arg: unknown) => {
       if (Array.isArray(arg)) return Promise.all(arg as Promise<unknown>[]);
       if (typeof arg === 'function') return arg({});
@@ -77,6 +79,12 @@ vi.mock('../../utils/token', () => ({
 
 import { prisma } from '../../lib/prismaClient';
 import { verifyAccessToken } from '../../utils/token';
+import { mirrorTokenUser } from '../helpers/app';
+
+mirrorTokenUser(
+  prisma.user.findUnique as ReturnType<typeof vi.fn>,
+  verifyAccessToken as unknown as ReturnType<typeof vi.fn>,
+);
 
 const makeWO = (status = 'RELEASED') => ({
   id: 1,

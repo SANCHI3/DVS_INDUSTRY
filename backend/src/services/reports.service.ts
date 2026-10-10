@@ -69,6 +69,9 @@ export class ReportsService {
       woOverdue,
       woOutputAgg,
       woTargetAgg,
+      activeAlerts,
+      criticalAlerts,
+      criticalIncidents,
     ] = await prisma.$transaction([
       prisma.employee.count({ where: { deletedAt: null } }),
       prisma.employee.count({ where: { deletedAt: null, status: 'ACTIVE' } }),
@@ -115,6 +118,12 @@ export class ReportsService {
       prisma.workOrder.aggregate({
         where: { deletedAt: null, createdAt: { gte: startOfMonth() } },
         _sum: { targetQuantity: true },
+      }),
+      // Security
+      prisma.securityAlert.count({ where: { status: 'ACTIVE' } }),
+      prisma.securityAlert.count({ where: { status: 'ACTIVE', severity: 'CRITICAL' } }),
+      prisma.securityIncident.count({
+        where: { deletedAt: null, severity: 'CRITICAL', status: { in: ['OPEN', 'INVESTIGATING'] } },
       }),
     ]);
 
@@ -187,6 +196,9 @@ export class ReportsService {
       productionCompletionRate: prodRate,
       totalDepartments: totalDepts,
       activeDepartments: activeDepts,
+      activeAlerts,
+      criticalAlerts,
+      criticalIncidents,
     };
   }
 

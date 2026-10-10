@@ -19,11 +19,13 @@ def main():
     parser.add_argument("--split", default="test", choices=["train", "val", "test"])
     parser.add_argument("--output", default="output/rgb_fight_test_scores.csv")
     parser.add_argument("--threshold", type=float, default=None)
+    parser.add_argument("--data-root", default=None,
+                        help="folder with fight/ and not_fight/, used if manifest paths moved")
     args = parser.parse_args()
 
     classifier = RgbFightClassifier(args.checkpoint)
     threshold = classifier.threshold if args.threshold is None else args.threshold
-    records = [r for r in load_manifest(args.manifest) if r.split == args.split]
+    records = [r for r in load_manifest(args.manifest, args.data_root) if r.split == args.split]
     rows = []
     tp = fp = fn = tn = 0
     for index, record in enumerate(records, 1):

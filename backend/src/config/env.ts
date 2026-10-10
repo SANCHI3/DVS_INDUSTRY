@@ -27,6 +27,25 @@ const envSchema = z.object({
   // CORS — comma-separated list of allowed origins
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
 
+  // Reverse proxy — number of trusted hops in front of the app (nginx = 1).
+  // Required so req.ip and the rate limiter see the real client address.
+  TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
+
+  // Public URL of the frontend, used to build password-reset links
+  APP_URL: z.string().url().default('http://localhost:5173'),
+
+  // Outgoing mail (password reset). When SMTP_HOST is unset, reset links are
+  // logged in development and an error is logged in production.
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  MAIL_FROM: z.string().default('DVS Industries <no-reply@dvsindustry.com>'),
+
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'debug']).default('info'),
 

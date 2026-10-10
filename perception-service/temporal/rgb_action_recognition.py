@@ -1,13 +1,28 @@
 """Gated live RGB fight detection using the trained R3D-18 classifier."""
 from __future__ import annotations
 
+import bisect
 import time
 from collections import deque
+
+import cv2
 
 from rgb_fight_model.infer import RgbFightClassifier
 from temporal.motion_gate import MotionOfInterestGate
 from temporal.rule_engine import EventCandidate
 from temporal.temporal_buffer import TemporalBuffer
+
+
+def sample_by_time(times, frames, start: float, fps: float, count: int):
+    """Pick `count` frames nearest to start, start + 1/fps, ... (times ascending)."""
+    picked = []
+    for i in range(count):
+        target = start + i / fps
+        j = bisect.bisect_left(times, target)
+        if j == len(times) or (j > 0 and target - times[j - 1] <= times[j] - target):
+            j -= 1
+        picked.append(frames[max(j, 0)])
+    return picked
 
 
 class RgbFightDetector:
@@ -28,7 +43,15 @@ class RgbFightDetector:
             proximity_px=cfg["gate"]["proximity_px"],
             velocity_threshold_px_s=cfg["gate"]["velocity_threshold_px_s"],
         )
-        self.frames = deque(maxlen=self.clip_frames)
+        # Checkpoints trained with real-time sampling (clip_fps) get clips
+        # rebuilt from timestamps, so a live clip spans the same duration the
+        # model saw in training even when processing speed differs. Legacy
+        # checkpoints keep using the last `clip_frames` processed frames.
+        clip_fps = rgb_cfg.get("clip_fps", self.classifier.clip_fps)
+        self.clip_fps = float(clip_fps) if clip_fps else None
+        self.clip_seconds = (self.clip_frames - 1) / self.clip_fps if self.clip_fps else None
+        self.frames = deque(maxlen=self.clip_frames if self.clip_fps is None else 512)
+        self.frame_times: deque = deque(maxlen=self.frames.maxlen)
         self.gate_active_until = 0.0
         self.last_track_ids = []
         self.cycles = 0
@@ -48,8 +71,8 @@ class RgbFightDetector:
             return []
         # Buffer every processed frame. When the cheap gate opens, the clip
         # therefore includes the lead-in immediately before the interaction.
-        self.frames.append(frame.copy())
         now = time.time()
+        self._buffer_frame(frame, now)
         pairs = self.gate.find_candidate_pairs(buffer)
         if pairs:
             self.gate_active_until = now + self.gate_hold_seconds
@@ -57,12 +80,13 @@ class RgbFightDetector:
         if not pairs and now > self.gate_active_until:
             return []
         self._stats["gate_open"] += 1
-        if len(self.frames) < self.clip_frames:
+        clip = self._current_clip(now)
+        if clip is None:
             return []
         if self.cycles - self.last_evaluated_cycle < self.evaluation_stride:
             return []
         self.last_evaluated_cycle = self.cycles
-        score = self.classifier.score_clip(self.frames, input_bgr=True)
+        score = self.classifier.score_clip(clip, input_bgr=True)
         self._stats["scored"] += 1
         self._stats["max_score"] = max(self._stats["max_score"], score)
         high_score = score >= self.confirmed_threshold
@@ -93,6 +117,43 @@ class RgbFightDetector:
                     "clip_frames": self.clip_frames},
             raw_confidence=score,
         )]
+
+    def _buffer_frame(self, frame, now: float) -> None:
+        if self.clip_fps is None:
+            self.frames.append(frame.copy())
+            self.frame_times.append(now)
+            return
+        # Store frames already at the model's input scale (short side 128):
+        # a time-based buffer holds more frames, and full-resolution copies
+        # would cost hundreds of MB.
+        h, w = frame.shape[:2]
+        scale = 128.0 / max(min(h, w), 1)
+        if scale < 1.0:
+            frame = cv2.resize(frame, (max(128, round(w * scale)), max(128, round(h * scale))),
+                               interpolation=cv2.INTER_AREA)
+        else:
+            frame = frame.copy()
+        self.frames.append(frame)
+        self.frame_times.append(now)
+        # Keep only what one clip (plus a little slack) needs
+        horizon = now - (self.clip_seconds or 0.0) - 1.0
+        while self.frame_times and self.frame_times[0] < horizon:
+            self.frame_times.popleft()
+            self.frames.popleft()
+
+    def _current_clip(self, now: float):
+        """Frames for one model clip, or None if not enough history yet."""
+        if self.clip_fps is None:
+            return list(self.frames) if len(self.frames) >= self.clip_frames else None
+        if not self.frame_times:
+            return None
+        end = self.frame_times[-1]
+        start = end - self.clip_seconds
+        # Need history covering (almost) the full clip duration
+        if self.frame_times[0] > start + 0.5 / self.clip_fps:
+            return None
+        return sample_by_time(list(self.frame_times), list(self.frames),
+                              start, self.clip_fps, self.clip_frames)
 
     def diagnostics(self):
         return dict(self._stats, buffered_frames=len(self.frames),

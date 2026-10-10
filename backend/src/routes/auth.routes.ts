@@ -3,7 +3,6 @@ import { asyncHandler } from '../utils/asyncHandler';
 import { validateRequest } from '../middleware/validateRequest';
 import { authenticate } from '../middleware/authenticate';
 import { authorize } from '../middleware/authorize';
-import { auditLog } from '../middleware/auditLog';
 import * as AuthController from '../controllers/auth.controller';
 import {
   registerSchema,
@@ -22,12 +21,7 @@ const router = Router();
 // ── Public routes ─────────────────────────────────────────────────────────────
 
 /** POST /api/v1/auth/login */
-router.post(
-  '/login',
-  auditLog,
-  validateRequest({ body: loginSchema }),
-  asyncHandler(AuthController.login),
-);
+router.post('/login', validateRequest({ body: loginSchema }), asyncHandler(AuthController.login));
 
 /** POST /api/v1/auth/refresh */
 router.post('/refresh', asyncHandler(AuthController.refreshTokens));

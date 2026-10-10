@@ -41,6 +41,7 @@ vi.mock('../../lib/prismaClient', () => ({
     },
     employee: { findFirst: vi.fn(), findMany: vi.fn(), groupBy: vi.fn() },
     department: { findMany: vi.fn() },
+    $queryRawUnsafe: vi.fn().mockResolvedValue([{ max: null }]),
     $transaction: vi.fn((fns: unknown[]) => Promise.all(fns as Promise<unknown>[])),
   },
 }));

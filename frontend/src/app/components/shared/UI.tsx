@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react";
 import { ReactNode, useState } from "react";
 import { TrendingUp, TrendingDown, Minus, Search, X, Download, ChevronUp, ChevronDown, AlertCircle, RefreshCw, InboxIcon } from "lucide-react";
 
@@ -23,7 +24,7 @@ export function KPICard({
   sub?: string;
   trend?: string;
   trendDir?: "up" | "down" | "flat";
-  icon?: React.ComponentType<{ size?: number; color?: string }>;
+  icon?: LucideIcon;
   accent?: string;
 }) {
   const TrendIcon = trendDir === "up" ? TrendingUp : trendDir === "down" ? TrendingDown : Minus;

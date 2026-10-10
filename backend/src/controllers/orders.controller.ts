@@ -40,6 +40,16 @@ async function getRequestClient(req: AuthenticatedRequest) {
   return svc.getClientByEmail(req.user.email);
 }
 
+function isSupplierRequest(req: AuthenticatedRequest): boolean {
+  return req.user?.role === 'SUPPLIER';
+}
+
+async function getRequestSupplier(req: AuthenticatedRequest) {
+  if (req.user === undefined)
+    throw new ForbiddenError('Authenticated supplier context is required');
+  return svc.getSupplierByEmail(req.user.email);
+}
+
 async function assertClientOrderAccess(req: AuthenticatedRequest, id: number) {
   const order = await svc.getClientOrderById(id);
   if (!isClientRequest(req)) return order;
@@ -85,7 +95,19 @@ export async function createSupplier(req: Request, res: Response): Promise<void>
   sendCreated(res, supplier, 'Supplier created successfully');
 }
 
-export async function getAllSuppliers(req: Request, res: Response): Promise<void> {
+export async function getAllSuppliers(req: AuthenticatedRequest, res: Response): Promise<void> {
+  // Suppliers only ever see their own profile — never other vendors
+  if (isSupplierRequest(req)) {
+    const supplier = await getRequestSupplier(req);
+    sendSuccess(res, [supplier], 200, undefined, {
+      page: 1,
+      pageSize: 1,
+      total: 1,
+      totalPages: 1,
+    });
+    return;
+  }
+
   const q = req.query as unknown as SupplierQueryInput;
   const filters: SupplierFilters = {
     page: q.page,
@@ -107,8 +129,13 @@ export async function getAllSuppliers(req: Request, res: Response): Promise<void
   });
 }
 
-export async function getSupplierById(req: Request, res: Response): Promise<void> {
-  sendSuccess(res, await svc.getSupplierById(parseId(req.params['id'])));
+export async function getSupplierById(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const id = parseId(req.params['id']);
+  if (isSupplierRequest(req)) {
+    const supplier = await getRequestSupplier(req);
+    if (supplier.id !== id) throw new ForbiddenError('Access denied for this supplier profile');
+  }
+  sendSuccess(res, await svc.getSupplierById(id));
 }
 
 export async function updateSupplier(req: Request, res: Response): Promise<void> {
@@ -354,7 +381,10 @@ export async function createPurchaseOrder(req: AuthenticatedRequest, res: Respon
   sendCreated(res, po, 'Purchase order created successfully');
 }
 
-export async function getAllPurchaseOrders(req: Request, res: Response): Promise<void> {
+export async function getAllPurchaseOrders(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
   const q = req.query as unknown as PurchaseOrderQueryInput;
   const filters: PurchaseOrderFilters = {
     page: q.page,
@@ -364,6 +394,8 @@ export async function getAllPurchaseOrders(req: Request, res: Response): Promise
     status: q.status,
   };
   if (q.supplierId !== undefined) filters.supplierId = Number(q.supplierId);
+  // Suppliers are always restricted to their own purchase orders
+  if (isSupplierRequest(req)) filters.supplierId = (await getRequestSupplier(req)).id;
   if (q.search !== undefined) filters.search = q.search;
   if (q.fromDate !== undefined) filters.fromDate = q.fromDate;
   if (q.toDate !== undefined) filters.toDate = q.toDate;
@@ -379,8 +411,15 @@ export async function getAllPurchaseOrders(req: Request, res: Response): Promise
   });
 }
 
-export async function getPurchaseOrderById(req: Request, res: Response): Promise<void> {
-  sendSuccess(res, await svc.getPurchaseOrderById(parseId(req.params['id'])));
+export async function getPurchaseOrderById(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const po = await svc.getPurchaseOrderById(parseId(req.params['id']));
+  if (isSupplierRequest(req) && po.supplierId !== (await getRequestSupplier(req)).id) {
+    throw new ForbiddenError('Access denied for this purchase order');
+  }
+  sendSuccess(res, po);
 }
 
 export async function updatePurchaseOrder(req: Request, res: Response): Promise<void> {

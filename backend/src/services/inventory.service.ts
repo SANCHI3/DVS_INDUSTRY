@@ -114,25 +114,9 @@ export class InventoryService {
   // ══ STOCK TRANSACTIONS ════════════════════════════════════════════════════
 
   async adjustStock(data: StockAdjustmentData): Promise<StockTransactionDto> {
-    const material = await this.getByIdOrThrow(data.materialId);
-
-    if (material.deletedAt !== null) {
-      throw new BadRequestError('Cannot adjust stock of a deleted material');
-    }
-
-    // Rule 3 — OUT / SCRAP cannot exceed current stock
-    const currentStock = parseFloat(material.currentStock);
-    const qty = parseFloat(data.quantity);
-
-    if (
-      (data.type === 'OUT' || data.type === 'SCRAP' || data.type === 'RETURN') &&
-      qty > currentStock
-    ) {
-      throw new BadRequestError(
-        `Insufficient stock. Available: ${material.currentStock} ${material.unit}, Requested: ${data.quantity} ${material.unit}`,
-      );
-    }
-
+    // Existence, deletion and sufficient-stock checks happen inside the
+    // repository transaction while the material row is locked, so two
+    // concurrent withdrawals can never both pass a stale check.
     const txn = await this.repo.recordTransaction(data);
     logger.info('Stock transaction recorded', {
       materialId: data.materialId,
@@ -158,23 +142,8 @@ export class InventoryService {
    * Creates:  1 ScrapRecord  +  1 StockTransaction (type=SCRAP)
    */
   async recordScrap(data: CreateScrapRecordData): Promise<ScrapRecordDto> {
-    const material = await this.getByIdOrThrow(data.materialId);
-
-    if (material.deletedAt !== null) {
-      throw new BadRequestError('Cannot record scrap for a deleted material');
-    }
-
-    const qty = parseFloat(data.quantity);
-    const currentStock = parseFloat(material.currentStock);
-
-    if (qty > currentStock) {
-      throw new BadRequestError(
-        `Scrap quantity (${data.quantity}) exceeds current stock (${material.currentStock} ${material.unit})`,
-      );
-    }
-
-    // Deduct from stock via transaction
-    await this.repo.recordTransaction({
+    // Stock deduction and scrap record are written in one transaction
+    const scrap = await this.repo.recordScrapWithStock(data, {
       materialId: data.materialId,
       type: 'SCRAP',
       quantity: data.quantity,
@@ -184,9 +153,6 @@ export class InventoryService {
       performedById: data.employeeId ?? null,
       performedByName: data.employeeName ?? null,
     });
-
-    // Create scrap record
-    const scrap = await this.repo.createScrapRecord(data);
     logger.info('Scrap recorded', {
       materialId: data.materialId,
       qty: data.quantity,

@@ -155,6 +155,14 @@ export class OrdersService {
     return this.getClientOrThrow(id);
   }
 
+  async getSupplierByEmail(email: string): Promise<SupplierDto> {
+    const supplier = await this.repo.findSupplierByEmail(email);
+    if (supplier === null) {
+      throw new NotFoundError('No supplier profile is linked to this account');
+    }
+    return supplier;
+  }
+
   async getClientByEmail(email: string): Promise<ClientDto> {
     const client = await this.repo.findClientByEmail(email);
     if (client === null) throw new NotFoundError('No client profile is linked to this account');

@@ -146,7 +146,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
     setLoading(true);
     try {
       await api.post("/auth/forgot-password", { email });
-      setSuccess(`Password reset link sent to ${email}. Please check your inbox.`);
+      setSuccess(`If ${email} is registered, a reset link has been sent. It expires in 15 minutes.`);
     } catch {
       // Always show success for security (don't reveal whether email exists)
       setSuccess(`If ${email} is registered, a reset link has been sent.`);
@@ -403,28 +403,6 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
 
               {/* Fields */}
               {mode !== "signup" && <div className="flex flex-col gap-3.5">
-                {mode === "signup" && (
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.35rem" }}>Full Name *</label>
-                    <div className="relative">
-                      <User size={14} color="#B0A0A0" style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)" }} />
-                      <input type="text" placeholder="Enter your full name" value={name} onChange={(e) => setName(e.target.value)} style={inputBase} onFocus={handleFocus} onBlur={handleBlur} />
-                    </div>
-                  </div>
-                )}
-
-                {mode === "signup" && (selectedRole === "supplier" || selectedRole === "client") && (
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.35rem" }}>
-                      {selectedRole === "supplier" ? "Company Name *" : "Organization Name *"}
-                    </label>
-                    <div className="relative">
-                      <Building2 size={14} color="#B0A0A0" style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)" }} />
-                      <input type="text" placeholder="Company / organization name" value={company} onChange={(e) => setCompany(e.target.value)} style={{ ...inputBase }} onFocus={handleFocus} onBlur={handleBlur} />
-                    </div>
-                  </div>
-                )}
-
                 <div>
                   <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.35rem" }}>Email Address *</label>
                   <div className="relative">
@@ -451,31 +429,9 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                         {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                       </button>
                     </div>
-                    {mode === "signup" && <PasswordStrengthBar password={password} />}
                   </div>
                 )}
 
-                {mode === "signup" && (
-                  <div>
-                    <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.35rem" }}>Confirm Password *</label>
-                    <div className="relative">
-                      <Lock size={14} color="#B0A0A0" style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)" }} />
-                      <input
-                        type={showConfirm ? "text" : "password"}
-                        placeholder="Re-enter password"
-                        value={confirmPw}
-                        onChange={(e) => setConfirmPw(e.target.value)}
-                        style={{ ...inputBase, paddingRight: "2.75rem", borderColor: confirmPw && confirmPw !== password ? "#C0392B" : "#D4BFBB" }}
-                        onFocus={handleFocus}
-                        onBlur={handleBlur}
-                      />
-                      <button type="button" onClick={() => setShowConfirm(!showConfirm)} style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#B0A0A0" }}>
-                        {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
-                      </button>
-                    </div>
-                    {confirmPw && confirmPw !== password && <p style={{ fontSize: "0.72rem", color: "#C0392B", marginTop: "0.25rem" }}>Passwords do not match</p>}
-                  </div>
-                )}
               </div>}
 
               {/* Forgot password link */}

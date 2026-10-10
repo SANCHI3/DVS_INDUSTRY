@@ -2,6 +2,8 @@
 
 Full-stack ERP system for DVS Industries manufacturing operations.
 
+For a complete newcomer handoff covering architecture, storage, workflows, setup, current progress, and remaining work, read [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md). Deployment notes are in [ops/README.md](ops/README.md).
+
 ---
 
 ## Architecture
@@ -58,7 +60,7 @@ Frontend (React + Vite)  →  Backend (Express + TypeScript)  →  PostgreSQL
 - React 18 + Vite + TypeScript
 - Tailwind CSS + Recharts
 - Axios with JWT interceptor + auto-refresh
-- All pages wired to real API with static fallbacks
+- Pages use the real API for persisted records; presentation-only empty states may appear when the database has no records
 
 **Database**
 - PostgreSQL 18.4 (local)

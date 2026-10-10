@@ -418,7 +418,7 @@ export function HomePage({ onNavigateToLogin }: HomePageProps) {
                 Serving automotive, pump and engineering industries with continuous improvement, quality manufacturing and customer-focused innovation since 2000.
               </p>
               <div className="grid grid-cols-2 gap-4">
-                {[["Plot B-166, MIDC Malegaon,\nSinnar, Nashik, Maharashtra", MapPin], ["GST: 27AADFD0230G1Z2\nISO 9001:2015 Certified", Award]].map(([text, Icon], i) => (
+                {([["Plot B-166, MIDC Malegaon,\nSinnar, Nashik, Maharashtra", MapPin], ["GST: 27AADFD0230G1Z2\nISO 9001:2015 Certified", Award]] as const).map(([text, Icon], i) => (
                   <div key={i} className="flex gap-3 p-4 rounded-xl" style={{ background: "#F9F6F5", border: "1px solid #E8E2E0" }}>
                     <Icon size={20} color="#A52A2A" className="flex-shrink-0 mt-0.5" />
                     <p style={{ fontSize: "0.8rem", color: "#4A4A4A", lineHeight: 1.6, whiteSpace: "pre-line" }}>{text}</p>

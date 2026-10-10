@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prismaClient';
+import { logger } from '../logger';
 import type {
   AuditLogDto,
   AuditLogListResult,
@@ -78,8 +79,13 @@ export class AuditRepository {
           userAgent: data.userAgent ?? null,
         },
       });
-    } catch {
-      // Intentionally swallow — audit failures must not break business logic
+    } catch (err) {
+      // Audit failures must not break business logic, but they must be visible
+      logger.warn('Failed to write audit log entry', {
+        action: data.action,
+        path: data.path,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

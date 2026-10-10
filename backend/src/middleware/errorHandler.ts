@@ -1,5 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import { Prisma } from '@prisma/client';
+import multer from 'multer';
 import { AppError, ValidationError } from '../errors';
 import { logger } from '../logger';
 import { env } from '../config/env';
@@ -48,6 +50,40 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     }
 
     res.status(err.statusCode).json(body);
+    return;
+  }
+
+  // ── Known database constraint errors ───────────────────────────
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    const mapped: Record<string, { status: number; code: string; message: string }> = {
+      P2002: {
+        status: 409,
+        code: 'CONFLICT',
+        message: 'A record with these values already exists',
+      },
+      P2003: {
+        status: 409,
+        code: 'CONFLICT',
+        message: 'This record is referenced by other records',
+      },
+      P2025: { status: 404, code: 'NOT_FOUND', message: 'Record not found' },
+    };
+    const known = mapped[err.code];
+    if (known !== undefined) {
+      res.status(known.status).json({
+        success: false,
+        error: { code: known.code, message: known.message },
+      });
+      return;
+    }
+  }
+
+  // ── Upload errors (file too large, unexpected field, …) ─────────
+  if (err instanceof multer.MulterError) {
+    res.status(HTTP_STATUS.BAD_REQUEST).json({
+      success: false,
+      error: { code: 'UPLOAD_ERROR', message: err.message },
+    });
     return;
   }
 

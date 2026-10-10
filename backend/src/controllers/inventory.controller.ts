@@ -118,8 +118,8 @@ export async function adjustStock(req: AuthenticatedRequest, res: Response): Pro
     quantity: body.quantity,
     referenceNo: body.referenceNo ?? null,
     reason: body.reason ?? null,
-    performedById: req.user?.id ?? body.performedById ?? null,
-    performedByName: body.performedByName ?? null,
+    performedById: req.user?.id ?? null,
+    performedByName: req.user?.fullName ?? body.performedByName ?? null,
     departmentId: body.departmentId ?? null,
     departmentName: body.departmentName ?? null,
   });

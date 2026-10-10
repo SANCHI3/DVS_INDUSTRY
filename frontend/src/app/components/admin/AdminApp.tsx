@@ -64,8 +64,8 @@ function SettingsPage() {
             {field("Company Name", company.name, (v) => setCompany((c) => ({ ...c, name: v })))}
             {field("GST Number", company.gst, (v) => setCompany((c) => ({ ...c, gst: v })))}
             {field("ISO Certification", company.iso, (v) => setCompany((c) => ({ ...c, iso: v })))}
-            {field("Contact Phone", company.phone, (v) => setCompany((c) => ({ ...c, phone: v }), "tel"))}
-            {field("Email", company.email, (v) => setCompany((c) => ({ ...c, email: v }), "email"))}
+            {field("Contact Phone", company.phone, (v) => setCompany((c) => ({ ...c, phone: v })), "tel")}
+            {field("Email", company.email, (v) => setCompany((c) => ({ ...c, email: v })), "email")}
             <div>
               <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 500, color: "#4A4A4A", marginBottom: "0.3rem" }}>Address</label>
               <textarea value={company.address} onChange={(e) => setCompany((c) => ({ ...c, address: e.target.value })) } rows={2}
@@ -81,11 +81,11 @@ function SettingsPage() {
         <Card>
           <CardHeader title="Production Targets" subtitle="Daily goals and thresholds" />
           <div className="p-5 flex flex-col gap-4">
-            {field("Daily Production Target (pcs)", prod.dailyTarget, (v) => setProd((p) => ({ ...p, dailyTarget: v }), "number"))}
-            {field("Scrap Threshold (%)", prod.scrapThreshold, (v) => setProd((p) => ({ ...p, scrapThreshold: v }), "number"))}
-            {field("Min Efficiency Target (%)", prod.efficiency, (v) => setProd((p) => ({ ...p, efficiency: v }), "number"))}
-            {field("Morning Shift Start", prod.shiftStart, (v) => setProd((p) => ({ ...p, shiftStart: v }), "time"))}
-            {field("Morning Shift End", prod.shiftEnd, (v) => setProd((p) => ({ ...p, shiftEnd: v }), "time"))}
+            {field("Daily Production Target (pcs)", prod.dailyTarget, (v) => setProd((p) => ({ ...p, dailyTarget: v })), "number")}
+            {field("Scrap Threshold (%)", prod.scrapThreshold, (v) => setProd((p) => ({ ...p, scrapThreshold: v })), "number")}
+            {field("Min Efficiency Target (%)", prod.efficiency, (v) => setProd((p) => ({ ...p, efficiency: v })), "number")}
+            {field("Morning Shift Start", prod.shiftStart, (v) => setProd((p) => ({ ...p, shiftStart: v })), "time")}
+            {field("Morning Shift End", prod.shiftEnd, (v) => setProd((p) => ({ ...p, shiftEnd: v })), "time")}
             <div className="p-3 rounded-lg" style={{ background: "#FFF8E1", border: "1px solid #FFE082" }}>
               <p style={{ fontSize: "0.75rem", color: "#E65100" }}>⚠ Changing production targets will recalculate all efficiency KPIs from today forward.</p>
             </div>

@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prismaClient';
+import { nextDocumentNumber, withUniqueNumberRetry } from '../utils/documentNumber';
 import type {
   WorkOrderDto,
   WorkOrderListResult,
@@ -178,48 +179,35 @@ function toOutputDto(r: PrismaOutput): WorkOrderOutputDto {
   };
 }
 
-/** Generate next WO number: WO-NNNN (4-padded, increments from max existing) */
-async function nextWorkOrderNumber(): Promise<string> {
-  const last = await prisma.workOrder.findFirst({
-    where: { workOrderNumber: { startsWith: 'WO-' } },
-    orderBy: { id: 'desc' },
-    select: { workOrderNumber: true },
-  });
-  let seq = 1;
-  if (last !== null) {
-    const n = parseInt(last.workOrderNumber.replace('WO-', ''), 10);
-    if (!isNaN(n)) seq = n + 1;
-  }
-  return `WO-${String(seq).padStart(4, '0')}`;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class ProductionRepository {
   // ══ WORK ORDERS ══════════════════════════════════════════════════════════
 
   async createWorkOrder(data: CreateWorkOrderData): Promise<WorkOrderDto> {
-    const workOrderNumber = await nextWorkOrderNumber();
-    const raw = await prisma.workOrder.create({
-      data: {
-        workOrderNumber,
-        product: data.product,
-        targetQuantity: data.targetQuantity,
-        unit: data.unit ?? 'pcs',
-        scheduledStart: data.scheduledStart ?? null,
-        scheduledEnd: data.scheduledEnd ?? null,
-        priority: data.priority ?? 'NORMAL',
-        departmentId: data.departmentId ?? null,
-        departmentName: data.departmentName ?? null,
-        assignedToId: data.assignedToId ?? null,
-        assignedToName: data.assignedToName ?? null,
-        clientOrderId: data.clientOrderId ?? null,
-        notes: data.notes ?? null,
-        createdById: data.createdById ?? null,
-      },
-      select: workOrderSelect,
+    return withUniqueNumberRetry(async () => {
+      const workOrderNumber = await nextDocumentNumber('workOrder', 'WO-', { pad: 4 });
+      const raw = await prisma.workOrder.create({
+        data: {
+          workOrderNumber,
+          product: data.product,
+          targetQuantity: data.targetQuantity,
+          unit: data.unit ?? 'pcs',
+          scheduledStart: data.scheduledStart ?? null,
+          scheduledEnd: data.scheduledEnd ?? null,
+          priority: data.priority ?? 'NORMAL',
+          departmentId: data.departmentId ?? null,
+          departmentName: data.departmentName ?? null,
+          assignedToId: data.assignedToId ?? null,
+          assignedToName: data.assignedToName ?? null,
+          clientOrderId: data.clientOrderId ?? null,
+          notes: data.notes ?? null,
+          createdById: data.createdById ?? null,
+        },
+        select: workOrderSelect,
+      });
+      return toWorkOrderDto(raw);
     });
-    return toWorkOrderDto(raw);
   }
 
   async updateWorkOrder(id: number, data: UpdateWorkOrderData): Promise<WorkOrderDto> {

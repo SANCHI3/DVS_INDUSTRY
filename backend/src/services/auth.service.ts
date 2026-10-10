@@ -1,6 +1,11 @@
 import bcrypt from 'bcrypt';
 import { env } from '../config/env';
-import { UserRepository, RoleRepository, RefreshTokenRepository } from '../repositories';
+import {
+  UserRepository,
+  RoleRepository,
+  RefreshTokenRepository,
+  PasswordResetTokenRepository,
+} from '../repositories';
 import type {
   UserDto,
   TokenPair,
@@ -24,26 +29,26 @@ import {
   generateJti,
   generateOpaqueToken,
 } from '../utils/token';
+import { sendPasswordResetEmail } from '../utils/mailer';
 import { logger } from '../logger';
 
-// In-memory store for password-reset tokens.
-// Production: replace with a DB table or Redis with TTL.
-interface PasswordResetEntry {
-  userId: number;
-  hashedToken: string;
-  expiresAt: Date;
-}
-const passwordResetStore = new Map<string, PasswordResetEntry>();
+const PASSWORD_RESET_TTL_MS = 15 * 60 * 1_000;
+
+// A real bcrypt hash of a random string, used to equalise login timing when
+// the email does not exist (a malformed hash makes bcrypt return instantly).
+const DUMMY_PASSWORD_HASH = '$2b$12$z93IcE2sHjxjwGNUV9laU.rGPXxyL58lr2Dz6fcyqj2nOPZ7x0oiG';
 
 export class AuthService {
   private readonly userRepo: UserRepository;
   private readonly roleRepo: RoleRepository;
   private readonly refreshTokenRepo: RefreshTokenRepository;
+  private readonly resetTokenRepo: PasswordResetTokenRepository;
 
   constructor() {
     this.userRepo = new UserRepository();
     this.roleRepo = new RoleRepository();
     this.refreshTokenRepo = new RefreshTokenRepository();
+    this.resetTokenRepo = new PasswordResetTokenRepository();
   }
 
   // ── Register (Admin only) ─────────────────────────────────────────────────
@@ -72,9 +77,19 @@ export class AuthService {
     return this.userRepo.findEligibleEmployees();
   }
 
-  async updateUser(targetUserId: number, data: AdminUpdateUserData): Promise<UserDto> {
+  async updateUser(
+    adminId: number,
+    targetUserId: number,
+    data: AdminUpdateUserData,
+  ): Promise<UserDto> {
     const existing = await this.userRepo.findById(targetUserId);
     if (existing === null) throw new NotFoundError('User not found');
+
+    const roleChanged = data.roleId !== undefined && data.roleId !== existing.role.id;
+    if (roleChanged && adminId === targetUserId) {
+      // Prevents an admin from accidentally locking themselves out
+      throw new BadRequestError('You cannot change your own role');
+    }
 
     if (data.email !== undefined) {
       const account = await this.userRepo.findByEmail(data.email);
@@ -87,7 +102,13 @@ export class AuthService {
       throw new BadRequestError(`Role with id ${data.roleId} does not exist`);
     }
 
-    return this.userRepo.updateByAdmin(targetUserId, data);
+    const updated = await this.userRepo.updateByAdmin(targetUserId, data);
+
+    // A role change must not leave sessions running with the old privileges
+    if (roleChanged) {
+      await this.refreshTokenRepo.deleteAllByUserId(targetUserId);
+    }
+    return updated;
   }
 
   // ── Login ─────────────────────────────────────────────────────────────────
@@ -96,19 +117,20 @@ export class AuthService {
     const userWithPassword = await this.userRepo.findByEmail(email);
 
     if (userWithPassword === null) {
-      // Constant-time response — don't reveal whether email exists
-      await bcrypt.compare(password, '$2b$12$invalidhashfortimingattack00000');
+      // Equalise timing — don't reveal whether the email exists
+      await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
       throw new UnauthorizedError('Invalid email or password');
-    }
-
-    if (!userWithPassword.isActive) {
-      throw new ForbiddenError('Your account has been deactivated');
     }
 
     const isPasswordValid = await bcrypt.compare(password, userWithPassword.password);
 
     if (!isPasswordValid) {
       throw new UnauthorizedError('Invalid email or password');
+    }
+
+    // Only reveal the account status to someone who knows the password
+    if (!userWithPassword.isActive) {
+      throw new ForbiddenError('Your account has been deactivated');
     }
 
     await this.userRepo.updateLastLogin(userWithPassword.id);
@@ -197,60 +219,43 @@ export class AuthService {
 
   // ── Forgot Password ───────────────────────────────────────────────────────
 
-  async forgotPassword(email: string): Promise<{ resetToken: string; user: UserDto }> {
+  async forgotPassword(email: string): Promise<void> {
     const user = await this.userRepo.findByEmail(email);
 
-    // Always respond the same way — don't reveal if email exists
-    if (user === null) {
-      logger.info('Forgot password requested for non-existent email', {
-        email,
-      });
-      // Return a fake token so the response timing is consistent
-      return {
-        resetToken: generateOpaqueToken(),
-        user: {} as UserDto,
-      };
+    // Respond identically either way — don't reveal whether the email exists
+    if (user === null || !user.isActive) {
+      logger.info('Forgot password requested for unknown or inactive account');
+      return;
     }
 
     const rawToken = generateOpaqueToken();
-    // Hash before storing (opaque tokens are bearer credentials)
-    const { createHash } = await import('crypto');
-    const hashedToken = createHash('sha256').update(rawToken).digest('hex');
+    await this.resetTokenRepo.replaceForUser(
+      user.id,
+      rawToken,
+      new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+    );
 
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1_000); // 15 min
+    const resetUrl = `${env.APP_URL.replace(/\/$/, '')}/?resetToken=${rawToken}`;
+    await sendPasswordResetEmail(user.email, resetUrl);
+    logger.info('Password reset token issued', { userId: user.id });
 
-    passwordResetStore.set(hashedToken, {
-      userId: user.id,
-      hashedToken,
-      expiresAt,
-    });
-
-    // TODO: send rawToken via email — integrate email provider here
-    logger.info('Password reset token generated', { userId: user.id });
-
-    return { resetToken: rawToken, user };
+    // Opportunistic cleanup of stale tokens
+    void this.resetTokenRepo.deleteExpired().catch(() => undefined);
   }
 
   // ── Reset Password ────────────────────────────────────────────────────────
 
   async resetPassword(rawToken: string, newPassword: string): Promise<void> {
-    const { createHash } = await import('crypto');
-    const hashedToken = createHash('sha256').update(rawToken).digest('hex');
-
-    const entry = passwordResetStore.get(hashedToken);
-    if (entry === undefined || entry.expiresAt < new Date()) {
-      passwordResetStore.delete(hashedToken);
+    const userId = await this.resetTokenRepo.consume(rawToken);
+    if (userId === null) {
       throw new BadRequestError('Password reset token is invalid or has expired');
     }
 
     const hashed = await bcrypt.hash(newPassword, env.BCRYPT_SALT_ROUNDS);
-    await this.userRepo.updatePassword(entry.userId, hashed);
-
-    // One-time use
-    passwordResetStore.delete(hashedToken);
+    await this.userRepo.updatePassword(userId, hashed);
 
     // Revoke all sessions
-    await this.refreshTokenRepo.deleteAllByUserId(entry.userId);
+    await this.refreshTokenRepo.deleteAllByUserId(userId);
   }
 
   // ── Get Current User ──────────────────────────────────────────────────────

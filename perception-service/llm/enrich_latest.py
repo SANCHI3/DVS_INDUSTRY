@@ -19,4 +19,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    from env_loader import load_env
+
+    load_env()
     main()

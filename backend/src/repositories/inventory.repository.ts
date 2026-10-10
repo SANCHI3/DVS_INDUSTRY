@@ -1,4 +1,5 @@
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { NotFoundError, BadRequestError } from '../errors';
 import { prisma } from '../lib/prismaClient';
 import type {
   MaterialDto,
@@ -127,6 +128,77 @@ function toScrapDto(r: PrismaScrap): ScrapRecordDto {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// -- Stock movement helpers ---------------------------------------------------
+
+function scrapCreateData(data: CreateScrapRecordData): Prisma.ScrapRecordUncheckedCreateInput {
+  return {
+    materialId: data.materialId,
+    quantity: data.quantity,
+    unit: data.unit,
+    departmentId: data.departmentId ?? null,
+    departmentName: data.departmentName ?? null,
+    employeeId: data.employeeId ?? null,
+    employeeName: data.employeeName ?? null,
+    reason: data.reason ?? null,
+    recoveryValue: data.recoveryValue ?? null,
+    recordedAt: data.recordedAt ?? new Date(),
+  };
+}
+
+/** Signed change in stock for a movement. ADJUSTMENT quantities carry their own sign. */
+export function stockDelta(type: StockTransactionType, quantity: string): Prisma.Decimal {
+  const qty = new Prisma.Decimal(quantity);
+  if (type === 'IN' || type === 'ADJUSTMENT') return qty;
+  return qty.negated(); // OUT, SCRAP, RETURN (to supplier) deduct stock
+}
+
+async function applyStockMovement(tx: Prisma.TransactionClient, data: StockAdjustmentData) {
+  const rows = await tx.$queryRaw<{ currentStock: string; unit: string; deletedAt: Date | null }[]>`
+    SELECT "currentStock"::text AS "currentStock", "unit", "deletedAt"
+      FROM "Material"
+     WHERE "id" = ${data.materialId}
+       FOR UPDATE`;
+
+  const material = rows[0];
+  if (material === undefined) {
+    throw new NotFoundError(`Material with id ${data.materialId} not found`);
+  }
+  if (material.deletedAt !== null) {
+    throw new BadRequestError('Cannot adjust stock of a deleted material');
+  }
+
+  const delta = stockDelta(data.type, data.quantity);
+  const current = new Prisma.Decimal(material.currentStock);
+  const next = current.plus(delta);
+  if (next.isNegative()) {
+    throw new BadRequestError(
+      `Insufficient stock. Available: ${current.toString()} ${material.unit}, ` +
+        `requested change: ${delta.toString()} ${material.unit}`,
+    );
+  }
+
+  await tx.material.update({
+    where: { id: data.materialId },
+    data: { currentStock: next },
+  });
+
+  return tx.stockTransaction.create({
+    data: {
+      materialId: data.materialId,
+      type: data.type,
+      quantity: data.quantity,
+      balanceAfter: next,
+      referenceNo: data.referenceNo ?? null,
+      reason: data.reason ?? null,
+      performedById: data.performedById ?? null,
+      performedByName: data.performedByName ?? null,
+      departmentId: data.departmentId ?? null,
+      departmentName: data.departmentName ?? null,
+    },
+    select: transactionSelect,
+  });
+}
 
 export class InventoryRepository {
   // ══ MATERIALS ═══════════════════════════════════════════════════════════════
@@ -279,59 +351,28 @@ export class InventoryRepository {
 
   /**
    * Records a stock movement atomically:
-   *  1. Computes new stock level
-   *  2. Updates Material.currentStock
-   *  3. Inserts StockTransaction with balanceAfter snapshot
-   * All in a single DB transaction.
+   *  1. Locks the material row (SELECT ... FOR UPDATE) so concurrent movements
+   *     on the same material are serialised - no lost updates
+   *  2. Computes the new level with exact decimal arithmetic
+   *  3. Rejects movements that would take stock below zero
+   *  4. Updates Material.currentStock and inserts the StockTransaction
+   *     (and, for scrap, the ScrapRecord) in the same DB transaction
    */
   async recordTransaction(data: StockAdjustmentData): Promise<StockTransactionDto> {
-    const result = await prisma.$transaction(async (tx) => {
-      const material = await tx.material.findUnique({
-        where: { id: data.materialId },
-        select: { id: true, currentStock: true, minStockLevel: true },
-      });
+    const txn = await prisma.$transaction((tx) => applyStockMovement(tx, data));
+    return toTransactionDto(txn);
+  }
 
-      if (material === null) {
-        throw new Error(`Material ${data.materialId} not found`);
-      }
-
-      const qty = parseFloat(data.quantity);
-      const current = material.currentStock.toNumber();
-
-      // Direction logic
-      const isDeduction = data.type === 'OUT' || data.type === 'SCRAP' || data.type === 'RETURN';
-      const newStock = isDeduction ? Math.max(0, current - qty) : current + qty;
-
-      // ADJUSTMENT can go either way — treat negative quantity as reduction
-      const finalStock = data.type === 'ADJUSTMENT' ? Math.max(0, newStock) : newStock;
-
-      // Update stock
-      await tx.material.update({
-        where: { id: data.materialId },
-        data: { currentStock: finalStock.toString() },
-      });
-
-      // Create transaction record
-      const txn = await tx.stockTransaction.create({
-        data: {
-          materialId: data.materialId,
-          type: data.type,
-          quantity: data.quantity,
-          balanceAfter: finalStock.toString(),
-          referenceNo: data.referenceNo ?? null,
-          reason: data.reason ?? null,
-          performedById: data.performedById ?? null,
-          performedByName: data.performedByName ?? null,
-          departmentId: data.departmentId ?? null,
-          departmentName: data.departmentName ?? null,
-        },
-        select: transactionSelect,
-      });
-
-      return txn;
+  /** Deducts scrap from stock and records it, all-or-nothing. */
+  async recordScrapWithStock(
+    data: CreateScrapRecordData,
+    movement: StockAdjustmentData,
+  ): Promise<ScrapRecordDto> {
+    const raw = await prisma.$transaction(async (tx) => {
+      await applyStockMovement(tx, movement);
+      return tx.scrapRecord.create({ data: scrapCreateData(data), select: scrapSelect });
     });
-
-    return toTransactionDto(result);
+    return toScrapDto(raw);
   }
 
   async findTransactions(filters: TransactionFilters): Promise<StockTransactionListResult> {
@@ -392,18 +433,7 @@ export class InventoryRepository {
 
   async createScrapRecord(data: CreateScrapRecordData): Promise<ScrapRecordDto> {
     const raw = await prisma.scrapRecord.create({
-      data: {
-        materialId: data.materialId,
-        quantity: data.quantity,
-        unit: data.unit,
-        departmentId: data.departmentId ?? null,
-        departmentName: data.departmentName ?? null,
-        employeeId: data.employeeId ?? null,
-        employeeName: data.employeeName ?? null,
-        reason: data.reason ?? null,
-        recoveryValue: data.recoveryValue ?? null,
-        recordedAt: data.recordedAt ?? new Date(),
-      },
+      data: scrapCreateData(data),
       select: scrapSelect,
     });
     return toScrapDto(raw);

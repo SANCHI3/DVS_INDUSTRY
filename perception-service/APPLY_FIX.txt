@@ -1,7 +1,0 @@
-RGB fight persistence fix
-
-Extract into the perception-service project root and replace existing files.
-The RGB detector now counts only actual R3D inference windows for 2-of-3
-persistence. Ordinary pipeline cycles between R3D evaluations no longer count
-as false misses. This lets two high-score windows confirm a fight while a short
-clip with only one high-score window remains unconfirmed.

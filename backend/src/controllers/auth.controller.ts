@@ -40,9 +40,13 @@ export async function getEligibleEmployees(_req: Request, res: Response): Promis
   sendSuccess(res, users);
 }
 
-export async function updateUser(req: Request, res: Response): Promise<void> {
+export async function updateUser(req: AuthenticatedRequest, res: Response): Promise<void> {
   const targetUserId = Number(req.params['id']);
-  const user = await authService.updateUser(targetUserId, req.body as AdminUpdateUserData);
+  const user = await authService.updateUser(
+    req.user!.id,
+    targetUserId,
+    req.body as AdminUpdateUserData,
+  );
   sendSuccess(res, user, 200, 'User updated successfully');
 }
 
@@ -51,6 +55,9 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
 export async function login(req: Request, res: Response): Promise<void> {
   const { email, password } = req.body as LoginInput;
   const { user, tokens } = await authService.login(email, password);
+
+  // Lets the audit middleware attribute this LOGIN to the user
+  res.locals['auditActor'] = { id: user.id, email: user.email, role: user.role.name };
 
   // Refresh token → secure HttpOnly cookie
   res.cookie(REFRESH_TOKEN_COOKIE, tokens.refreshToken, COOKIE_OPTIONS);
@@ -134,12 +141,11 @@ export async function getMe(req: AuthenticatedRequest, res: Response): Promise<v
 
 export async function updateProfile(req: AuthenticatedRequest, res: Response): Promise<void> {
   const body = req.body as UpdateProfileInput;
-  const updateData: { fullName?: string; phone: string | null } = {
-    phone: body.phone ?? null,
-  };
-  if (body.fullName !== undefined) {
-    updateData.fullName = body.fullName;
-  }
+  // Only touch fields the client actually sent — omitting `phone` must not
+  // clear it. An explicit null still clears it.
+  const updateData: { fullName?: string; phone?: string | null } = {};
+  if (body.fullName !== undefined) updateData.fullName = body.fullName;
+  if (body.phone !== undefined) updateData.phone = body.phone;
   const user = await authService.updateProfile(req.user!.id, updateData);
   sendSuccess(res, user, 200, 'Profile updated successfully');
 }

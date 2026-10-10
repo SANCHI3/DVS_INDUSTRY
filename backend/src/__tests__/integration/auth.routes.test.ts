@@ -35,6 +35,7 @@ vi.mock('../../lib/prismaClient', () => ({
     },
     role: { findUnique: vi.fn(), findMany: vi.fn() },
     refreshToken: { create: vi.fn(), findUnique: vi.fn(), delete: vi.fn(), deleteMany: vi.fn() },
+    $queryRawUnsafe: vi.fn().mockResolvedValue([{ max: null }]),
     $transaction: vi.fn((fns: unknown[]) => Promise.all(fns as Promise<unknown>[])),
   },
 }));

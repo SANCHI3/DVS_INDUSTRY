@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import multer, { type FileFilterCallback } from 'multer';
 import type { Request } from 'express';
 import { BadRequestError } from '../errors';
@@ -23,7 +24,7 @@ const profileStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, PROFILES_DIR),
   filename: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
-    const safeName = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+    const safeName = `${Date.now()}-${crypto.randomBytes(12).toString('hex')}${ext}`;
     cb(null, safeName);
   },
 });
@@ -57,14 +58,20 @@ export function profileImageUrl(filename: string): string {
 }
 
 /**
- * Delete a previously uploaded profile image by its stored path.
- * Silently ignores missing files.
+ * Delete a previously uploaded profile image by its stored URL path.
+ *
+ * Only files directly inside the profiles upload folder can be removed. The
+ * stored value is user-editable, so a path such as "/uploads/../.env" or an
+ * absolute path must never reach unlink(). Silently ignores missing files.
  */
 export function deleteUploadedFile(storedPath: string): void {
   try {
-    // storedPath is either a full URL "/uploads/profiles/xxx.jpg"
-    // or an absolute FS path — normalise to FS path
-    const fsPath = storedPath.startsWith('/') ? path.join(process.cwd(), storedPath) : storedPath;
+    const filename = path.basename(storedPath);
+    const fsPath = path.resolve(PROFILES_DIR, filename);
+    if (path.dirname(fsPath) !== PROFILES_DIR) return;
+    if (!/^[\w.-]+$/.test(filename) || !ALLOWED_EXT.has(path.extname(filename).toLowerCase())) {
+      return;
+    }
     if (fs.existsSync(fsPath)) fs.unlinkSync(fsPath);
   } catch {
     // swallow — non-critical

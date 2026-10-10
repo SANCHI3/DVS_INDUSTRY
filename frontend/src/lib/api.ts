@@ -5,7 +5,7 @@
  *  - Base URL (proxied through Vite → backend)
  *  - Attaches `Authorization: Bearer <token>` on every request
  *  - On 401 → attempts a silent token refresh then retries the original request once
- *  - On failed refresh → clears auth state and reloads to login
+ *  - On failed refresh → clears auth state and emits SESSION_EXPIRED_EVENT
  *  - Normalises errors into a consistent `ApiError` shape
  */
 
@@ -20,8 +20,8 @@ import axios, {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 export const API_BASE = '/api/v1';
+// The refresh token lives only in an httpOnly cookie set by the backend.
 const ACCESS_TOKEN_KEY  = 'dvs_access_token';
-const REFRESH_TOKEN_KEY = 'dvs_refresh_token';  // stored as httpOnly cookie by backend; kept here for reference only
 
 // ── Token helpers (accessed by auth.ts too) ──────────────────────────────────
 
@@ -90,65 +90,83 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 
 // ── Response interceptor — handle 401 + error normalisation ───────────────────
 
-let isRefreshing    = false;
-let refreshQueue:   Array<(token: string) => void> = [];
+/** Fired on window when the session cannot be refreshed; App returns to login. */
+export const SESSION_EXPIRED_EVENT = 'dvs:session-expired';
 
-function processQueue(newToken: string): void {
-  refreshQueue.forEach(cb => cb(newToken));
-  refreshQueue = [];
+const USER_KEY = 'dvs_user'; // owned by auth.ts; cleared here on session expiry
+
+// One in-flight refresh per tab, shared by every request that hit a 401.
+let refreshPromise: Promise<string> | null = null;
+
+async function postRefresh(): Promise<string> {
+  const res = await axios.post<{ data: { accessToken: string } }>(
+    `${API_BASE}/auth/refresh`,
+    {},
+    { withCredentials: true },
+  );
+  const token = res.data.data.accessToken;
+  setAccessToken(token);
+  return token;
+}
+
+/**
+ * Refresh tokens rotate on every use and a reused one revokes all sessions,
+ * so two tabs refreshing at the same moment would log the user out. The Web
+ * Locks API serialises refreshes across tabs; a tab that waited simply picks
+ * up the token the other tab already stored.
+ */
+function refreshAccessToken(staleToken: string | null): Promise<string> {
+  refreshPromise ??= (async () => {
+    try {
+      if (typeof navigator !== 'undefined' && 'locks' in navigator) {
+        return await navigator.locks.request('dvs-token-refresh', async () => {
+          const current = getAccessToken();
+          if (current !== null && current !== staleToken) return current;
+          return postRefresh();
+        });
+      }
+      return await postRefresh();
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
+}
+
+function endSession(): void {
+  clearAccessToken();
+  localStorage.removeItem(USER_KEY);
+  window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
 }
 
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
 
   async (error: AxiosError) => {
-    const original = error.config as AxiosRequestConfig & { _retry?: boolean };
+    const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
 
-    // Only attempt refresh for 401s that are NOT the refresh endpoint itself
+    // Only attempt refresh for 401s that are NOT auth endpoints themselves
     if (
+      original !== undefined &&
       error.response?.status === 401 &&
       !original._retry &&
-      !original.url?.includes('/auth/refresh')
+      !original.url?.includes('/auth/refresh') &&
+      !original.url?.includes('/auth/login')
     ) {
-      if (isRefreshing) {
-        // Queue this request until the refresh completes
-        return new Promise<AxiosResponse>((resolve, reject) => {
-          refreshQueue.push((token: string) => {
-            if (!original.headers) original.headers = {};
-            original.headers['Authorization'] = `Bearer ${token}`;
-            original._retry = true;
-            resolve(api(original));
-          });
-          // If refresh ultimately fails, reject all queued
-          setTimeout(() => reject(normaliseError(error)), 10_000);
-        });
-      }
-
       original._retry = true;
-      isRefreshing    = true;
+      const sentToken =
+        String(original.headers?.['Authorization'] ?? '').replace(/^Bearer /, '') || null;
 
+      let newToken: string;
       try {
-        // The refresh token is an httpOnly cookie — just POST with credentials
-        const res = await axios.post<{ data: { accessToken: string } }>(
-          `${API_BASE}/auth/refresh`,
-          {},
-          { withCredentials: true },
-        );
-        const newToken = res.data.data.accessToken;
-        setAccessToken(newToken);
-        processQueue(newToken);
-        if (!original.headers) original.headers = {};
-        original.headers['Authorization'] = `Bearer ${newToken}`;
-        return api(original);
+        newToken = await refreshAccessToken(sentToken);
       } catch {
-        // Refresh failed — clear state and force re-login
-        clearAccessToken();
-        refreshQueue = [];
-        window.location.reload();
+        endSession();
         return Promise.reject(normaliseError(error));
-      } finally {
-        isRefreshing = false;
       }
+
+      original.headers = { ...original.headers, Authorization: `Bearer ${newToken}` };
+      return api(original);
     }
 
     return Promise.reject(normaliseError(error));

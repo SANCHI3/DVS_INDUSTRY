@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prismaClient';
+import { nextDocumentNumber, withUniqueNumberRetry } from '../utils/documentNumber';
 import type {
   SupplierDto,
   ClientDto,
@@ -177,24 +178,6 @@ function toPurchaseOrderDto(r: PrismaPurchaseOrder): PurchaseOrderDto {
 
 // ── Auto-generate order numbers ────────────────────────────────────────────────
 
-async function nextOrderNumber(): Promise<string> {
-  const last = await prisma.clientOrder.findFirst({
-    orderBy: { id: 'desc' },
-    select: { orderNumber: true },
-  });
-  const num = last ? parseInt(last.orderNumber.replace('ORD-', ''), 10) + 1 : 2841;
-  return `ORD-${num}`;
-}
-
-async function nextPONumber(): Promise<string> {
-  const last = await prisma.purchaseOrder.findFirst({
-    orderBy: { id: 'desc' },
-    select: { poNumber: true },
-  });
-  const num = last ? parseInt(last.poNumber.replace('PO-', ''), 10) + 1 : 2847;
-  return `PO-${num}`;
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class OrdersRepository {
@@ -356,6 +339,14 @@ export class OrdersRepository {
     return raw ? toClientDto(raw) : null;
   }
 
+  async findSupplierByEmail(email: string): Promise<SupplierDto | null> {
+    const raw = await prisma.supplier.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' }, deletedAt: null },
+      select: supplierSelect,
+    });
+    return raw ? toSupplierDto(raw) : null;
+  }
+
   async findClientByEmail(email: string): Promise<ClientDto | null> {
     const raw = await prisma.client.findFirst({
       where: { email: { equals: email, mode: 'insensitive' } },
@@ -434,23 +425,25 @@ export class OrdersRepository {
   // ══ CLIENT ORDERS ═════════════════════════════════════════════════════════════
 
   async createClientOrder(data: CreateClientOrderData): Promise<ClientOrderDto> {
-    const orderNumber = await nextOrderNumber();
-    const raw = await prisma.clientOrder.create({
-      data: {
-        orderNumber,
-        clientId: data.clientId,
-        product: data.product,
-        quantity: data.quantity,
-        unit: data.unit ?? 'pcs',
-        value: data.value ?? null,
-        currency: data.currency ?? 'INR',
-        requiredDate: data.requiredDate ?? null,
-        notes: data.notes ?? null,
-        createdById: data.createdById ?? null,
-      },
-      select: clientOrderSelect,
+    return withUniqueNumberRetry(async () => {
+      const orderNumber = await nextDocumentNumber('clientOrder', 'ORD-', { start: 2841 });
+      const raw = await prisma.clientOrder.create({
+        data: {
+          orderNumber,
+          clientId: data.clientId,
+          product: data.product,
+          quantity: data.quantity,
+          unit: data.unit ?? 'pcs',
+          value: data.value ?? null,
+          currency: data.currency ?? 'INR',
+          requiredDate: data.requiredDate ?? null,
+          notes: data.notes ?? null,
+          createdById: data.createdById ?? null,
+        },
+        select: clientOrderSelect,
+      });
+      return toClientOrderDto(raw);
     });
-    return toClientOrderDto(raw);
   }
 
   async updateClientOrder(id: number, data: UpdateClientOrderData): Promise<ClientOrderDto> {
@@ -537,23 +530,25 @@ export class OrdersRepository {
   // ══ PURCHASE ORDERS ══════════════════════════════════════════════════════════
 
   async createPurchaseOrder(data: CreatePurchaseOrderData): Promise<PurchaseOrderDto> {
-    const poNumber = await nextPONumber();
-    const raw = await prisma.purchaseOrder.create({
-      data: {
-        poNumber,
-        supplierId: data.supplierId,
-        material: data.material,
-        quantity: data.quantity,
-        unit: data.unit ?? null,
-        totalCost: data.totalCost ?? null,
-        currency: data.currency ?? 'INR',
-        expectedDelivery: data.expectedDelivery ?? null,
-        notes: data.notes ?? null,
-        createdById: data.createdById ?? null,
-      },
-      select: purchaseOrderSelect,
+    return withUniqueNumberRetry(async () => {
+      const poNumber = await nextDocumentNumber('purchaseOrder', 'PO-', { start: 2847 });
+      const raw = await prisma.purchaseOrder.create({
+        data: {
+          poNumber,
+          supplierId: data.supplierId,
+          material: data.material,
+          quantity: data.quantity,
+          unit: data.unit ?? null,
+          totalCost: data.totalCost ?? null,
+          currency: data.currency ?? 'INR',
+          expectedDelivery: data.expectedDelivery ?? null,
+          notes: data.notes ?? null,
+          createdById: data.createdById ?? null,
+        },
+        select: purchaseOrderSelect,
+      });
+      return toPurchaseOrderDto(raw);
     });
-    return toPurchaseOrderDto(raw);
   }
 
   async updatePurchaseOrder(id: number, data: UpdatePurchaseOrderData): Promise<PurchaseOrderDto> {

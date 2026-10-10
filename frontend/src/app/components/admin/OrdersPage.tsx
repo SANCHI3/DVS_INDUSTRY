@@ -119,7 +119,7 @@ function POModal({ prefill, suppliers, suppliersLoading, suppliersError, onClose
                 className="text-left p-3 rounded-xl transition-all"
                 style={{ border: `1.5px solid ${form.supplier === s.name ? "#A52A2A" : "#E8E2E0"}`, background: form.supplier === s.name ? "#FDF5F5" : "#fff", cursor: "pointer" }}>
                 <p style={{ fontSize: "0.8rem", fontWeight: 600, color: "#1C1C1C" }}>{s.name}</p>
-                <p style={{ fontSize: "0.7rem", color: "#7A6C6A" }}>★ {s.rating} · {s.delivery} · {s.reliability}</p>
+                <p style={{ fontSize: "0.7rem", color: "#7A6C6A" }}>★ {s.rating ?? "—"} · {s.leadTimeDays === null ? "—" : `${s.leadTimeDays}d lead time`} · {s.reliability ?? "—"}</p>
               </button>
             ))}
           </div>

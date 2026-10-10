@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+// Profile images are set by the upload endpoint; when supplied directly the
+// value must be one of our own upload URLs (no traversal, no external URLs).
+const profileImagePath = z
+  .string()
+  .regex(/^\/uploads\/profiles\/[\w.-]+\.(jpe?g|png|webp)$/i, 'Invalid profile image path')
+  .optional()
+  .nullable();
+
 // ── Reusable field definitions ────────────────────────────────────────────────
 
 const employeeCodeField = z
@@ -83,7 +91,7 @@ export const createEmployeeSchema = z.object({
   emergencyName: optionalNullableString(100),
   emergencyPhone: phoneField,
 
-  profileImage: optionalNullableString(500),
+  profileImage: profileImagePath,
 });
 
 // ── Update Schema ─────────────────────────────────────────────────────────────
@@ -111,7 +119,7 @@ export const updateEmployeeSchema = z
       .nullable(),
     emergencyName: optionalNullableString(100),
     emergencyPhone: phoneField,
-    profileImage: optionalNullableString(500),
+    profileImage: profileImagePath,
   })
   .refine((d) => Object.values(d).some((v) => v !== undefined), {
     message: 'At least one field must be provided for update',

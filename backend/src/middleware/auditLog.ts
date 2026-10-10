@@ -5,65 +5,97 @@ import type { AuditAction, CreateAuditLogData } from '../interfaces';
 
 const repo = new AuditRepository();
 
-/**
- * Maps HTTP method + response status → AuditAction.
- * Only write operations (POST/PATCH/PUT/DELETE) and special endpoints are logged.
- */
-function resolveAction(method: string, path: string, statusCode: number): AuditAction | null {
-  if (statusCode >= 400) return null; // don't log failed requests
+/** Identity of the actor when req.user is not set (e.g. a successful login). */
+export interface AuditActor {
+  id: number;
+  email: string;
+  role: string;
+}
 
+/** Endpoints that are pure session plumbing and would only add noise. */
+const SKIPPED_PATHS = ['/auth/refresh', '/auth/me'];
+
+/**
+ * Maps HTTP method + path + response status → AuditAction.
+ * Write operations (POST/PATCH/PUT/DELETE), report exports and sign-in
+ * attempts are logged; ordinary reads are not.
+ */
+export function resolveAction(
+  method: string,
+  path: string,
+  statusCode: number,
+): AuditAction | null {
   const m = method.toUpperCase();
-  if (path.includes('/login')) return 'LOGIN';
-  if (path.includes('/logout')) return 'LOGOUT';
-  if (path.includes('/export') || path.includes('/reports')) return 'EXPORT';
+
+  if (path.endsWith('/auth/login') && m === 'POST') {
+    if (statusCode < 400) return 'LOGIN';
+    // 401/403 = wrong credentials or deactivated account; 429 = throttled
+    if (statusCode === 401 || statusCode === 403 || statusCode === 429) return 'LOGIN_FAILED';
+    return null;
+  }
+
+  if (statusCode >= 400) return null; // other failed requests changed nothing
+  if (SKIPPED_PATHS.some((p) => path.endsWith(p))) return null;
+  if (path.endsWith('/auth/logout')) return 'LOGOUT';
+
+  if (m === 'GET') {
+    return path.includes('/reports/') || path.includes('/export') ? 'EXPORT' : null;
+  }
+
+  if (path.includes('/bulk')) return 'BULK_ACTION';
   if (
-    path.includes('/status') ||
-    path.includes('/approve') ||
-    path.includes('/dispatch') ||
-    path.includes('/deliver') ||
-    path.includes('/cancel') ||
-    path.includes('/confirm') ||
-    path.includes('/transit') ||
-    path.includes('/production')
+    /\/(status|approve|dispatch|deliver|cancel|confirm|transit|production|acknowledge|resolve|activate|deactivate|restore)$/.test(
+      path,
+    )
   ) {
     return 'STATUS_CHANGE';
   }
-  if (path.includes('/bulk')) return 'BULK_ACTION';
 
   if (m === 'POST') return 'CREATE';
   if (m === 'PATCH' || m === 'PUT') return 'UPDATE';
   if (m === 'DELETE') return 'DELETE';
-  return null; // GET — skip
+  return null;
 }
 
-/**
- * Extracts the entity name from the URL path.
- * e.g. /api/v1/employees/5  → "Employee"
- *      /api/v1/work-orders/3/outputs/2 → "WorkOrderOutput"
- */
-function resolveEntity(path: string): string {
-  const segments = path.split('/').filter(Boolean);
-  // Find the segment after the version prefix (api, v1)
-  const versionIdx = segments.findIndex((s) => /^v\d+$/.test(s));
-  const entitySeg = segments[versionIdx + 1] ?? segments[2] ?? 'Unknown';
+const ENTITY_MAP: Record<string, string> = {
+  auth: 'Auth',
+  employees: 'Employee',
+  departments: 'Department',
+  inventory: 'Inventory',
+  workforce: 'Workforce',
+  production: 'Production',
+  'work-orders': 'WorkOrder',
+  orders: 'Order',
+  suppliers: 'Supplier',
+  clients: 'Client',
+  'client-orders': 'ClientOrder',
+  'purchase-orders': 'PurchaseOrder',
+  reports: 'Report',
+  audit: 'AuditLog',
+  security: 'Security',
+  incidents: 'SecurityIncident',
+  alerts: 'SecurityAlert',
+  shifts: 'Shift',
+  attendance: 'Attendance',
+  users: 'User',
+};
 
-  const map: Record<string, string> = {
-    auth: 'Auth',
-    employees: 'Employee',
-    departments: 'Department',
-    inventory: 'Inventory',
-    workforce: 'Workforce',
-    production: 'Production',
-    'work-orders': 'WorkOrder',
-    orders: 'Order',
-    suppliers: 'Supplier',
-    clients: 'Client',
-    'client-orders': 'ClientOrder',
-    'purchase-orders': 'PurchaseOrder',
-    reports: 'Report',
-    audit: 'AuditLog',
-  };
-  return map[entitySeg] ?? entitySeg;
+/**
+ * Extracts the most specific entity name from the URL path.
+ * e.g. /api/v1/employees/5                 → "Employee"
+ *      /api/v1/orders/client-orders/3/approve → "ClientOrder"
+ */
+export function resolveEntity(path: string): string {
+  const segments = path.split('/').filter(Boolean);
+  const versionIdx = segments.findIndex((s) => /^v\d+$/.test(s));
+  const resource = segments.slice(versionIdx + 1).filter((s) => !/^\d+$/.test(s));
+
+  // Prefer the deepest segment we recognise (sub-resources are more specific)
+  for (let i = resource.length - 1; i >= 0; i--) {
+    const mapped = ENTITY_MAP[resource[i] ?? ''];
+    if (mapped !== undefined) return mapped;
+  }
+  return resource[0] ?? 'Unknown';
 }
 
 /** Extract the last numeric segment as entityId. */
@@ -76,49 +108,44 @@ function resolveEntityId(path: string): string | null {
 }
 
 /**
- * auditLog middleware
+ * auditLog middleware — mount ONCE at the app level, before the routers.
  *
- * Attach AFTER authenticate so req.user is available.
- * Intercepts res.end() to capture the final status code.
- *
- * Usage:
- *   router.use(authenticate, auditLog, ...handlers)
- *   — or selectively:
- *   router.post('/items', authenticate, auditLog, handler)
+ * It records on the response 'finish' event, by which time the route's
+ * authenticate() has populated req.user. Handlers that authenticate a user
+ * without req.user (login) can set res.locals.auditActor instead.
  */
 export function auditLog(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
-  const originalEnd = res.end.bind(res);
+  // Capture now: routers rewrite req.url while handling the request.
+  const path = req.originalUrl.split('?')[0] ?? req.originalUrl;
 
-  // Override res.end to hook into response completion
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (res as any).end = function (...args: Parameters<typeof res.end>) {
-    const statusCode = res.statusCode;
-    const action = resolveAction(req.method, req.path, statusCode);
+  res.on('finish', () => {
+    const action = resolveAction(req.method, path, res.statusCode);
+    if (action === null) return;
 
-    if (action !== null) {
-      const data: CreateAuditLogData = {
-        userId: req.user?.id ?? null,
-        userEmail: req.user?.email ?? null,
-        userRole: req.user?.role ?? null,
-        action,
-        entity: resolveEntity(req.path),
-        entityId: resolveEntityId(req.path),
-        method: req.method,
-        path: req.originalUrl,
-        statusCode,
-        ipAddress:
-          (req.headers['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim() ??
-          req.socket.remoteAddress ??
-          null,
-        userAgent: req.headers['user-agent'] ?? null,
-      };
+    const actor = (res.locals['auditActor'] as AuditActor | undefined) ?? req.user;
+    const body = req.body as Record<string, unknown> | undefined;
+    const attemptedEmail =
+      action === 'LOGIN_FAILED' && typeof body?.['email'] === 'string' ? body['email'] : null;
 
-      // Fire and forget — never awaited, never throws
-      void repo.log(data);
-    }
+    const data: CreateAuditLogData = {
+      userId: actor?.id ?? null,
+      userEmail: actor?.email ?? attemptedEmail,
+      userRole: actor?.role ?? null,
+      action,
+      entity: resolveEntity(path),
+      entityId: resolveEntityId(path),
+      method: req.method,
+      path,
+      statusCode: res.statusCode,
+      // req.ip honours the 'trust proxy' setting, so it cannot be spoofed by
+      // a client-supplied X-Forwarded-For header.
+      ipAddress: req.ip ?? req.socket.remoteAddress ?? null,
+      userAgent: req.headers['user-agent'] ?? null,
+    };
 
-    return originalEnd(...args);
-  };
+    // Fire and forget — the repository swallows and logs its own errors
+    void repo.log(data);
+  });
 
   next();
 }

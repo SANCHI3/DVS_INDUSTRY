@@ -126,9 +126,9 @@ export async function getAttendanceSummary(params?: { date?: string; departmentI
   return unwrap(res);
 }
 
-export interface AttendanceTrendEntry { date: string; present: number; absent: number; late: number }
+export interface WorkforceAttendanceTrendEntry { date: string; present: number; absent: number; late: number }
 
-export async function getAttendanceTrend(params?: { days?: number; departmentId?: number }): Promise<AttendanceTrendEntry[]> {
-  const res = await api.get<{ success: true; data: AttendanceTrendEntry[] }>('/workforce/attendance/trend', { params });
+export async function getAttendanceTrend(params?: { days?: number; departmentId?: number }): Promise<WorkforceAttendanceTrendEntry[]> {
+  const res = await api.get<{ success: true; data: WorkforceAttendanceTrendEntry[] }>('/workforce/attendance/trend', { params });
   return unwrap(res);
 }

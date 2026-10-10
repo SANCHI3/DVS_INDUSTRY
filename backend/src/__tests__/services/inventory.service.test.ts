@@ -31,6 +31,7 @@ vi.mock('../../lib/prismaClient', () => ({
     },
     stockTransaction: { create: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     scrapRecord: { create: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+    $queryRawUnsafe: vi.fn().mockResolvedValue([{ max: null }]),
     $transaction: vi.fn((cb: unknown) => {
       if (typeof cb === 'function')
         return cb({
@@ -106,70 +107,110 @@ describe('InventoryService', () => {
   // ── Stock adjustment ─────────────────────────────────────────────────────────
 
   describe('adjustStock', () => {
+    const txnRow = (type: string, balance: string) => ({
+      id: 1,
+      materialId: 1,
+      type,
+      quantity: { toString: () => '10' },
+      balanceAfter: { toString: () => balance },
+      referenceNo: null,
+      reason: null,
+      performedById: null,
+      performedByName: null,
+      departmentId: null,
+      departmentName: null,
+      createdAt: new Date(),
+      material: { name: 'Steel', code: 'STL-001', unit: 'kg' },
+    });
+
+    /** Wire $transaction to a tx whose locked material row has `stock`. */
+    const useLockedStock = (stock: string | null, deletedAt: Date | null = null) => {
+      const tx = {
+        $queryRaw: vi
+          .fn()
+          .mockResolvedValue(stock === null ? [] : [{ currentStock: stock, unit: 'kg', deletedAt }]),
+        material: { update: vi.fn().mockResolvedValue({}) },
+        stockTransaction: { create: vi.fn().mockResolvedValue(txnRow('OUT', '0')) },
+        scrapRecord: { create: vi.fn() },
+      };
+      (prisma.$transaction as ReturnType<typeof vi.fn>).mockImplementation((cb: unknown) =>
+        typeof cb === 'function' ? cb(tx) : Promise.resolve([]),
+      );
+      return tx;
+    };
+
     it('throws NotFoundError for unknown material', async () => {
-      (prisma.material.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
-
-      await expect(svc.adjustStock(99, { type: 'IN', quantity: '100' })).rejects.toThrow(
-        NotFoundError,
-      );
+      useLockedStock(null);
+      await expect(
+        svc.adjustStock({ materialId: 99, type: 'IN', quantity: '100' }),
+      ).rejects.toThrow(NotFoundError);
     });
 
-    it('throws BadRequestError if OUT quantity exceeds current stock', async () => {
-      // recordTransaction is called inside $transaction callback with a tx object
-      const txObj = {
-        material: {
-          findUnique: vi.fn().mockResolvedValue({
-            id: 1,
-            currentStock: { toNumber: () => 50 },
-            minStockLevel: { toNumber: () => 10 },
-          }),
-          update: vi.fn().mockResolvedValue({}),
-        },
-        stockTransaction: { create: vi.fn().mockResolvedValue({ id: 1 }) },
-      };
-      (prisma.$transaction as ReturnType<typeof vi.fn>).mockImplementation((cb: unknown) =>
-        typeof cb === 'function' ? cb(txObj) : Promise.resolve([]),
-      );
-      // The service should check stock and throw before calling tx
-      // But actually the check is inside tx — so we need the material with low stock
-      // The repository calls tx.material.findUnique, then checks qty
-      // Let's verify it rejects (either BadRequestError or any error indicating insufficient stock)
-      await expect(svc.adjustStock(1, { type: 'OUT', quantity: '200' })).rejects.toThrow(); // stock is 50, trying to take 200
+    it('locks the material row before reading stock', async () => {
+      const tx = useLockedStock('50');
+      await svc.adjustStock({ materialId: 1, type: 'OUT', quantity: '10' });
+      const sql = (tx.$queryRaw.mock.calls[0][0] as string[]).join('?');
+      expect(sql).toContain('FOR UPDATE');
     });
 
-    it('allows IN transaction regardless of current stock', async () => {
-      (prisma.material.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(
-        makeMaterial(0, 100),
-      );
-      // The $transaction mock calls the callback with a tx object
-      const txMock = {
-        material: {
-          findUnique: vi.fn().mockResolvedValue(makeMaterial(0, 100)),
-          update: vi.fn().mockResolvedValue({}),
-        },
-        stockTransaction: {
-          create: vi.fn().mockResolvedValue({
-            id: 1,
-            type: 'IN',
-            quantity: { toString: () => '100' },
-            balanceAfter: { toString: () => '100' },
-            referenceNo: null,
-            reason: null,
-            performedById: null,
-            performedByName: null,
-            departmentId: null,
-            departmentName: null,
-            createdAt: new Date(),
-            material: { name: 'Steel', code: 'STL-001' },
-          }),
-        },
-      };
-      (prisma.$transaction as ReturnType<typeof vi.fn>).mockImplementation((cb: unknown) =>
-        typeof cb === 'function' ? cb(txMock) : Promise.resolve([]),
-      );
+    it('rejects OUT beyond available stock instead of clamping to zero', async () => {
+      const tx = useLockedStock('50');
+      await expect(
+        svc.adjustStock({ materialId: 1, type: 'OUT', quantity: '200' }),
+      ).rejects.toThrow(BadRequestError);
+      expect(tx.material.update).not.toHaveBeenCalled();
+      expect(tx.stockTransaction.create).not.toHaveBeenCalled();
+    });
 
-      const result = await svc.adjustStock(1, { type: 'IN', quantity: '100' });
+    it('rejects movements on a deleted material', async () => {
+      useLockedStock('50', new Date());
+      await expect(
+        svc.adjustStock({ materialId: 1, type: 'IN', quantity: '1' }),
+      ).rejects.toThrow(BadRequestError);
+    });
+
+    it('uses exact decimal arithmetic for the new balance', async () => {
+      const tx = useLockedStock('0.3');
+      await svc.adjustStock({ materialId: 1, type: 'OUT', quantity: '0.1' });
+      const update = tx.material.update.mock.calls[0][0] as { data: { currentStock: unknown } };
+      expect(String(update.data.currentStock)).toBe('0.2'); // not 0.19999999999999998
+    });
+
+    it('applies a negative ADJUSTMENT as a reduction', async () => {
+      const tx = useLockedStock('10');
+      await svc.adjustStock({ materialId: 1, type: 'ADJUSTMENT', quantity: '-2.5' });
+      const update = tx.material.update.mock.calls[0][0] as { data: { currentStock: unknown } };
+      expect(String(update.data.currentStock)).toBe('7.5');
+    });
+
+    it('allows IN regardless of current stock', async () => {
+      const tx = useLockedStock('0');
+      tx.stockTransaction.create.mockResolvedValue(txnRow('IN', '100'));
+      const result = await svc.adjustStock({ materialId: 1, type: 'IN', quantity: '100' });
       expect(result.type).toBe('IN');
+    });
+
+    it('records scrap and deducts stock in the same transaction', async () => {
+      const tx = useLockedStock('20');
+      tx.scrapRecord.create.mockResolvedValue({
+        id: 7,
+        materialId: 1,
+        quantity: { toString: () => '5' },
+        unit: 'kg',
+        departmentId: null,
+        departmentName: null,
+        employeeId: null,
+        employeeName: null,
+        reason: null,
+        recoveryValue: null,
+        recordedAt: new Date(),
+        createdAt: new Date(),
+        material: { name: 'Steel', code: 'STL-001' },
+      });
+      await svc.recordScrap({ materialId: 1, quantity: '5', unit: 'kg' });
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(tx.material.update).toHaveBeenCalledTimes(1);
+      expect(tx.scrapRecord.create).toHaveBeenCalledTimes(1);
     });
   });
 

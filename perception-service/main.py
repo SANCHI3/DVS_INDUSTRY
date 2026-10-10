@@ -174,7 +174,10 @@ def run(
     reporter = IncidentReporter(
         output_path="output/incidents.jsonl",
         camera_locations={camera_id: camera_location},
-        backend_url="http://127.0.0.1:8000",
+        # Optional local incident API (backend/api.py); unset to disable
+        backend_url=os.getenv("LEGACY_INCIDENT_API_URL", "").strip() or None,
+        # Dashboard posts and LLM enrichment must never stall frame processing
+        background=True,
     )
     evidence_cfg = thresholds_cfg["evidence"]
     evidence_buffer = EvidenceBuffer(
@@ -369,6 +372,7 @@ def run(
 
     finally:
         reader.stop()
+        reporter.close()
         if display:
             try:
                 cv2.destroyAllWindows()
@@ -384,6 +388,9 @@ def run(
 
 
 if __name__ == "__main__":
+    from env_loader import load_env
+
+    load_env()
     parser = argparse.ArgumentParser(description="CCTV perception pipeline")
     parser.add_argument("--camera", default="CAM-01", help="camera id from config/cameras.yaml")
     parser.add_argument("--source", default=None, help="override source (webcam index, RTSP URL, or file path)")

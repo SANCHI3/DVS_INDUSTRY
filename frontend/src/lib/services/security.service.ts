@@ -19,6 +19,7 @@ export interface SecurityIncidentDto {
   location:         string | null;
   departmentName:   string | null;
   reportedByName:   string | null;
+  assignedToId:     number | null;
   assignedToName:   string | null;
   occurredAt:       string;
   resolvedAt:       string | null;

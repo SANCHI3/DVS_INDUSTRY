@@ -6,3 +6,4 @@ export { EmployeeRepository } from './employee.repository';
 export { InventoryRepository } from './inventory.repository';
 export { OrdersRepository } from './orders.repository';
 export { WorkforceRepository } from './workforce.repository';
+export { PasswordResetTokenRepository } from './passwordResetToken.repository';
