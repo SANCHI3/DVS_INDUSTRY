@@ -116,11 +116,15 @@ fight_detection:
   gate_hold_seconds: 1.5            # continue evaluating briefly when gate flickers closed
   pair_stale_after_s: 5.0           # pose-LSTM fallback setting
   rgb:
-    checkpoint: "models/fight_r3d18_v1.pt"
+    # v2: clips sampled at 10 fps of real time (matches detection_fps).
+    # Live 2-of-3 rule on 344 test videos: P 0.94, R 0.97, F1 0.96 (v1: F1 0.85).
+    # Thresholds from rgb_fight_model/calibrate_runtime.py (validation split);
+    # see models/fight_r3d18_v2.runtime.json. v1 used probable 0.88 / confirmed 0.92.
+    checkpoint: "models/fight_r3d18_v2.pt"
     clip_frames: 16
     evaluation_stride_frames: 4
-    probable_threshold: 0.88
-    confirmed_threshold: 0.92
+    probable_threshold: 0.45        # operator "review" signal (training validation threshold)
+    confirmed_threshold: 0.55       # alert threshold chosen on validation
     persistence_window: 3
     required_confirmed: 2
 

@@ -1,0 +1,60 @@
+{
+  "protocol": {
+    "clips_per_video": 5,
+    "rule": "2 of 3 consecutive clips >= threshold",
+    "threshold_chosen_on": "validation",
+    "min_precision": 0.9
+  },
+  "model": {
+    "checkpoint": "models/fight_r3d18_v2.pt",
+    "clip_fps": 10.0,
+    "confirmed_threshold": 0.55,
+    "validation": {
+      "threshold": 0.55,
+      "precision": 0.9277777777777778,
+      "recall": 0.9709302325581395,
+      "f1": 0.9488636363636364,
+      "tp": 167,
+      "fp": 13,
+      "fn": 5,
+      "tn": 159
+    },
+    "test_live_rule": {
+      "threshold": 0.5,
+      "precision": 0.943502824858757,
+      "recall": 0.9709302325581395,
+      "f1": 0.9570200573065902,
+      "tp": 167,
+      "fp": 10,
+      "fn": 5,
+      "tn": 162
+    },
+    "test_mean_of_clips_auc": 0.987459437533802
+  },
+  "compared_with": {
+    "checkpoint": "models/fight_r3d18_v1.pt",
+    "clip_fps": null,
+    "confirmed_threshold": 0.91,
+    "validation": {
+      "threshold": 0.91,
+      "precision": 0.935064935064935,
+      "recall": 0.8372093023255814,
+      "f1": 0.8834355828220859,
+      "tp": 144,
+      "fp": 10,
+      "fn": 28,
+      "tn": 162
+    },
+    "test_live_rule": {
+      "threshold": 0.5,
+      "precision": 0.9310344827586207,
+      "recall": 0.7848837209302325,
+      "f1": 0.8517350157728706,
+      "tp": 135,
+      "fp": 10,
+      "fn": 37,
+      "tn": 162
+    },
+    "test_mean_of_clips_auc": 0.9052528393726339
+  }
+}

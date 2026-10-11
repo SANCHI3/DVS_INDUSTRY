@@ -66,7 +66,7 @@ py -3.12 -u -m rgb_fight_model.evaluate --manifest data\rgb_fight_manifest.csv -
 
 ## 5. Switching the live pipeline
 
-Compare `test` in `fight_r3d18_v2.metrics.json` with `fight_r3d18_v1.metrics.json`
+Done: v2 is the live default (live-rule test F1 0.96 vs 0.85 for v1, see `models/fight_r3d18_v2.runtime.json`). To repeat for a new checkpoint, compare `test` in its metrics with `fight_r3d18_v1.metrics.json`
 (same split), then set `fight_detection.rgb.checkpoint` in
 `config/thresholds.yaml`. Re-check `probable_threshold`/`confirmed_threshold`
 against the new checkpoint's validation threshold before deploying.

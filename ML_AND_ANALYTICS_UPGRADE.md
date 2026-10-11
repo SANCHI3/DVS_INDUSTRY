@@ -3,6 +3,13 @@
 This document describes the machine-learning and analytics features added on top of the
 ERP + CCTV perception system, how to run and retrain them, and their measured results.
 
+**Model files.** Small trained models are in the repo (`fall_gru_v1.pt`, `fall_rf_v1.joblib`,
+`fire_smoke_verifier_v1.pkl`, `scene_anomaly_ae_v2.npz`). The large weights are not, because
+GitHub rejects files over 100 MB: `fight_r3d18_v2.pt` (133 MB), `fight_r3d18_v1.pt`,
+`fire_smoke_yolov8n_v1.pt`, `yolov8n.pt` and `yolov8n-pose.pt`. Copy them into
+`perception-service/models/` (YOLO base weights into `perception-service/`), or share them via
+Google Drive or GitHub Releases.
+
 ---
 
 ## 1. Perception service: one pipeline, several model families
@@ -12,7 +19,7 @@ YOLO is only the first stage. Each abnormal-incident type uses the model family 
 | Incident | Model(s) | Type | Status |
 |---|---|---|---|
 | People / objects | YOLOv8n + ByteTrack | CNN detector + tracker | existing |
-| Fight / violence | **R3D-18** (3D CNN on 16-frame RGB clips); fallback **pose-LSTM** | spatio-temporal deep learning | existing, trained |
+| Fight / violence | **R3D-18** (3D CNN on 16-frame RGB clips, v2 retrained with real-time clip sampling); fallback **pose-LSTM** | spatio-temporal deep learning | **retrained (v2)** |
 | Fire / smoke | YOLOv8n (fine-tuned) **+ learned verifier** (`fire_verifier/`, gradient-boosted features) or the training-free **colour / luminous-core / flicker verifier** (`temporal/fire_verifier.py`) | CNN + ML / classical computer vision | **new, trained** |
 | Fall | **YOLOv8-Pose + box features → temporal CNN + BiGRU** (`fall_gru/`, primary). Alternative: **16 biomechanical features → Random Forest** (`fall_rf/`) | pose estimation + recurrent deep learning / classical ML | **new, trained** |
 | Explainability | **Grad-CAM** heatmaps on the R3D-18 fight model, saved with each fight incident | explainable AI | **new** |
@@ -28,6 +35,35 @@ camera ─► YOLOv8 + ByteTrack ─► temporal buffer ─┬─► rule engine
          frame ─► optical flow + MOG2 ─► autoencoder ──────────────────────── anomaly   (new)
                                                   ▼
                            event confirmation (N-of-M) ─► severity ─► evidence clips ─► ERP dashboard + LLM summary
+```
+
+### 1.0 Fight detection v2: train/serve alignment (`rgb_fight_model/`)
+
+**Problem found.** v1 was trained on 16 frames taken every 2nd frame of each video. Source videos
+run at 11–37 fps, so a training clip covered anywhere from 0.8 s to 2.7 s. The live pipeline feeds
+16 frames at 10 fps (1.6 s), so the model saw motion at a different speed than in training.
+
+**Fix.** v2 samples every training clip at 10 frames per second of *real time* (1.5 s), whatever
+the source frame rate, and the live detector rebuilds clips from frame timestamps at the same rate.
+Training also adds a cosine learning-rate schedule, CCTV-style lighting / IR augmentation and
+3-clip validation scoring. Same train/validation/test split as v1.
+
+**Results** (`models/fight_r3d18_v2.runtime.json`). Both models scored on the same 344 test videos
+with the *live* decision rule (5 clips per video in time order, alert when 2 of 3 consecutive clips
+reach the threshold; each model's threshold chosen on the validation split):
+
+| Fight model | Precision | Recall | F1 | AUC | Fights caught | False alarms |
+|---|---|---|---|---|---|---|
+| v1 | 0.93 | 0.79 | 0.85 | 0.91 | 135 / 172 | 10 |
+| **v2 (live default)** | **0.94** | **0.97** | **0.96** | **0.99** | **167 / 172** | 10 |
+
+At the same false-alarm count v2 catches 32 more fights. Live thresholds: confirmed 0.55, review 0.45.
+
+```bash
+python -m rgb_fight_model.train --manifest data/rgb_fight_manifest.csv --data-root data/fight_videos \
+       --output models/fight_r3d18_v2.pt --workers 0 --clip-fps 10 --eval-clips 3
+python -m rgb_fight_model.calibrate_runtime --manifest data/rgb_fight_manifest.csv --data-root data/fight_videos \
+       --checkpoint models/fight_r3d18_v2.pt --compare models/fight_r3d18_v1.pt
 ```
 
 ### 1.1 Unsupervised scene-anomaly detector (`perception-service/anomaly/`)
@@ -211,9 +247,12 @@ keyframes in `output/evidence/gradcam/` and lists them in the incident (`gradcam
 python -m explain.gradcam data/fight_videos/fight/fi029.mp4 --checkpoint models/fight_r3d18_v1.pt --out output/gradcam
 ```
 
-Example finding: on a real fight (score 0.89) the heat sits on the people struggling; on a non-fight
-car-park clip that still scored 0.86 the heat spreads over parked cars and frame edges, which shows the
-model reacting to background clutter. This is exactly the weakness explainability is meant to expose.
+Example finding (v1 vs v2 on the same clips):
+- Real fight: v1 scored 0.89 and v2 0.98; both put the heat on the people struggling.
+- Non-fight car-park clip: v1 (0.86) spread the heat over parked cars and frame edges, reacting to
+  background clutter. v2 (0.84) focuses on the people, and its mistake is a person running fast, an
+  understandable confusion with fighting. Grad-CAM shows the retrained model attends to the right
+  thing even where it is still wrong.
 
 ### 1.5 Tests (no camera, GPU or YOLO needed)
 ```bash
