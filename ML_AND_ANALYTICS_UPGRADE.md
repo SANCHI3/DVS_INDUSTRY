@@ -3,12 +3,11 @@
 This document describes the machine-learning and analytics features added on top of the
 ERP + CCTV perception system, how to run and retrain them, and their measured results.
 
-**Model files.** Small trained models are in the repo (`fall_gru_v1.pt`, `fall_rf_v1.joblib`,
-`fire_smoke_verifier_v1.pkl`, `scene_anomaly_ae_v2.npz`). The large weights are not, because
-GitHub rejects files over 100 MB: `fight_r3d18_v2.pt` (133 MB), `fight_r3d18_v1.pt`,
-`fire_smoke_yolov8n_v1.pt`, `yolov8n.pt` and `yolov8n-pose.pt`. Copy them into
-`perception-service/models/` (YOLO base weights into `perception-service/`), or share them via
-Google Drive or GitHub Releases.
+**Model files.** All trained weights are in the repo, so a fresh clone runs end to end. The two
+R3D-18 fight models (`fight_r3d18_v1.pt`, `fight_r3d18_v2.pt`, 127 MB each) are stored with
+**Git LFS**, because GitHub rejects normal files over 100 MB. Install Git LFS
+(`git lfs install`) before cloning, or run `git lfs pull` after cloning. Without it those two files
+arrive as small text pointers and fight detection won't load.
 
 ---
 

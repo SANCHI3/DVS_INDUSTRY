@@ -1,12 +1,10 @@
 # Keep LF line endings in the working tree on every OS. Prettier/ESLint expect
 # LF; Windows checkouts with core.autocrlf=true would otherwise get CRLF.
 * text=auto eol=lf
-
 # Windows-only scripts keep CRLF
 *.ps1 text eol=crlf
 *.bat text eol=crlf
 *.cmd text eol=crlf
-
 # Binary assets
 *.png binary
 *.jpg binary
@@ -15,3 +13,5 @@
 *.npz binary
 *.npy binary
 *.mp4 binary
+perception-service/models/fight_r3d18_v1.pt filter=lfs diff=lfs merge=lfs -text
+perception-service/models/fight_r3d18_v2.pt filter=lfs diff=lfs merge=lfs -text

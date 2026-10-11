@@ -66,5 +66,11 @@ perception-service/backend/incidents.json
 # Model weights (large binaries; distribute separately)
 perception-service/**/*.pt
 perception-service/models/*.log
-# Small trained models are committed so the project runs from a fresh clone
+# Trained models are committed so the project runs from a fresh clone
+# (the two R3D-18 fight models via Git LFS, see .gitattributes)
 !perception-service/models/fall_gru_v1.pt
+!perception-service/models/fight_r3d18_v1.pt
+!perception-service/models/fight_r3d18_v2.pt
+!perception-service/models/fire_smoke_yolov8n_v1.pt
+!perception-service/yolov8n.pt
+!perception-service/yolov8n-pose.pt
