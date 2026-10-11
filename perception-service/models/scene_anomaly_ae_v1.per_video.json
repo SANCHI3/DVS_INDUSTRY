@@ -1,0 +1,362 @@
+[
+  {
+    "video": "01 (3).mp4",
+    "label": 0,
+    "score": 0.45399543779244794,
+    "alert": false
+  },
+  {
+    "video": "13 (4).mp4",
+    "label": 0,
+    "score": 0.005561448849963408,
+    "alert": false
+  },
+  {
+    "video": "14 (3).mp4",
+    "label": 0,
+    "score": 0.409242165419477,
+    "alert": false
+  },
+  {
+    "video": "08 (2).mp4",
+    "label": 0,
+    "score": 0.2054282514056416,
+    "alert": false
+  },
+  {
+    "video": "05.mp4",
+    "label": 0,
+    "score": 1.3084254996077784,
+    "alert": true
+  },
+  {
+    "video": "07 (2).mp4",
+    "label": 0,
+    "score": 0.0930665117935495,
+    "alert": false
+  },
+  {
+    "video": "06.mp4",
+    "label": 0,
+    "score": 0.3655022135536771,
+    "alert": false
+  },
+  {
+    "video": "10 (2).mp4",
+    "label": 0,
+    "score": 3.4220174182966185,
+    "alert": true
+  },
+  {
+    "video": "09 (2).mp4",
+    "label": 0,
+    "score": 0.29023363581564005,
+    "alert": false
+  },
+  {
+    "video": "20 (2).mp4",
+    "label": 0,
+    "score": 0.36933574049421786,
+    "alert": false
+  },
+  {
+    "video": "13 (2).mp4",
+    "label": 0,
+    "score": 0.18706476849542195,
+    "alert": false
+  },
+  {
+    "video": "01 (4).mp4",
+    "label": 0,
+    "score": 0.0940935857788228,
+    "alert": false
+  },
+  {
+    "video": "15 (4).mp4",
+    "label": 0,
+    "score": 0.11224432198387382,
+    "alert": false
+  },
+  {
+    "video": "02 (2).mp4",
+    "label": 0,
+    "score": 0.15666785568660108,
+    "alert": false
+  },
+  {
+    "video": "05 (2).mp4",
+    "label": 0,
+    "score": 0.30587339839822664,
+    "alert": false
+  },
+  {
+    "video": "04 (2).mp4",
+    "label": 0,
+    "score": 0.24267113319713032,
+    "alert": false
+  },
+  {
+    "video": "02.mp4",
+    "label": 0,
+    "score": 0.7972480941926224,
+    "alert": false
+  },
+  {
+    "video": "08 (3).mp4",
+    "label": 0,
+    "score": 1.278717914443998,
+    "alert": true
+  },
+  {
+    "video": "13.mp4",
+    "label": 0,
+    "score": 0.6223658363117781,
+    "alert": false
+  },
+  {
+    "video": "05 (3).mp4",
+    "label": 0,
+    "score": 0.572889230752833,
+    "alert": false
+  },
+  {
+    "video": "01 (2).mp4",
+    "label": 1,
+    "score": 1.3189670848195456,
+    "alert": true
+  },
+  {
+    "video": "01 (3).mp4",
+    "label": 1,
+    "score": 0.8709798552027245,
+    "alert": false
+  },
+  {
+    "video": "01 (4).mp4",
+    "label": 1,
+    "score": 1.254875694185434,
+    "alert": true
+  },
+  {
+    "video": "01.mp4",
+    "label": 1,
+    "score": 0.7070430030583733,
+    "alert": false
+  },
+  {
+    "video": "02 (2).mp4",
+    "label": 1,
+    "score": 0.2001997189509322,
+    "alert": false
+  },
+  {
+    "video": "02 (3).mp4",
+    "label": 1,
+    "score": 1.3305350515141632,
+    "alert": true
+  },
+  {
+    "video": "02 (4).mp4",
+    "label": 1,
+    "score": 1.2413590563810535,
+    "alert": true
+  },
+  {
+    "video": "02.mp4",
+    "label": 1,
+    "score": 1.2271333949674805,
+    "alert": true
+  },
+  {
+    "video": "03 (2).mp4",
+    "label": 1,
+    "score": 1.4651536515726256,
+    "alert": true
+  },
+  {
+    "video": "03 (3).mp4",
+    "label": 1,
+    "score": 0.17550881284152983,
+    "alert": false
+  },
+  {
+    "video": "03 (4).mp4",
+    "label": 1,
+    "score": 1.2997586772674998,
+    "alert": true
+  },
+  {
+    "video": "03.mp4",
+    "label": 1,
+    "score": 4.977907168662497,
+    "alert": true
+  },
+  {
+    "video": "04 (2).mp4",
+    "label": 1,
+    "score": 0.9998651943805388,
+    "alert": false
+  },
+  {
+    "video": "04 (3).mp4",
+    "label": 1,
+    "score": 0.545464925802673,
+    "alert": false
+  },
+  {
+    "video": "04 (4).mp4",
+    "label": 1,
+    "score": 1.0682532139316905,
+    "alert": true
+  },
+  {
+    "video": "04.mp4",
+    "label": 1,
+    "score": 1.2311495204019829,
+    "alert": true
+  },
+  {
+    "video": "05 (2).mp4",
+    "label": 1,
+    "score": 1.2699173950975435,
+    "alert": true
+  },
+  {
+    "video": "05 (3).mp4",
+    "label": 1,
+    "score": 0.5686946005525336,
+    "alert": false
+  },
+  {
+    "video": "05 (4).mp4",
+    "label": 1,
+    "score": 0.5793841526937473,
+    "alert": false
+  },
+  {
+    "video": "05.mp4",
+    "label": 1,
+    "score": 0.2785965582293708,
+    "alert": false
+  },
+  {
+    "video": "06 (2).mp4",
+    "label": 1,
+    "score": 0.20310570221325006,
+    "alert": false
+  },
+  {
+    "video": "06 (3).mp4",
+    "label": 1,
+    "score": 0.9291645524749172,
+    "alert": false
+  },
+  {
+    "video": "06 (4).mp4",
+    "label": 1,
+    "score": 0.5478919488467154,
+    "alert": false
+  },
+  {
+    "video": "06.mp4",
+    "label": 1,
+    "score": 0.5374245628418498,
+    "alert": false
+  },
+  {
+    "video": "07 (2).mp4",
+    "label": 1,
+    "score": 1.4649947301544166,
+    "alert": true
+  },
+  {
+    "video": "07 (3).mp4",
+    "label": 1,
+    "score": 0.7566021114508886,
+    "alert": false
+  },
+  {
+    "video": "07 (4).mp4",
+    "label": 1,
+    "score": 0.5944285888421464,
+    "alert": false
+  },
+  {
+    "video": "07.mp4",
+    "label": 1,
+    "score": 0.9766605429076819,
+    "alert": false
+  },
+  {
+    "video": "08 (2).mp4",
+    "label": 1,
+    "score": 0.4036362790214378,
+    "alert": false
+  },
+  {
+    "video": "08 (3).mp4",
+    "label": 1,
+    "score": 0.9313574431119791,
+    "alert": false
+  },
+  {
+    "video": "08 (4).mp4",
+    "label": 1,
+    "score": 0.7405800435598299,
+    "alert": false
+  },
+  {
+    "video": "08.mp4",
+    "label": 1,
+    "score": 0.36721285157396155,
+    "alert": false
+  },
+  {
+    "video": "09 (2).mp4",
+    "label": 1,
+    "score": 0.5336565581771374,
+    "alert": false
+  },
+  {
+    "video": "09 (3).mp4",
+    "label": 1,
+    "score": 0.6585381022754302,
+    "alert": false
+  },
+  {
+    "video": "09 (4).mp4",
+    "label": 1,
+    "score": 1.0714441836020476,
+    "alert": true
+  },
+  {
+    "video": "09.mp4",
+    "label": 1,
+    "score": 0.16602777627883972,
+    "alert": false
+  },
+  {
+    "video": "10 (2).mp4",
+    "label": 1,
+    "score": 0.11063400759123035,
+    "alert": false
+  },
+  {
+    "video": "10 (3).mp4",
+    "label": 1,
+    "score": 0.9426762533691029,
+    "alert": false
+  },
+  {
+    "video": "10 (4).mp4",
+    "label": 1,
+    "score": 1.1560014939954892,
+    "alert": true
+  },
+  {
+    "video": "10.mp4",
+    "label": 1,
+    "score": 1.5819713035449683,
+    "alert": true
+  }
+]

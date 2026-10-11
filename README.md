@@ -32,6 +32,13 @@ Frontend (React + Vite)  →  Backend (Express + TypeScript)  →  PostgreSQL
 | Security | `/api/v1/security` | Incidents + Alerts with state machines |
 | Reports | `/api/v1/reports` | KPI dashboard, all module reports |
 | Audit | `/api/v1/audit` | Auto-captured audit trail for all write operations |
+| Smart Analytics | `/api/v1/analytics` | Demand forecasting, dynamic reorder point, ABC-XYZ, stock anomaly detection, OEE + SPC, Plant Health Index |
+
+---
+
+> **AI & analytics:** see [ML_AND_ANALYTICS_UPGRADE.md](ML_AND_ANALYTICS_UPGRADE.md) for the multi-model CCTV
+> perception pipeline (YOLOv8, R3D-18, pose-LSTM, pose + Random Forest fall model, unsupervised
+> autoencoder, fire verifier) and the Smart Analytics module.
 
 ---
 

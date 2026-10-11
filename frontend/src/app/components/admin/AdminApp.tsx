@@ -6,6 +6,7 @@ import { SecurityPage } from "./SecurityPage";
 import { InventoryPage } from "./InventoryPage";
 import { OrdersPage } from "./OrdersPage";
 import { ReportsPage } from "./ReportsPage";
+import { SmartAnalyticsPage } from "./SmartAnalyticsPage";
 import { UserManagementPage } from "./UserManagementPage";
 import { ERPProvider } from "./ERPContext";
 import { Card, CardHeader } from "../shared/UI";
@@ -168,6 +169,7 @@ export function AdminApp({ onLogout, userRole }: AdminAppProps) {
       if (inventorySections.has(section)) return <InventoryPage onNavigate={setSection} />;
       if (orderSections.has(section)) return <OrdersPage onNavigate={setSection} />;
       if (section === "reports") return <ReportsPage />;
+      if (section === "analytics") return <SmartAnalyticsPage />;
       if (section === "users") return <UserManagementPage />;
       if (section === "settings") return <SettingsPage />;
       return <AdminDashboard onNavigate={setSection} />;

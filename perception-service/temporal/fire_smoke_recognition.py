@@ -7,6 +7,9 @@ from typing import Deque, Dict, List
 import numpy as np
 from ultralytics import YOLO
 
+import os
+
+from temporal.fire_verifier import FireVerifier
 from temporal.rule_engine import EventCandidate
 
 
@@ -37,12 +40,33 @@ class FireSmokeDetector:
         self.scores: Dict[str, Deque[float]] = {
             name: deque(maxlen=self.window) for name in self.thresholds
         }
+        verifier_cfg = cfg.get("verifier", {}) or {}
+        # Second stage that rejects fire/smoke look-alikes. Modes:
+        #   learned - gradient-boosting verifier on flicker/colour/texture/motion
+        #             (fire_verifier/), measured on FIRESENSE; gates persistent alarms
+        #   rules   - hand-tuned colour / luminous-core / flicker score that
+        #             down-weights each YOLO box (temporal/fire_verifier.py)
+        self.verifier = None
+        self.learned_verifier = None
+        if verifier_cfg.get("enabled", False):
+            mode = verifier_cfg.get("mode", "learned")
+            checkpoint = verifier_cfg.get("checkpoint", "models/fire_smoke_verifier_v1.pkl")
+            if mode == "learned" and os.path.exists(checkpoint):
+                from fire_verifier.runtime import LearnedFireVerifier
+                self.learned_verifier = LearnedFireVerifier(checkpoint)
+            else:
+                if mode == "learned":
+                    print(f"[{camera_id}] learned fire verifier not found at {checkpoint}; "
+                          f"using rule-based verifier")
+                self.verifier = FireVerifier(verifier_cfg)
         self.cycles = 0
         self._stats = {
             "cycles": 0, "evaluations": 0,
             "fire_positive_windows": 0, "smoke_positive_windows": 0,
             "probable_candidates": 0, "confirmed_candidates": 0,
             "max_fire_score": 0.0, "max_smoke_score": 0.0,
+            "fire_boxes_verified": 0, "fire_boxes_suppressed": 0,
+            "alarms_rejected_by_learned_verifier": 0,
         }
         print(
             f"[{camera_id}] fire/smoke model loaded: {cfg['checkpoint']} "
@@ -61,11 +85,34 @@ class FireSmokeDetector:
             device=self.cfg.get("device", 0), verbose=False,
         )[0]
         best = {"fire": 0.0, "smoke": 0.0}
+        raw_best = {"fire": 0.0, "smoke": 0.0}
+        best_boxes: dict = {"fire": None, "smoke": None}
+        best_verification = None
+        detections = []
         if result.boxes is not None:
-            for cls_id, confidence in zip(result.boxes.cls.tolist(), result.boxes.conf.tolist()):
+            for cls_id, confidence, xyxy in zip(result.boxes.cls.tolist(), result.boxes.conf.tolist(),
+                                                result.boxes.xyxy.tolist()):
                 name = self.model.names[int(cls_id)]
                 if name in best:
-                    best[name] = max(best[name], float(confidence))
+                    detections.append((name, float(confidence), tuple(xyxy)))
+                    if float(confidence) > raw_best[name]:
+                        best_boxes[name] = (tuple(xyxy), float(confidence))
+                    raw_best[name] = max(raw_best[name], float(confidence))
+        if self.learned_verifier is not None:
+            self.learned_verifier.observe(frame, best_boxes)
+        if self.verifier is not None:
+            # Only boxes that could matter are verified (cheap: crops only)
+            candidates = [d for d in detections if d[0] != "fire" or d[1] >= 0.5 * self.thresholds["fire"]]
+            for item in self.verifier.verify(frame, candidates):
+                best[item["class"]] = max(best[item["class"]], item["fused"])
+                if item["class"] == "fire":
+                    self._stats["fire_boxes_verified"] += 1
+                    if item["yolo"] >= self.thresholds["fire"] > item["fused"]:
+                        self._stats["fire_boxes_suppressed"] += 1
+                    if best_verification is None or item["fused"] >= best["fire"]:
+                        best_verification = item
+        else:
+            best = dict(raw_best)
 
         self._stats["evaluations"] += 1
         for name in ("fire", "smoke"):
@@ -82,6 +129,10 @@ class FireSmokeDetector:
             for name in ("fire", "smoke")
         }
         active_classes = [name for name in ("fire", "smoke") if persistent[name]]
+        if self.learned_verifier is not None and active_classes:
+            verified = [name for name in active_classes if self.learned_verifier.confirm(name)]
+            self._stats["alarms_rejected_by_learned_verifier"] += len(active_classes) - len(verified)
+            active_classes = verified
         if not active_classes:
             return []
 
@@ -108,6 +159,14 @@ class FireSmokeDetector:
                 "persistence_window": self.window,
                 "required_hits": self.required,
                 "model": "fire_smoke_yolov8n_v1",
+                "learned_verifier": None if self.learned_verifier is None else {
+                    name: round(self.learned_verifier.last_probability[name], 3) for name in active_classes
+                },
+                "verifier": None if self.verifier is None else {
+                    "raw_fire_score": round(raw_best["fire"], 3),
+                    **({k: best_verification[k] for k in ("verification", "luminous_core", "flicker", "colour")}
+                       if best_verification else {}),
+                },
             },
             raw_confidence=confidence,
         )]

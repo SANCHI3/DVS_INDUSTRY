@@ -62,3 +62,9 @@ perception-service/**/*.before-*
 
 # Local incident data
 perception-service/backend/incidents.json
+
+# Model weights (large binaries; distribute separately)
+perception-service/**/*.pt
+perception-service/models/*.log
+# Small trained models are committed so the project runs from a fresh clone
+!perception-service/models/fall_gru_v1.pt

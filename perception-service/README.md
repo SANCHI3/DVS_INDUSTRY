@@ -131,3 +131,13 @@ Do not enable model mode with `fight_lstm_demo.pt`; that checkpoint learned synt
    decided (see design doc §10 on why raw video shouldn't live in MongoDB).
 5. Collect footage and train the fight-detection LSTM (see above) — this
    is the highest-value next step for demo accuracy.
+
+## Added models (see ../ML_AND_ANALYTICS_UPGRADE.md)
+- `fall_gru/` + `temporal/fall_gru_recognition.py`: pose-sequence temporal CNN + BiGRU fall model
+  (`models/fall_gru_v1.pt`, default; CV F1 0.90, AUC 0.96).
+- `fall_rf/` + `temporal/pose_fall_recognition.py`: biomechanical features + Random Forest (alternative).
+- `fire_verifier/`: learned fire/smoke verifier (`models/fire_smoke_verifier_v1.pkl`, default;
+  fire false alarms 2 -> 0). `temporal/fire_verifier.py`: rule-based alternative.
+- `anomaly/` + `temporal/scene_anomaly.py`: unsupervised optical-flow autoencoder (`models/scene_anomaly_ae_v1.npz`).
+- `explain/gradcam.py`: Grad-CAM heatmaps for the R3D-18 fight model, saved with fight incidents.
+- Tests: `test_learned_models.py`, `test_scene_anomaly.py`, `test_fall_model.py`, `test_fire_verifier.py`.

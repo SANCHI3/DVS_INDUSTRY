@@ -36,6 +36,18 @@ class RgbFightClassifier:
         with torch.inference_mode():
             return float(torch.sigmoid(self.model(clip).flatten()[0]).item())
 
+    def explain_clip(self, frames, out_dir, prefix: str, count: int = 3,
+                     input_bgr: bool = True) -> tuple[float, list[str]]:
+        """Grad-CAM for one clip: (fight probability, saved heatmap paths)."""
+        from explain.gradcam import r3d_gradcam, save_heatmaps
+
+        frames = list(frames)
+        clip = preprocess_frames(frames, self.image_size, training=False,
+                                 input_bgr=input_bgr).unsqueeze(0).to(self.device)
+        score, cam = r3d_gradcam(self.model, clip)
+        bgr = frames if input_bgr else [f[..., ::-1].copy() for f in frames]
+        return score, save_heatmaps(bgr, cam, out_dir, prefix, count)
+
     def score_video(self, video_path: str) -> float:
         """Video-level score: mean probability over evenly spaced clips,
         exactly as validation/test scoring did during training."""

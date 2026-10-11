@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Factory, Users, Shield, Package, ShoppingCart, BarChart3,
   Settings, LogOut, Menu, X, Bell, Search, ChevronDown, ChevronRight,
   Cpu, Building2, Truck, UserCheck, FileText, MessageSquare, Star,
-  ShoppingBag, MapPin, Headphones,
+  ShoppingBag, MapPin, Headphones, Sparkles,
 } from "lucide-react";
 
 export type UserRole = "admin" | "supplier" | "client";
@@ -26,6 +26,7 @@ const adminNavFlat: NavItem[] = [
   { id: "inventory", label: "Inventory", icon: Package },
   { id: "orders", label: "Orders & Supply", icon: ShoppingCart },
   { id: "reports", label: "Reports Center", icon: BarChart3 },
+  { id: "analytics", label: "Smart Analytics", icon: Sparkles },
   { id: "users", label: "User Management", icon: UserCheck },
   { id: "settings", label: "Settings", icon: Settings },
 ];

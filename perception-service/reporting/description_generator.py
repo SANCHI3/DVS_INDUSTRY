@@ -20,6 +20,10 @@ TEMPLATES = {
     "fire_smoke": "Possible fire or smoke was detected persistently in {location}. "
                   "Detected visual classes: {detected_classes}. This is an automated "
                   "camera-based alert and requires immediate human verification.",
+    "anomaly": "Unusual activity was detected in {location}: the scene's motion pattern scored "
+               "{anomaly_ratio}x the normal-behaviour alert threshold. Main factors: {factors}. "
+               "The anomaly model was trained only on normal footage and cannot name the event; "
+               "a human reviewer should identify it.",
     "theft_probable": "A possible object-removal event was detected near {location}. "
                        "This alert requires human verification and is not a confirmed "
                        "determination of theft.",
@@ -35,6 +39,7 @@ RECOMMENDED_ACTIONS = {
     "fight": "Dispatch security to verify in person before intervening; do not treat as confirmed without human review.",
     "fire_smoke": "Immediately verify the camera, activate the site emergency procedure if confirmed, and contact trained safety personnel.",
     "theft_probable": "Flag for human review of the footage before taking any action; do not treat as confirmed.",
+    "anomaly": "Review the live feed and the saved clip; check for injury, equipment malfunction, spills or panic, then classify the incident.",
 }
 DEFAULT_ACTION = "Review incident footage and determine appropriate action."
 

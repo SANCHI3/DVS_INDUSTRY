@@ -1,0 +1,87 @@
+{
+  "config": {
+    "root": "data/fire_smoke_videos/firesense",
+    "yolo": "models/fire_smoke_yolov8n_v1.pt",
+    "output": "models/fire_smoke_verifier_v1.pkl",
+    "cache": "data/fire_verifier_features.npz",
+    "sample_fps": 5.0,
+    "window": 5,
+    "required": 3,
+    "conf_hit": 0.5,
+    "conf_floor": 0.25,
+    "threshold": 0.5,
+    "required_verified": 2,
+    "imgsz": 640,
+    "device": "0"
+  },
+  "evaluation": "leave-one-video-out",
+  "features": [
+    "is_fire_class",
+    "yolo_conf_mean",
+    "yolo_conf_max",
+    "yolo_hit_rate",
+    "box_area_frac",
+    "box_area_change",
+    "fire_color_frac",
+    "smoke_color_frac",
+    "sat_mean",
+    "val_mean",
+    "red_dominance",
+    "laplacian_var",
+    "edge_density",
+    "temporal_diff_mean",
+    "brightness_std",
+    "flicker_hf_ratio",
+    "flicker_pixel_frac",
+    "flow_mag_mean",
+    "flow_up_ratio"
+  ],
+  "fire": {
+    "yolo_only": {
+      "videos": 27,
+      "TP": 10,
+      "FP": 2,
+      "FN": 1,
+      "TN": 14,
+      "precision": 0.8333,
+      "recall": 0.9091,
+      "specificity": 0.875,
+      "f1": 0.8696
+    },
+    "yolo_plus_verifier": {
+      "videos": 27,
+      "TP": 10,
+      "FP": 0,
+      "FN": 1,
+      "TN": 16,
+      "precision": 1.0,
+      "recall": 0.9091,
+      "specificity": 1.0,
+      "f1": 0.9524
+    }
+  },
+  "smoke": {
+    "yolo_only": {
+      "videos": 22,
+      "TP": 11,
+      "FP": 0,
+      "FN": 2,
+      "TN": 9,
+      "precision": 1.0,
+      "recall": 0.8462,
+      "specificity": 1.0,
+      "f1": 0.9167
+    },
+    "yolo_plus_verifier": {
+      "videos": 22,
+      "TP": 11,
+      "FP": 0,
+      "FN": 2,
+      "TN": 9,
+      "precision": 1.0,
+      "recall": 0.8462,
+      "specificity": 1.0,
+      "f1": 0.9167
+    }
+  }
+}

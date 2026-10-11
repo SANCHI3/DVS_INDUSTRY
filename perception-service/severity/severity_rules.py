@@ -30,7 +30,8 @@ def compute_severity(event_type: str, confirmed_event, severity_cfg: dict) -> st
 
     # a few simple, explainable modifiers -- extend per event type as needed
     if event_type == "fall":
-        if duration >= detail.get("still_seconds", 8) * 1.5:
+        # person still on the ground long after the fall -> possible injury
+        if duration >= detail.get("still_seconds", 8) * 1.5 or detail.get("still_seconds", 0) >= 10:
             level = _bump(level, 1)
     elif event_type == "crowd":
         overflow = detail.get("count", 0) - detail.get("threshold", 0)
@@ -46,6 +47,10 @@ def compute_severity(event_type: str, confirmed_event, severity_cfg: dict) -> st
         # sustained signal (long duration above threshold) or a high score
         # bumps severity; still deterministic/explainable, no learned scoring here
         if duration >= 5.0 or detail.get("score", 0) >= 0.85:
+            level = _bump(level, 1)
+    elif event_type == "anomaly":
+        # unsupervised signal: only a strongly abnormal, confirmed scene is raised
+        if detail.get("anomaly_ratio", 0) >= 2.5 and confirmed_event.tier == "CONFIRMED":
             level = _bump(level, 1)
     elif event_type == "fire_smoke":
         detected = set(detail.get("detected_classes", []))

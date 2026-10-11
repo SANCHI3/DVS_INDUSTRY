@@ -51,6 +51,7 @@ class IncidentReporter:
         "fall": "FALL",
         "crowd": "CROWD",
         "loitering": "LOITERING",
+        "anomaly": "OTHER",
     }
 
     def __init__(

@@ -1,0 +1,54 @@
+{
+  "config": {
+    "features": "data/fall_features",
+    "output": "models/fall_gru_v1.pt",
+    "folds": 5,
+    "epochs": 60,
+    "window": 40,
+    "fps": 10.0,
+    "hidden": 64,
+    "batch_size": 32,
+    "windows_per_video": 4,
+    "lr": 0.002,
+    "min_precision": 0.85,
+    "seed": 7
+  },
+  "data": {
+    "videos": 160,
+    "fall": 79,
+    "not_fall": 81,
+    "event_groups": 48
+  },
+  "evaluation": "5-fold cross-validation grouped by event (out-of-fold scores)",
+  "pose_gru_model": {
+    "threshold": 0.24,
+    "precision": 0.8604651162790697,
+    "recall": 0.9367088607594937,
+    "f1": 0.8969696969696971,
+    "tp": 74,
+    "fp": 12,
+    "fn": 5,
+    "tn": 69,
+    "auc": 0.9635880606344741
+  },
+  "rule_baseline_deployed_5s": {
+    "threshold": 0.5,
+    "precision": 0.5555555555555556,
+    "recall": 0.06329113924050633,
+    "f1": 0.11363636363636365,
+    "tp": 5,
+    "fp": 4,
+    "fn": 74,
+    "tn": 77
+  },
+  "rule_baseline_relaxed_1s": {
+    "threshold": 0.5,
+    "precision": 0.8024691358024691,
+    "recall": 0.8227848101265823,
+    "f1": 0.8125000000000001,
+    "tp": 65,
+    "fp": 16,
+    "fn": 14,
+    "tn": 65
+  }
+}

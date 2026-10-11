@@ -2,7 +2,13 @@
 Perception pipeline entry point.
 
 Wires together: StreamReader -> YoloDetector -> ByteTracker -> TemporalBuffer
--> RuleEngine -> EventConfirmation -> SeverityRules -> IncidentReporter.
+-> RuleEngine + learned detectors -> EventConfirmation -> SeverityRules -> IncidentReporter.
+
+Learned detectors (each optional, configured in thresholds.yaml):
+  fight        R3D-18 video classifier (or pose-LSTM)      temporal/rgb_action_recognition.py
+  fire_smoke   YOLOv8 + colour/flicker verifier             temporal/fire_smoke_recognition.py
+  fall         YOLOv8-Pose + GRU (or Random Forest)         temporal/fall_gru_recognition.py, pose_fall_recognition.py
+  anomaly      optical-flow autoencoder (unsupervised)      temporal/scene_anomaly.py
 
 Run with a webcam:
     python main.py --camera CAM-01
@@ -21,6 +27,10 @@ from __future__ import annotations
 import argparse
 import os
 import time
+
+# scikit-learn (learned fire verifier) must load before torch/ultralytics:
+# the reverse order trips an OpenMP DLL clash on Windows.
+import sklearn  # noqa: F401,E402
 
 import cv2
 import supervision as sv
@@ -170,6 +180,44 @@ def run(
     fire_smoke_detector = (
         FireSmokeDetector(camera_id, fire_smoke_cfg) if run_fire_smoke else None
     )
+
+    # Learned fall detection (replaces the bounding-box aspect-ratio rule). Modes:
+    #   gru     - pose-sequence temporal CNN + BiGRU (fall_gru/, temporal/fall_gru_recognition.py)
+    #   model   - pose features + Random Forest (fall_rf/, temporal/pose_fall_recognition.py)
+    #   physics - training-free biomechanical score (fall_rf/features.py)
+    fall_cfg = thresholds_cfg.get("fall_detection", {})
+    fall_mode = fall_cfg.get("mode", "gru")
+    run_pose_fall = (
+        fall_cfg.get("enabled", False)
+        and fall_mode != "bbox_rule"
+        and (only_events is None or "fall" in only_events)
+    )
+    fall_detector = None
+    if run_pose_fall:
+        gru_checkpoint = fall_cfg.get("gru_checkpoint", "models/fall_gru_v1.pt")
+        if fall_mode == "gru" and os.path.exists(gru_checkpoint):
+            from temporal.fall_gru_recognition import GruFallDetector
+            fall_detector = GruFallDetector(
+                camera_id, {**fall_cfg, **(fall_cfg.get("gru") or {}), "checkpoint": gru_checkpoint}
+            )
+        else:
+            if fall_mode == "gru":
+                print(f"[{camera_id}] GRU fall checkpoint '{gru_checkpoint}' not found -> Random Forest / physics")
+            from temporal.pose_fall_recognition import PoseFallDetector
+            fall_detector = PoseFallDetector(camera_id, {**fall_cfg, "mode": "model" if fall_mode == "gru" else fall_mode})
+
+    # Unsupervised scene-anomaly autoencoder (catches unlabelled abnormal events)
+    anomaly_cfg = thresholds_cfg.get("scene_anomaly", {})
+    anomaly_detector = None
+    if anomaly_cfg.get("enabled", False) and (only_events is None or "anomaly" in only_events):
+        if os.path.exists(anomaly_cfg.get("checkpoint", "")):
+            from temporal.scene_anomaly import SceneAnomalyDetector
+            anomaly_detector = SceneAnomalyDetector(
+                camera_id, anomaly_cfg, fps=perception_cfg["detection_fps"]
+            )
+        else:
+            print(f"[{camera_id}] scene-anomaly checkpoint not found -- anomaly detection disabled. "
+                  f"Train one with: python -m anomaly.train_autoencoder --normal <folder>")
     confirmation = EventConfirmation(thresholds_cfg["confirmation"])
     reporter = IncidentReporter(
         output_path="output/incidents.jsonl",
@@ -261,6 +309,12 @@ def run(
                 candidates += fight_detector.evaluate(buffer, frame)
             if fire_smoke_detector is not None:
                 candidates += fire_smoke_detector.evaluate(frame)
+            if fall_detector is not None:
+                # the learned pose model supersedes the bbox aspect-ratio fall rule
+                candidates = [c for c in candidates if c.event_type != "fall"]
+                candidates += fall_detector.evaluate(buffer, frame)
+            if anomaly_detector is not None:
+                candidates += anomaly_detector.evaluate(frame)
             confirmed_events = confirmation.update(candidates)
 
             for event in confirmed_events:
@@ -383,6 +437,10 @@ def run(
             print(f"[{camera_id}] fight diagnostics: {fight_detector.diagnostics()}")
         if fire_smoke_detector is not None:
             print(f"[{camera_id}] fire/smoke diagnostics: {fire_smoke_detector.diagnostics()}")
+        if fall_detector is not None:
+            print(f"[{camera_id}] pose-fall diagnostics: {fall_detector.diagnostics()}")
+        if anomaly_detector is not None:
+            print(f"[{camera_id}] scene-anomaly diagnostics: {anomaly_detector.diagnostics()}")
         print(f"[{camera_id}] stopped. processed {frames_processed} cycles in {elapsed:.1f}s "
               f"(~{frames_processed / max(elapsed, 1e-6):.2f} eval/s)")
 
@@ -399,7 +457,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--only-events",
         nargs="+",
-        choices=["intrusion", "loitering", "crowd", "fall", "fight", "fire_smoke"],
+        choices=["intrusion", "loitering", "crowd", "fall", "fight", "fire_smoke", "anomaly"],
         default=None,
         help="run/report only selected event modules (useful for isolated testing)",
     )

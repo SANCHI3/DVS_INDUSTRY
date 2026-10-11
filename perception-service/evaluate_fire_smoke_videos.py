@@ -56,6 +56,7 @@ def evaluate_video(
     required: int,
     device: str,
     imgsz: int,
+    verify: bool = False,
 ) -> dict:
     target, expected_positive = infer_expected(path, root)
     cap = cv2.VideoCapture(str(path))
@@ -75,6 +76,10 @@ def evaluate_video(
     sampled = 0
     scores: list[float] = []
     start = time.time()
+    verifier = None
+    if verify:
+        from temporal.fire_verifier import FireVerifier
+        verifier = FireVerifier()
 
     try:
         while True:
@@ -90,11 +95,19 @@ def evaluate_video(
                     verbose=False,
                 )[0]
                 best = {"smoke": 0.0, "fire": 0.0}
+                detections = []
                 if result.boxes is not None:
-                    for cls_id, conf in zip(result.boxes.cls.tolist(), result.boxes.conf.tolist()):
+                    for cls_id, conf, xyxy in zip(result.boxes.cls.tolist(), result.boxes.conf.tolist(),
+                                                  result.boxes.xyxy.tolist()):
                         class_name = model.names[int(cls_id)]
                         if class_name in best:
-                            best[class_name] = max(best[class_name], float(conf))
+                            detections.append((class_name, float(conf), tuple(xyxy)))
+                if verifier is not None:
+                    for item in verifier.verify(frame, detections):
+                        best[item["class"]] = max(best[item["class"]], item["fused"])
+                else:
+                    for class_name, conf, _ in detections:
+                        best[class_name] = max(best[class_name], conf)
                 scores.append(best[target])
                 sampled += 1
                 next_sample += frame_step
@@ -164,6 +177,8 @@ def main() -> int:
     parser.add_argument("--required", default=3, type=int)
     parser.add_argument("--device", default="0")
     parser.add_argument("--imgsz", default=640, type=int)
+    parser.add_argument("--verify", action="store_true",
+                        help="apply the colour/luminous-core/flicker fire verifier (temporal/fire_verifier.py)")
     args = parser.parse_args()
 
     if not args.root.exists():
@@ -186,7 +201,7 @@ def main() -> int:
     for i, video in enumerate(videos, 1):
         try:
             row = evaluate_video(model, video, args.root, args.sample_fps, thresholds,
-                                 args.window, args.required, args.device, args.imgsz)
+                                 args.window, args.required, args.device, args.imgsz, args.verify)
         except Exception as exc:
             try:
                 target, expected = infer_expected(video, args.root)
@@ -215,6 +230,7 @@ def main() -> int:
             "model": str(args.model), "root": str(args.root), "sample_fps": args.sample_fps,
             "fire_threshold": args.fire_threshold, "smoke_threshold": args.smoke_threshold,
             "window": args.window, "required": args.required, "imgsz": args.imgsz,
+            "fire_verifier": bool(args.verify),
         },
         "fire": metrics(rows, "fire"),
         "smoke": metrics(rows, "smoke"),

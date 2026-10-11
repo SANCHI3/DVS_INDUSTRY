@@ -38,6 +38,9 @@ class RgbFightDetector:
         self.persistence_window = int(rgb_cfg.get("persistence_window", 3))
         self.required_confirmed = int(rgb_cfg.get("required_confirmed", 2))
         self.confirmed_history = deque(maxlen=self.persistence_window)
+        # Grad-CAM heatmaps saved with each confirmed fight (explain/gradcam.py)
+        self.explain = bool(rgb_cfg.get("explain", True))
+        self.explain_dir = rgb_cfg.get("explain_dir", "output/evidence/gradcam")
         self.gate_hold_seconds = float(cfg.get("gate_hold_seconds", 1.5))
         self.gate = MotionOfInterestGate(
             proximity_px=cfg["gate"]["proximity_px"],
@@ -109,14 +112,28 @@ class RgbFightDetector:
             )
             return []
         self._stats["confirmed_candidates"] += 1
+        heatmaps = self._explain(clip)
         return [EventCandidate(
             event_type="fight",
             track_ids=self.last_track_ids,
             camera_id=self.camera_id,
             detail={"mode": "rgb_r3d18", "score": round(score, 3),
-                    "clip_frames": self.clip_frames},
+                    "clip_frames": self.clip_frames,
+                    **({"gradcam_heatmaps": heatmaps} if heatmaps else {})},
             raw_confidence=score,
         )]
+
+    def _explain(self, clip) -> list:
+        """Save Grad-CAM keyframes for a confirmed fight; never blocks the alert."""
+        if not self.explain:
+            return []
+        try:
+            prefix = f"{self.camera_id}_{time.strftime('%Y%m%d_%H%M%S')}"
+            _, paths = self.classifier.explain_clip(clip, self.explain_dir, prefix)
+            return paths
+        except Exception as exc:  # explanation is best-effort
+            print(f"[{self.camera_id}] Grad-CAM failed: {type(exc).__name__}: {exc}")
+            return []
 
     def _buffer_frame(self, frame, now: float) -> None:
         if self.clip_fps is None:

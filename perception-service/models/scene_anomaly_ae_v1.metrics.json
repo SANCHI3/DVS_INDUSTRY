@@ -1,0 +1,130 @@
+{
+  "model": "denoising autoencoder (numpy)",
+  "architecture": [
+    38,
+    16,
+    4,
+    16,
+    38
+  ],
+  "feature_dim": 38,
+  "configuration": {
+    "sample_fps": 5.0,
+    "window": 10,
+    "stride": 2,
+    "percentile": 95.0,
+    "required": 2,
+    "epochs": 400,
+    "hidden": 16,
+    "bottleneck": 4,
+    "noise": 0.3,
+    "seed": 7
+  },
+  "data": {
+    "normal_videos": 81,
+    "train_videos": 49,
+    "val_videos": 12,
+    "test_normal_videos": 20,
+    "abnormal_videos": 40,
+    "train_windows": 917,
+    "val_windows": 225
+  },
+  "threshold": 0.9763549475265288,
+  "calibration": {
+    "percentile": 95.0,
+    "normal_mean": 0.30482000044635715,
+    "normal_std": 0.3141655339494054,
+    "normal_p50": 0.16548480012501074,
+    "normal_p95": 0.9763549475265288,
+    "normal_p99": 1.4050243680571168
+  },
+  "epochs_trained": 400,
+  "window_level": {
+    "test_normal_windows": 354,
+    "false_alarm_rate": 0.0452,
+    "abnormal_windows": 423,
+    "roc_auc": 0.6201
+  },
+  "video_level": {
+    "rule": "alert if 2 consecutive 2-s windows exceed the threshold",
+    "roc_auc": 0.7388,
+    "TP": 15,
+    "FP": 3,
+    "FN": 25,
+    "TN": 17,
+    "precision": 0.8333,
+    "recall": 0.375,
+    "specificity": 0.85,
+    "accuracy": 0.5333,
+    "f1": 0.5172
+  },
+  "operating_points": [
+    {
+      "threshold_percentile": 90.0,
+      "threshold": 0.6891,
+      "TP": 24,
+      "FP": 4,
+      "FN": 16,
+      "TN": 16,
+      "precision": 0.8571,
+      "recall": 0.6,
+      "specificity": 0.8,
+      "accuracy": 0.6667,
+      "f1": 0.7059
+    },
+    {
+      "threshold_percentile": 95.0,
+      "threshold": 0.9764,
+      "TP": 15,
+      "FP": 3,
+      "FN": 25,
+      "TN": 17,
+      "precision": 0.8333,
+      "recall": 0.375,
+      "specificity": 0.85,
+      "accuracy": 0.5333,
+      "f1": 0.5172
+    },
+    {
+      "threshold_percentile": 97.5,
+      "threshold": 1.2562,
+      "TP": 7,
+      "FP": 2,
+      "FN": 33,
+      "TN": 18,
+      "precision": 0.7778,
+      "recall": 0.175,
+      "specificity": 0.9,
+      "accuracy": 0.4167,
+      "f1": 0.2857
+    },
+    {
+      "threshold_percentile": 99.0,
+      "threshold": 1.405,
+      "TP": 4,
+      "FP": 1,
+      "FN": 36,
+      "TN": 19,
+      "precision": 0.8,
+      "recall": 0.1,
+      "specificity": 0.95,
+      "accuracy": 0.3833,
+      "f1": 0.1778
+    }
+  ],
+  "explainability": {
+    "fast motion": 2.47,
+    "widespread motion": 2.56,
+    "downward (falling / collapsing) motion": 2.03,
+    "unusual motion direction": 0.92,
+    "chaotic vs. uniform motion": 1.35,
+    "motion in an unusual part of the scene": 2.23,
+    "visual change (smoke, flash, lighting)": 1.16,
+    "silhouette / object shape change": 1.25,
+    "motion burst followed by stillness": 5.23,
+    "sudden acceleration": 1.53
+  },
+  "plots": [
+    "models/scene_anomaly_ae_v1.evaluation.png"
+  ]
+}

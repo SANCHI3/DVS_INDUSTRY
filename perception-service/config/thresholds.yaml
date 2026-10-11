@@ -61,6 +61,12 @@ confirmation:
     probable_window: 1
     confirmed_hits: 1
     confirmed_window: 1
+  anomaly:
+    # SceneAnomalyDetector applies its own N-of-M persistence and requests a tier
+    probable_hits: 1
+    probable_window: 1
+    confirmed_hits: 1
+    confirmed_window: 1
   theft_probable:
     # theft is policy-capped at PROBABLE regardless of persistence -- see severity.py
     probable_hits: 1
@@ -80,10 +86,12 @@ severity:
     theft_probable: LOW
     fight: MEDIUM
     fire_smoke: HIGH
+    anomaly: LOW
   # event types that can never exceed this severity, no matter what (policy cap)
   hard_cap:
     theft_probable: MEDIUM
     suspicious_activity: LOW
+    anomaly: MEDIUM               # unsupervised: the AI cannot name the event, a human must escalate
 
 evidence:
   output_dir: "output/evidence"
@@ -128,3 +136,62 @@ fire_smoke_detection:
   required_hits: 3
   # Suppress repeated bursts from the same ongoing camera-level incident.
   incident_dedup_seconds: 60
+  verifier:
+    # Second stage that rejects fire/smoke look-alikes.
+    #   learned: gradient-boosting classifier on flicker, colour, texture and
+    #            upward-motion features (fire_verifier/). Leave-one-video-out on
+    #            FIRESENSE: fire false alarms 2 -> 0, fire F1 0.87 -> 0.95.
+    #   rules:   hand-tuned flame colour / luminous core / flicker score
+    #            (temporal/fire_verifier.py); fused = yolo_conf * ((1 - alpha) + alpha * verification)
+    enabled: true
+    mode: learned
+    checkpoint: "models/fire_smoke_verifier_v1.pkl"
+    alpha: 0.6               # rules mode only
+
+fall_detection:
+  # Pose-based fall detection. mode:
+  #   gru       - temporal CNN + BiGRU on box + skeleton sequences (fall_gru/).
+  #               5-fold grouped CV on 160 videos: P 0.86, R 0.94, F1 0.90, AUC 0.96
+  #               (original box rule: F1 0.81 relaxed / 0.11 as deployed)
+  #   model     - Random Forest on biomechanical features (fall_rf/); falls back
+  #               to physics if its checkpoint is missing
+  #   physics   - training-free biomechanical score
+  #   bbox_rule - original aspect-ratio rule in temporal/rule_engine.py
+  enabled: true
+  mode: gru
+  gru_checkpoint: "models/fall_gru_v1.pt"
+  gru:                              # overrides for mode: gru
+    pose_stride_frames: 1           # pose every processed frame while people are visible
+    evaluation_stride_frames: 3
+    persistence_window: 3
+    required_hits: 2                # 2 of the last 3 evaluations above threshold
+    cooldown_seconds: 30            # one incident per person per fall
+    max_people_for_pose: 12
+  # --- settings below are for mode: model / physics ---
+  checkpoint: "models/fall_rf_v1.joblib"
+  pose_model_path: "yolov8n-pose.pt"
+  use_checkpoint_threshold: true
+  physics_threshold: 0.75
+  window_seconds: 2.0
+  idle_stride_frames: 3             # pose every 3rd cycle while nothing looks unusual
+  evaluation_stride_frames: 2
+  gate_hold_seconds: 4.0
+  persistence_window: 3
+  required_hits: 2
+  confirm_still_seconds: 3.0        # still down this long after the fall -> CONFIRMED
+  gate:
+    height_drop_ratio: 0.20
+    aspect_ratio: 0.90
+    down_speed_heights_per_s: 0.5
+
+scene_anomaly:
+  # Unsupervised optical-flow autoencoder (anomaly/). Retrain on 20-60 min of
+  # NORMAL footage from each camera:  python -m anomaly.train_autoencoder --normal <folder>
+  enabled: true
+  checkpoint: "models/scene_anomaly_ae_v1.npz"
+  evaluation_stride_frames: 2       # windows between evaluations (after resampling to model FPS)
+  threshold_scale: 1.0              # >1 = fewer alerts, <1 = more sensitive
+  persistence_window: 3
+  required_hits: 2
+  confirmed_ratio: 2.0              # error >= 2x threshold -> CONFIRMED
+  cooldown_seconds: 30
