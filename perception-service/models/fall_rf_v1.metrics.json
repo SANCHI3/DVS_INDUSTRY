@@ -1,0 +1,146 @@
+{
+  "task": "pose-based fall detection",
+  "features": [
+    "torso_angle_end",
+    "torso_angle_max",
+    "torso_angle_change",
+    "torso_angular_speed_max",
+    "hip_drop",
+    "hip_down_speed_max",
+    "head_drop",
+    "head_down_speed_max",
+    "head_height_end",
+    "head_height_min",
+    "bbox_aspect_end",
+    "bbox_aspect_change",
+    "stillness_end",
+    "centre_accel_max",
+    "keypoint_visibility",
+    "vertical_spread_end"
+  ],
+  "data": {
+    "windows": 1976,
+    "videos": 160,
+    "fall_videos": 79,
+    "not_fall_videos": 81,
+    "training_windows": 1587,
+    "positive_windows": 390
+  },
+  "evaluation": "5-fold cross-validation grouped by event (all camera angles of one event share a fold); video alert = 2 consecutive windows >= threshold",
+  "models": {
+    "random_forest": {
+      "window_roc_auc": 0.9765,
+      "video_roc_auc": 0.9514,
+      "video_metrics": {
+        "threshold": 0.54,
+        "TP": 74,
+        "FP": 12,
+        "FN": 5,
+        "TN": 69,
+        "precision": 0.8605,
+        "recall": 0.9367,
+        "specificity": 0.8519,
+        "accuracy": 0.8938,
+        "f1": 0.897,
+        "objective": "precision>=0.85"
+      },
+      "seconds": 3.1
+    },
+    "gradient_boosting": {
+      "window_roc_auc": 0.9733,
+      "video_roc_auc": 0.9483,
+      "video_metrics": {
+        "threshold": 0.54,
+        "TP": 73,
+        "FP": 12,
+        "FN": 6,
+        "TN": 69,
+        "precision": 0.8588,
+        "recall": 0.9241,
+        "specificity": 0.8519,
+        "accuracy": 0.8875,
+        "f1": 0.8902,
+        "objective": "precision>=0.85"
+      },
+      "seconds": 3.1
+    },
+    "logistic_regression": {
+      "window_roc_auc": 0.9584,
+      "video_roc_auc": 0.9358,
+      "video_metrics": {
+        "threshold": 0.81,
+        "TP": 69,
+        "FP": 11,
+        "FN": 10,
+        "TN": 70,
+        "precision": 0.8625,
+        "recall": 0.8734,
+        "specificity": 0.8642,
+        "accuracy": 0.8688,
+        "f1": 0.8679,
+        "objective": "precision>=0.85"
+      },
+      "seconds": 0.0
+    }
+  },
+  "baselines": {
+    "physics_score (no training)": {
+      "threshold": 0.77,
+      "TP": 62,
+      "FP": 10,
+      "FN": 17,
+      "TN": 71,
+      "precision": 0.8611,
+      "recall": 0.7848,
+      "specificity": 0.8765,
+      "accuracy": 0.8313,
+      "f1": 0.8212,
+      "objective": "precision>=0.85"
+    },
+    "bbox_rule (original config: stillness 5 s)": {
+      "threshold": 0.5,
+      "TP": 0,
+      "FP": 0,
+      "FN": 79,
+      "TN": 81,
+      "precision": 0.0,
+      "recall": 0.0,
+      "specificity": 1.0,
+      "accuracy": 0.5062,
+      "f1": 0.0
+    },
+    "bbox_rule (relaxed: stillness 1 s)": {
+      "threshold": 0.5,
+      "TP": 3,
+      "FP": 0,
+      "FN": 76,
+      "TN": 81,
+      "precision": 1.0,
+      "recall": 0.038,
+      "specificity": 1.0,
+      "accuracy": 0.525,
+      "f1": 0.0732
+    }
+  },
+  "feature_importance": {
+    "head_drop": 0.2074,
+    "head_height_end": 0.1582,
+    "head_down_speed_max": 0.1181,
+    "bbox_aspect_change": 0.1157,
+    "head_height_min": 0.08,
+    "torso_angle_end": 0.0555,
+    "hip_down_speed_max": 0.0527,
+    "bbox_aspect_end": 0.042,
+    "torso_angle_change": 0.0367,
+    "vertical_spread_end": 0.026,
+    "hip_drop": 0.024,
+    "keypoint_visibility": 0.0201,
+    "torso_angular_speed_max": 0.0174,
+    "torso_angle_max": 0.0174,
+    "stillness_end": 0.0157,
+    "centre_accel_max": 0.013
+  },
+  "selected_model": "random_forest",
+  "threshold": 0.54,
+  "required_windows": 2
+}

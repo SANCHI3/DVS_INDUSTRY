@@ -96,7 +96,7 @@ fold), with time-stretch augmentation and pose dropout.
 |---|---|---|---|
 | **Pose-GRU** (`models/fall_gru_v1.metrics.json`, AUC **0.96**) | **0.86** | **0.94** | **0.90** |
 | Original box rule (5 s stillness, as deployed) | 0.56 | 0.06 | 0.11 |
-| Box rule relaxed to 1 s | 0.80 | 0.82 | 0.81 |
+| Box rule relaxed to 1 s, without its 8-px stillness check (generous) | 0.80 | 0.82 | 0.81 |
 | Ablation: same GRU, box features only (AUC 0.92) | 0.87 | 0.91 | 0.89 |
 
 The deployed rule scores so low mainly because most clips end before 5 s of lying still; the relaxed
@@ -121,7 +121,26 @@ feet, bounding-box aspect change, stillness after the drop, centre acceleration,
 vertical-to-horizontal keypoint spread. These describe the *physics* of a fall, so they transfer
 across cameras, clothing and lighting.
 
-**Training** (`fall_rf/train.py`). Not yet run on the real videos, so it has no measured results.
+**Training** (`fall_rf/train.py`). Results (`models/fall_rf_v1.metrics.json`, `.evaluation.png`) on the
+same 160 videos, 5-fold cross-validation grouped by event:
+
+| Model on 16 biomechanical features | Precision | Recall | F1 | Video AUC |
+|---|---|---|---|---|
+| **Random Forest** (saved) | 0.86 | 0.94 | **0.90** | 0.95 |
+| Gradient Boosting | 0.86 | 0.92 | 0.89 | 0.95 |
+| Logistic Regression | 0.86 | 0.87 | 0.87 | 0.94 |
+| Physics score (no training) | 0.86 | 0.78 | 0.82 | – |
+
+**Deep learning vs classical ML.** The GRU on raw per-frame features (F1 0.90, AUC 0.96) and the
+Random Forest on hand-designed biomechanical features (F1 0.90, AUC 0.95) reach the same F1. The
+GRU learns its features; the Random Forest needs expert features but is faster and explains each
+alert in plain language. The GRU is the live default; `mode: model` switches to the Random Forest.
+
+**Note on the box-rule baselines.** The two scripts implement the original rule slightly
+differently. `fall_rf` reproduces it exactly, including its "lying still" check (box centre moves
+≤ 8 px), and it almost never fires on these clips (F1 0.00 with 5 s, 0.07 with 1 s). `fall_gru`
+omits the 8-px check, so its "relaxed" rule (F1 0.81) is a generous version of the rule. Either way,
+the learned models are clearly better.
 - 5-fold cross-validation **grouped by video** (no window of a test video is ever in training).
 - Compares Random Forest, Gradient Boosting and Logistic Regression on identical folds.
 - Compares against two training-free baselines on the same videos: the original bounding-box rule and
@@ -131,7 +150,7 @@ across cameras, clothing and lighting.
   forces the model to learn the *speed* of a fall.
 - Saves the best model, a metrics JSON and a comparison / feature-importance plot.
 
-**Run on your laptop (needs ultralytics + scikit-learn; about 10–20 min on a GPU):**
+**Re-run (about 10–20 min on a GPU):**
 ```bash
 cd perception-service
 pip install -r requirements.txt
@@ -139,7 +158,7 @@ python -m fall_rf.extract_features --input data/fall_videos --output data/fall_r
 python -m fall_rf.train --manifest data/fall_rf_features/manifest.csv --output models/fall_rf_v1.joblib
 ```
 Then set `fall_detection.mode: model`. If its checkpoint is missing, the detector uses the physics
-score. Training both gives a deep-learning vs classical-ML comparison on the same videos.
+score.
 
 **Runtime** (`temporal/pose_fall_recognition.py`). Pose runs every 3rd cycle while nothing looks
 unusual (so a pre-fall history exists), and every cycle for 4 s after a cheap gate fires on the

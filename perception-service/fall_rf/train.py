@@ -75,7 +75,7 @@ def video_level(videos, window, y, scores, required: int):
 
 def metrics_at(vid: Dict[str, tuple], threshold: float) -> dict:
     y = np.array([a for a, _ in vid.values()]).astype(bool)
-    p = np.array([b >= threshold for _, b in vid.values()])
+    p = np.array([b >= threshold for _, b in vid.values()], dtype=bool)
     tp = int(np.sum(y & p)); fp = int(np.sum(~y & p)); fn = int(np.sum(y & ~p)); tn = int(np.sum(~y & ~p))
     prec = tp / (tp + fp) if tp + fp else 0.0
     rec = tp / (tp + fn) if tp + fn else 0.0
@@ -231,7 +231,9 @@ def main() -> None:
         for label, still in (("bbox_rule (original config: stillness 5 s)", 5.0),
                              ("bbox_rule (relaxed: stillness 1 s)", 1.0)):
             fired = bbox_rule_baseline(pose_dir, flip_s=1.5, still_s=still)
-            vid = {v: (vid_label[v], 1.0 if fired.get(v) else 0.0) for v in uniq if v in fired}
+            # pose caches are named without the video extension: "fall/01 (2)"
+            vid = {v: (vid_label[v], 1.0 if fired[Path(v).with_suffix("").as_posix()] else 0.0)
+                   for v in uniq if Path(v).with_suffix("").as_posix() in fired}
             baselines[label] = metrics_at(vid, 0.5)
     report["baselines"] = baselines
     for k, v in baselines.items():
