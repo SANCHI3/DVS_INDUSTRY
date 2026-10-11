@@ -8,6 +8,7 @@ import {
   buildProductionPerformance,
   utcMidnight,
 } from '../analytics/engine';
+import { buildSupplierScorecard } from '../analytics/supplierMath';
 import type {
   AttendanceRow,
   IncidentRow,
@@ -21,6 +22,7 @@ import type {
   MaterialForecast,
   PlantHealth,
   ProductionPerformance,
+  SupplierScorecard,
 } from '../interfaces/analytics.interface';
 
 type DecimalLike = { toNumber(): number } | number | null | undefined;
@@ -221,6 +223,43 @@ export class AnalyticsService {
     logger.info('Building production performance', { historyDays, department });
     const workOrders = await this.loadWorkOrders(sinceDays(now, historyDays), department);
     return buildProductionPerformance({ workOrders, historyDays, now });
+  }
+
+  async getSupplierScorecard(
+    historyDays = 180,
+    now: Date = new Date(),
+  ): Promise<SupplierScorecard> {
+    logger.info('Building supplier scorecard', { historyDays });
+    const [suppliers, purchaseOrders] = await Promise.all([
+      prisma.supplier.findMany({
+        where: { deletedAt: null },
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          rating: true,
+          leadTimeDays: true,
+          isActive: true,
+        },
+      }),
+      prisma.purchaseOrder.findMany({
+        where: { orderDate: { gte: sinceDays(now, historyDays) } },
+        select: {
+          supplierId: true,
+          status: true,
+          orderDate: true,
+          expectedDelivery: true,
+          actualDelivery: true,
+          totalCost: true,
+        },
+      }),
+    ]);
+    return buildSupplierScorecard({
+      suppliers: suppliers.map((s) => ({ ...s, rating: numOrNull(s.rating) })),
+      purchaseOrders: purchaseOrders.map((p) => ({ ...p, totalCost: numOrNull(p.totalCost) })),
+      historyDays,
+      now,
+    });
   }
 
   async getPlantHealth(

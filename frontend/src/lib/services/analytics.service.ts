@@ -178,3 +178,48 @@ export async function getPlantHealth(params: AnalyticsParams = {}): Promise<Plan
   const res = await api.get<{ success: true; data: PlantHealth }>('/analytics/plant-health', { params });
   return res.data.data;
 }
+
+// ── Supplier scorecard ────────────────────────────────────────────────────────
+
+export interface SupplierScore {
+  supplierId: number;
+  name: string;
+  code: string;
+  purchaseOrders: number;
+  delivered: number;
+  cancelled: number;
+  open: number;
+  overdueOpen: number;
+  spend: number;
+  onTimeRate: number | null;        // percent
+  averageDelayDays: number | null;
+  leadTimeMeanDays: number | null;
+  leadTimeCv: number | null;
+  promisedLeadTimeDays: number | null;
+  leadTimeDriftDays: number | null;
+  fulfilmentRate: number | null;    // percent
+  rating: number | null;
+  score: number | null;
+  grade: 'A' | 'B' | 'C' | 'D' | null;
+  enoughHistory: boolean;
+}
+
+export interface SupplierScorecard {
+  generatedAt: string;
+  historyDays: number;
+  summary: {
+    suppliers: number;
+    purchaseOrders: number;
+    delivered: number;
+    overallOnTimeRate: number | null;
+    overdueOpen: number;
+    spend: number;
+  };
+  suppliers: SupplierScore[];
+  insights: Insight[];
+}
+
+export async function getSupplierScorecard(params: { historyDays?: number } = {}): Promise<SupplierScorecard> {
+  const res = await api.get<{ success: true; data: SupplierScorecard }>('/analytics/suppliers', { params });
+  return res.data.data;
+}

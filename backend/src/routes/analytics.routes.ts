@@ -8,6 +8,7 @@ import {
   analyticsQuerySchema,
   materialIdParamSchema,
   productionAnalyticsQuerySchema,
+  supplierScorecardQuerySchema,
 } from '../validators/analytics.validator';
 import { ROLES } from '../constants';
 
@@ -52,6 +53,20 @@ router.get(
   authorize(...PRODUCTION_ROLES),
   validateRequest({ query: productionAnalyticsQuerySchema }),
   asyncHandler(AnalyticsController.getProductionPerformance),
+);
+
+/**
+ * GET /api/v1/analytics/suppliers
+ * Supplier scorecard: on-time delivery, lead-time mean / variability / drift,
+ * fulfilment, composite score and grade, with prioritised insights.
+ * Query: historyDays (30-730, default 180)
+ * Access: ADMIN, MANAGER, STORE (never SUPPLIER: it compares competitors)
+ */
+router.get(
+  '/suppliers',
+  authorize(...STORE_ROLES),
+  validateRequest({ query: supplierScorecardQuerySchema }),
+  asyncHandler(AnalyticsController.getSupplierScorecard),
 );
 
 /**

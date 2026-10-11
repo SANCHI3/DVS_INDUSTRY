@@ -50,18 +50,26 @@ Adam are all visible in `anomaly/autoencoder.py`; a numerical gradient check is 
 The threshold is the 95th percentile of reconstruction error on *validation normal* videos.
 Each alert explains which feature groups caused the error.
 
-**Results** (`models/scene_anomaly_ae_v1.metrics.json`, `.evaluation.png`). Trained on 49 of the
-81 `not_fall` videos, threshold set on 12 more, then tested on 20 unseen normal videos + 40 fall videos.
-These fall videos were never shown to the model.
+**Results** (`models/scene_anomaly_ae_v2.metrics.json`, `.evaluation.png`; live default).
+The 81 `not_fall` videos are split **by event**: files such as `01.mp4` and `01 (2).mp4` are the
+same scene from different cameras and always stay in the same split. 47 videos train the model,
+11 set the threshold, and 23 unseen normal videos + all 79 fall videos test it. The fall videos
+are never shown to the model.
 
 | Threshold (validation-normal percentile) | Precision | Recall | Specificity | F1 |
 |---|---|---|---|---|
-| p90 (`threshold_scale: 0.7`) | 0.86 | 0.60 | 0.80 | 0.71 |
-| **p95 (default)** | **0.83** | **0.38** | **0.85** | **0.52** |
-| p99 | 0.80 | 0.10 | 0.95 | 0.18 |
+| p90 (`threshold_scale` ≈ 0.75) | 0.92 | 0.76 | 0.78 | 0.83 |
+| **p95 (default)** | **0.96** | **0.67** | **0.91** | **0.79** |
+| p97.5 | 0.94 | 0.38 | 0.91 | 0.54 |
+| p99 | 0.90 | 0.24 | 0.91 | 0.38 |
 
-Video-level ROC-AUC = **0.74**. Explainability: on fall videos the error is dominated by
-*motion burst followed by stillness* (5.2× normal), then widespread / fast motion.
+Video-level ROC-AUC = **0.84**. On fall videos the reconstruction error is dominated by
+*downward (collapsing) motion* (2.7× normal), *motion burst followed by stillness* and
+*unusual motion direction*.
+
+*Earlier v1* (`scene_anomaly_ae_v1.*`) split normal videos by file, so other camera angles of
+test scenes could appear in training, and it was tested on 40 fall videos: F1 0.52, AUC 0.74.
+v2 removes that leakage and is evaluated on twice as many abnormal videos.
 
 **Honest limitation.** The `not_fall` videos are mostly exercise, bending and squatting, i.e. vigorous
 "normal" motion, so falls are not extreme motion outliers there. In a factory, normal footage
@@ -72,7 +80,7 @@ safety net for events nobody labelled.
 ```bash
 cd perception-service
 python -m anomaly.train_autoencoder --normal data/fall_videos/not_fall --abnormal data/fall_videos/fall \
-       --output models/scene_anomaly_ae_v1.npz
+       --output models/scene_anomaly_ae_v2.npz
 # for a real camera: --normal <folder of that camera's normal recordings>
 ```
 
@@ -235,7 +243,26 @@ Query parameters: `historyDays` (30–365), `horizonDays`, `serviceLevel` (0.5�
   when no single day breaks the limits.
 - Weekly first-pass-yield trend; optional `?department=` filter.
 
-### 2.3 Plant Health Index: `GET /api/v1/analytics/plant-health`
+### 2.3 Supplier scorecard: `GET /api/v1/analytics/suppliers`
+
+Scores every supplier from its purchase-order history (`?historyDays=`, default 180):
+
+| Measure | Definition |
+|---|---|
+| On-time delivery | delivered POs that arrived by the promised date (1-day grace) ÷ delivered POs with a promised date |
+| Average delay | mean lateness of the late deliveries, in days |
+| Lead time and drift | mean actual lead time (order → delivery) vs the lead time the supplier promised |
+| Lead-time variability | coefficient of variation of actual lead time. Unpredictable suppliers force extra safety stock. |
+| Fulfilment | delivered ÷ (delivered + cancelled) |
+| Overdue open POs | open orders whose promised date has passed |
+| **Score / grade** | 40% on-time + 25% lead-time consistency + 20% fulfilment + 15% buyer rating; A ≥ 85, B ≥ 70, C ≥ 55, else D. Missing parts are left out and the weights rescaled; suppliers with fewer than 3 deliveries are shown as *New* rather than graded. |
+
+Insights flag overdue POs, poor on-time performance, lead-time drift ("real lead time 14 days vs
+7 promised: update it so reorder points are right") and erratic suppliers. The maths is in
+`backend/src/analytics/supplierMath.ts` and tested in `supplier.scorecard.test.ts`. The page has a
+**Supplier Scorecard** tab. SUPPLIER accounts can never call this endpoint, because it compares competitors.
+
+### 2.4 Plant Health Index: `GET /api/v1/analytics/plant-health`
 
 A 0–100 score with grade A–D built from five pillars: inventory availability (20%), OEE-style
 production (25%), first-pass yield (20%), severity-weighted safety incidents from the AI security
@@ -243,11 +270,12 @@ module (25%) and attendance (10%). Missing pillars are left out and the remainin
 It also reports the **correlation between safety incidents and quality per department**, linking
 the CCTV AI module to production KPIs.
 
-### 2.4 Access
+### 2.5 Access
 | Endpoint | Roles |
 |---|---|
 | inventory, forecast | ADMIN, MANAGER, STORE |
 | production | ADMIN, MANAGER, PRODUCTION |
+| suppliers | ADMIN, MANAGER, STORE |
 | plant-health | ADMIN, MANAGER |
 
 ---

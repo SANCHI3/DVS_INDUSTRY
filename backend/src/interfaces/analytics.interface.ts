@@ -157,3 +157,50 @@ export interface PlantHealth {
   incidentsByType: Array<{ type: string; count: number }>;
   insights: Insight[];
 }
+
+// ── Supplier scorecard ────────────────────────────────────────────────────────
+
+export interface SupplierScore {
+  supplierId: number;
+  name: string;
+  code: string;
+  purchaseOrders: number;
+  delivered: number;
+  cancelled: number;
+  open: number;
+  /** Open POs whose expected delivery date has passed. */
+  overdueOpen: number;
+  spend: number;
+  /** % of delivered POs (with a promised date) delivered on time (+1 day grace). */
+  onTimeRate: number | null;
+  /** Mean lateness of late deliveries, in days. */
+  averageDelayDays: number | null;
+  leadTimeMeanDays: number | null;
+  /** Coefficient of variation of actual lead time (lower = more predictable). */
+  leadTimeCv: number | null;
+  promisedLeadTimeDays: number | null;
+  /** Actual mean lead time minus the promised lead time. */
+  leadTimeDriftDays: number | null;
+  /** % of finished POs that were delivered rather than cancelled. */
+  fulfilmentRate: number | null;
+  rating: number | null;
+  score: number | null;
+  /** Null until the supplier has enough deliveries to be graded fairly. */
+  grade: 'A' | 'B' | 'C' | 'D' | null;
+  enoughHistory: boolean;
+}
+
+export interface SupplierScorecard {
+  generatedAt: string;
+  historyDays: number;
+  summary: {
+    suppliers: number;
+    purchaseOrders: number;
+    delivered: number;
+    overallOnTimeRate: number | null;
+    overdueOpen: number;
+    spend: number;
+  };
+  suppliers: SupplierScore[];
+  insights: Insight[];
+}

@@ -15,9 +15,14 @@ export const productionAnalyticsQuerySchema = z.object({
   department: z.string().trim().min(1).max(120).optional(),
 });
 
+export const supplierScorecardQuerySchema = z.object({
+  historyDays: z.coerce.number().int().min(30).max(730).optional().default(180),
+});
+
 export const materialIdParamSchema = z.object({
   materialId: z.coerce.number().int().positive(),
 });
 
 export type AnalyticsQueryInput = z.infer<typeof analyticsQuerySchema>;
 export type ProductionAnalyticsQueryInput = z.infer<typeof productionAnalyticsQuerySchema>;
+export type SupplierScorecardQueryInput = z.infer<typeof supplierScorecardQuerySchema>;

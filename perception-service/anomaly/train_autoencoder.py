@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import re
 import json
 import os
 import time
@@ -121,15 +122,27 @@ def binary_metrics(y_true: List[int], y_pred: List[int]) -> Dict[str, float]:
             "accuracy": round((tp + tn) / max(len(y_true), 1), 4), "f1": round(f1, 4)}
 
 
+def event_group(path: str) -> str:
+    """Videos of one event filmed from several cameras ("01.mp4", "01 (2).mp4")
+    share a numeric prefix; they must land in the same split, otherwise the
+    test set contains other angles of scenes seen in training."""
+    p = Path(path)
+    match = re.match(r"^\s*(\d+)", p.stem)
+    return f"{p.parent.as_posix()}/{match.group(1) if match else p.stem}"
+
+
 def split_videos(paths: List[str], seed: int, val_frac: float, test_frac: float) -> Tuple[list, list, list]:
+    """Split by event group (see event_group), not by individual file."""
+    groups: Dict[str, List[str]] = {}
+    for path in paths:
+        groups.setdefault(event_group(path), []).append(path)
+    keys = sorted(groups)
     rng = np.random.default_rng(seed)
-    order = list(rng.permutation(len(paths)))
-    n_test = max(1, int(round(len(paths) * test_frac)))
-    n_val = max(1, int(round(len(paths) * val_frac)))
-    test = [paths[i] for i in order[:n_test]]
-    val = [paths[i] for i in order[n_test:n_test + n_val]]
-    train = [paths[i] for i in order[n_test + n_val:]]
-    return train, val, test
+    order = [keys[i] for i in rng.permutation(len(keys))]
+    n_test = max(1, int(round(len(keys) * test_frac)))
+    n_val = max(1, int(round(len(keys) * val_frac)))
+    pick = lambda chosen: [p for g in chosen for p in groups[g]]  # noqa: E731
+    return pick(order[n_test + n_val:]), pick(order[n_test:n_test + n_val]), pick(order[:n_test])
 
 
 def save_plots(out_prefix: Path, normal_err: np.ndarray, abnormal_err: np.ndarray,

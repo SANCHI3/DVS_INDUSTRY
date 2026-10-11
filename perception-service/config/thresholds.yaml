@@ -188,7 +188,7 @@ scene_anomaly:
   # Unsupervised optical-flow autoencoder (anomaly/). Retrain on 20-60 min of
   # NORMAL footage from each camera:  python -m anomaly.train_autoencoder --normal <folder>
   enabled: true
-  checkpoint: "models/scene_anomaly_ae_v1.npz"
+  checkpoint: "models/scene_anomaly_ae_v2.npz"   # v2: event-grouped split, F1 0.79 / AUC 0.84
   evaluation_stride_frames: 2       # windows between evaluations (after resampling to model FPS)
   threshold_scale: 1.0              # >1 = fewer alerts, <1 = more sensitive
   persistence_window: 3

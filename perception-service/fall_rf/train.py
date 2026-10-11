@@ -3,7 +3,8 @@
     python -m fall_rf.train --manifest data/fall_features/manifest.csv --output models/fall_rf_v1.joblib
 
 What it does
-1. 5-fold cross-validation grouped BY VIDEO (no window of a test video is
+1. 5-fold cross-validation grouped BY EVENT (camera angles of one event share a fold;
+   within that, never splitting a video) (no window of a test video is
    ever seen in training -- prevents the leakage that inflates many student
    results).
 2. Compares three model families on identical folds:
@@ -28,6 +29,15 @@ from typing import Dict, List
 import numpy as np
 
 from fall_rf.features import FEATURE_NAMES
+
+
+def event_of(video: str) -> str:
+    """'fall/01 (2).mp4' -> 'fall/01' (numeric prefix = recorded event)."""
+    import re
+
+    cls, _, name = video.replace("\\", "/").rpartition("/")
+    match = re.match(r"^\s*(\d+)", name)
+    return f"{cls}/{match.group(1) if match else name}"
 
 
 def load_manifest(path: str):
@@ -166,8 +176,12 @@ def main() -> None:
           f"{int(use.sum())} windows used for training")
 
     folds = StratifiedGroupKFold(n_splits=args.folds, shuffle=True, random_state=args.seed)
-    vid_index = {v: i for i, v in enumerate(uniq)}
-    groups = np.array([vid_index[v] for v in videos])
+    # Group by EVENT, not file: "fall/01.mp4" and "fall/01 (2).mp4" are the same
+    # fall filmed from another camera and must share a fold.
+    events = sorted({event_of(v) for v in uniq})
+    event_index = {e: i for i, e in enumerate(events)}
+    groups = np.array([event_index[event_of(v)] for v in videos])
+    print(f"{len(events)} event groups")
     fold_of = np.zeros(len(rows), int)
     for k, (_, test_idx) in enumerate(folds.split(x, y, groups)):
         fold_of[test_idx] = k
@@ -178,7 +192,7 @@ def main() -> None:
         "data": {"windows": len(rows), "videos": len(uniq), "fall_videos": sum(vid_label.values()),
                  "not_fall_videos": len(uniq) - sum(vid_label.values()),
                  "training_windows": int(use.sum()), "positive_windows": int((use & (y == 1)).sum())},
-        "evaluation": f"{args.folds}-fold cross-validation grouped by video; "
+        "evaluation": f"{args.folds}-fold cross-validation grouped by event (all camera angles of one event share a fold); "
                       f"video alert = {args.required} consecutive windows >= threshold",
         "models": {},
     }

@@ -4,6 +4,7 @@ import { sendSuccess } from '../utils/response';
 import type {
   AnalyticsQueryInput,
   ProductionAnalyticsQueryInput,
+  SupplierScorecardQueryInput,
 } from '../validators/analytics.validator';
 
 const svc = new AnalyticsService();
@@ -31,6 +32,16 @@ export async function getProductionPerformance(req: Request, res: Response): Pro
     await svc.getProductionPerformance(q.historyDays, q.department),
     200,
     'Production performance generated',
+  );
+}
+
+export async function getSupplierScorecard(req: Request, res: Response): Promise<void> {
+  const q = req.query as unknown as SupplierScorecardQueryInput;
+  sendSuccess(
+    res,
+    await svc.getSupplierScorecard(q.historyDays),
+    200,
+    'Supplier scorecard generated',
   );
 }
 
