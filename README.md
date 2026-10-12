@@ -107,7 +107,7 @@ regenerate them). The script prints the logins it created.
 ### 2. Install, migrate and seed (skip if you used `--install`)
 
 ```bash
-cd backend  && npm install && npx prisma migrate deploy && npm run db:seed
+cd backend  && npm install && npx prisma generate && npx prisma migrate deploy && npm run db:seed
 cd frontend && npm install
 cd perception-service && pip install -r requirements.txt
 ```

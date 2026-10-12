@@ -42,19 +42,34 @@ function setStatus(next: StreamStatus): void {
   statusListeners.forEach((listener) => listener(next));
 }
 
-function dispatchBlock(block: string): void {
+/**
+ * Decode one SSE frame (the text between blank lines). Returns null for
+ * heartbeat comments, retry hints and malformed frames, which are ignored
+ * rather than dropping the connection.
+ */
+export function parseSseFrame(block: string): SecurityStreamEvent | null {
   const data = block
     .split('\n')
     .filter((line) => line.startsWith('data:'))
     .map((line) => line.slice(5).trimStart())
     .join('\n');
-  if (!data) return; // heartbeat comment or retry hint
+  if (!data) return null;
   try {
-    const event = JSON.parse(data) as SecurityStreamEvent;
-    eventListeners.forEach((listener) => listener(event));
+    return JSON.parse(data) as SecurityStreamEvent;
   } catch {
-    // ignore a malformed frame rather than dropping the connection
+    return null;
   }
+}
+
+/** Split buffered stream text into complete frames; returns the unfinished rest. */
+export function splitSseFrames(buffer: string): { frames: string[]; rest: string } {
+  const parts = buffer.replace(/\r\n/g, '\n').split('\n\n');
+  return { frames: parts.slice(0, -1), rest: parts[parts.length - 1] ?? '' };
+}
+
+function dispatchBlock(block: string): void {
+  const event = parseSseFrame(block);
+  if (event) eventListeners.forEach((listener) => listener(event));
 }
 
 function scheduleReconnect(delayOverride?: number): void {
@@ -108,13 +123,9 @@ async function connect(): Promise<void> {
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
-      buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, '\n');
-      let boundary = buffer.indexOf('\n\n');
-      while (boundary !== -1) {
-        dispatchBlock(buffer.slice(0, boundary));
-        buffer = buffer.slice(boundary + 2);
-        boundary = buffer.indexOf('\n\n');
-      }
+      const { frames, rest } = splitSseFrames(buffer + decoder.decode(value, { stream: true }));
+      frames.forEach(dispatchBlock);
+      buffer = rest;
     }
     clearTimeout(stableTimer);
     if (Date.now() - connectedAt >= STABLE_CONNECTION_MS) retryDelay = 1000;

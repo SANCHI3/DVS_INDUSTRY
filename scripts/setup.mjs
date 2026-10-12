@@ -129,6 +129,7 @@ if (readKey(backendEnv, 'DATABASE_URL') === DEFAULT_DB_URL) {
 // ── Optional install + database ──────────────────────────────────────────────
 if (flag('install')) {
   run('npm', ['install'], 'backend');
+  run('npx', ['prisma', 'generate'], 'backend');
   run('npx', ['prisma', 'migrate', 'deploy'], 'backend');
   run('npm', ['run', 'db:seed'], 'backend');
   run('npm', ['install'], 'frontend');
@@ -145,7 +146,7 @@ for (const role of ['production', 'store', 'supplier', 'client']) {
 }
 log('\nNext steps:');
 if (!flag('install')) {
-  log('  cd backend && npm install && npx prisma migrate deploy && npm run db:seed');
+  log('  cd backend && npm install && npx prisma generate && npx prisma migrate deploy && npm run db:seed');
   log('  cd frontend && npm install');
   log('  cd perception-service && pip install -r requirements.txt');
 }
