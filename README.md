@@ -10,7 +10,9 @@ For a complete newcomer handoff covering architecture, storage, workflows, setup
 
 ```
 Frontend (React + Vite)  →  Backend (Express + TypeScript)  →  PostgreSQL
-     localhost:5173               localhost:3000                 localhost:5433/dvs_factory
+     localhost:5173               localhost:3000                 localhost:5432/dvs_factory
+                                        ↑  incidents (REST)  +  live stream (SSE) → browser
+                             Perception service (Python, CCTV/webcam AI models)
 ```
 
 **File uploads** — stored locally at `backend/uploads/`, served as static assets by Express.  
@@ -75,47 +77,67 @@ Frontend (React + Vite)  →  Backend (Express + TypeScript)  →  PostgreSQL
 
 ---
 
-## Getting Started
+## Getting Started (fresh clone)
 
 ### Prerequisites
 - Node.js 20+
-- PostgreSQL 18 running on port 5433
-- Database `dvs_factory` created
+- PostgreSQL 15+ running, with an empty database named `dvs_factory`
+  (`createdb dvs_factory`, or create it in pgAdmin)
+- Python 3.10–3.12 (for the CCTV perception service; an NVIDIA GPU is optional)
+- **Git LFS** — two fight-detection models are stored with it. Before or after cloning:
+  ```bash
+  git lfs install
+  git lfs pull
+  ```
 
-### Backend setup
+### 1. Create the `.env` files
 
-```bash
-cd backend
-cp .env.example .env
-# Fill in DATABASE_URL, JWT_SECRET, REFRESH_TOKEN_SECRET in .env
-npm install
-npm run db:migrate:deploy
-npm run db:seed
-npm run dev
-# → http://localhost:3000
-```
-
-### Frontend setup
+`.env` files hold secrets and are never committed. One command creates both
+(`backend/.env` and `perception-service/.env`) with fresh secrets and matching
+camera-service credentials:
 
 ```bash
-cd frontend
-npm install
-npm run dev
-# → http://localhost:5173
+node scripts/setup.mjs --db-url "postgresql://postgres:<your-db-password>@localhost:5432/dvs_factory"
 ```
 
-### Default admin credentials (after seed)
+Add `--install` to also run `npm install`, the database migrations, the seed
+and `pip install` in one go. Existing `.env` files are kept (use `--force` to
+regenerate them). The script prints the logins it created.
+
+### 2. Install, migrate and seed (skip if you used `--install`)
+
+```bash
+cd backend  && npm install && npx prisma migrate deploy && npm run db:seed
+cd frontend && npm install
+cd perception-service && pip install -r requirements.txt
 ```
-Email:    admin@dvsindustry.com
-Password: Admin@1234!
+
+### 3. Run
+
+```bash
+cd backend  && npm run dev          # → http://localhost:3000
+cd frontend && npm run dev          # → http://localhost:5173
+cd perception-service && python main.py --camera CAM-01    # webcam + live window (press q to quit)
 ```
-> Change the password immediately after first login.
+
+### Logins (development seed)
+
+| Portal | Email | Password |
+|--------|-------|----------|
+| Administrator | `admin@dvsindustry.com` | `SEED_ADMIN_PASSWORD` in `backend/.env` (printed by the setup script) |
+| Production | `production.test@dvsindustry.local` | `production` |
+| Store | `store.test@dvsindustry.local` | `store` |
+| Supplier | `supplier.test@dvsindustry.local` | `supplier` |
+| Client | `client.test@dvsindustry.local` | `client` |
+
+> Demo passwords are for local development only; the seed never creates the
+> demo accounts when `NODE_ENV=production`.
 
 ---
 
 ## Environment Variables
 
-Copy `backend/.env.example` to `backend/.env` and fill in:
+`scripts/setup.mjs` fills these in. To do it by hand, copy `backend/.env.example` to `backend/.env` and set:
 
 | Variable | Description |
 |----------|-------------|

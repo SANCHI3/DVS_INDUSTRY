@@ -31,6 +31,9 @@ const envSchema = z.object({
   // Required so req.ip and the rate limiter see the real client address.
   TRUST_PROXY: z.coerce.number().int().min(0).max(5).default(0),
 
+  // API requests per 15 minutes per IP (the live incident stream is exempt)
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(500),
+
   // Public URL of the frontend, used to build password-reset links
   APP_URL: z.string().url().default('http://localhost:5173'),
 
