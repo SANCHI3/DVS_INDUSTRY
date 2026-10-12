@@ -116,8 +116,9 @@ async function seedSupplierData(supplierRoleId: number): Promise<void> {
 
   const supplierEmail = process.env['SEED_SUPPLIER_EMAIL'] ?? 'supplier.test@dvsindustry.local';
   const supplierPassword = process.env['SEED_SUPPLIER_PASSWORD'];
-  if (supplierPassword === undefined) {
-    throw new Error('SEED_SUPPLIER_PASSWORD is required for development supplier seed data.');
+  if (!supplierPassword) {
+    console.log('\n⚠  SEED_SUPPLIER_PASSWORD not set — skipping supplier test data.');
+    return;
   }
 
   console.log('\n🌱  Seeding development supplier test data…');
@@ -186,8 +187,9 @@ async function seedClientData(clientRoleId: number): Promise<void> {
 
   const clientEmail = process.env['SEED_CLIENT_EMAIL'] ?? 'client.test@dvsindustry.local';
   const clientPassword = process.env['SEED_CLIENT_PASSWORD'];
-  if (clientPassword === undefined) {
-    throw new Error('SEED_CLIENT_PASSWORD is required for development client seed data.');
+  if (!clientPassword) {
+    console.log('\n⚠  SEED_CLIENT_PASSWORD not set — skipping client test data.');
+    return;
   }
 
   console.log('\n🌱  Seeding development client test data…');
@@ -245,6 +247,41 @@ async function seedClientData(clientRoleId: number): Promise<void> {
   console.log(`   ✓ Test client orders: ${clientOrders.length}`);
 }
 
+/**
+ * Development staff logins for the role-restricted portals (Production,
+ * Store). Each is created/updated only when its SEED_<ROLE>_PASSWORD is set.
+ */
+async function seedStaffUsers(roleMap: Map<string, number>): Promise<void> {
+  if (process.env['NODE_ENV'] === 'production') {
+    console.log('\n⚠  Skipping development staff accounts in production.');
+    return;
+  }
+
+  const staff = [
+    { role: 'PRODUCTION', envPrefix: 'SEED_PRODUCTION', defaultEmail: 'production.test@dvsindustry.local', fullName: 'Development Production User' },
+    { role: 'STORE', envPrefix: 'SEED_STORE', defaultEmail: 'store.test@dvsindustry.local', fullName: 'Development Store User' },
+  ] as const;
+
+  console.log('\n🌱  Seeding development staff accounts…');
+  for (const member of staff) {
+    const password = process.env[`${member.envPrefix}_PASSWORD`];
+    if (!password) {
+      console.log(`   ⚠  ${member.envPrefix}_PASSWORD not set — skipping ${member.role} account`);
+      continue;
+    }
+    const roleId = roleMap.get(member.role);
+    if (roleId === undefined) throw new Error(`${member.role} role was not created`);
+    const email = process.env[`${member.envPrefix}_EMAIL`] ?? member.defaultEmail;
+    const hashedPassword = await bcrypt.hash(password, 12);
+    await prisma.user.upsert({
+      where: { email },
+      update: { fullName: member.fullName, password: hashedPassword, roleId, isActive: true },
+      create: { fullName: member.fullName, email, password: hashedPassword, roleId, isActive: true },
+    });
+    console.log(`   ✓ ${member.role} user: ${email} (password from ${member.envPrefix}_PASSWORD)`);
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -278,6 +315,8 @@ async function main(): Promise<void> {
     throw new Error('CLIENT role was not created — cannot seed client test data');
   }
   await seedClientData(clientRoleId);
+
+  await seedStaffUsers(roleMap);
 
   console.log('\n✅  Seed complete');
   console.log('─'.repeat(50));
