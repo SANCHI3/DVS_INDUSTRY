@@ -120,7 +120,11 @@ export class SecurityService {
 
     const incident = await this.repo.updateIncident(id, data);
     logger.info('Security incident updated', { id, status: incident.status });
-    publishSecurityEvent({ type: 'incident.updated', incident, previousSeverity: existing.severity });
+    publishSecurityEvent({
+      type: 'incident.updated',
+      incident,
+      previousSeverity: existing.severity,
+    });
     return incident;
   }
 
@@ -148,7 +152,11 @@ export class SecurityService {
       id: incident.id,
       number: incident.incidentNumber,
     });
-    publishSecurityEvent({ type: 'incident.updated', incident, previousSeverity: existing.severity });
+    publishSecurityEvent({
+      type: 'incident.updated',
+      incident,
+      previousSeverity: existing.severity,
+    });
     return incident;
   }
 
@@ -173,7 +181,8 @@ export class SecurityService {
     }
     if (existing.status === 'RESOLVED' || existing.status === 'CLOSED') return existing;
 
-    const raiseSeverity = SEVERITY_ORDER.indexOf(severity) > SEVERITY_ORDER.indexOf(existing.severity);
+    const raiseSeverity =
+      SEVERITY_ORDER.indexOf(severity) > SEVERITY_ORDER.indexOf(existing.severity);
     const raiseConfidence =
       confidenceScore !== undefined && confidenceScore > (existing.confidenceScore ?? 0);
     if (!raiseSeverity && !raiseConfidence) return existing;
@@ -266,7 +275,11 @@ export class SecurityService {
       assignedToName: assignedToName ?? null,
     });
     logger.info('Incident assigned', { id, assignedToId });
-    publishSecurityEvent({ type: 'incident.updated', incident, previousSeverity: existing.severity });
+    publishSecurityEvent({
+      type: 'incident.updated',
+      incident,
+      previousSeverity: existing.severity,
+    });
     return incident;
   }
 
