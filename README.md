@@ -133,6 +133,21 @@ cd perception-service && python main.py --camera CAM-01    # webcam + live windo
 > Demo passwords are for local development only; the seed never creates the
 > demo accounts when `NODE_ENV=production`.
 
+### AI-written alert summaries (optional)
+
+Safety alerts always show a plain-language description. To have an LLM rewrite
+it into two short sentences, put an API key for any OpenAI-compatible provider
+in **`perception-service/.env`** (never in a committed file):
+
+```
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_MODEL=openai/gpt-oss-20b
+LLM_API_KEY=<your key>          # free keys: https://console.groq.com/keys
+```
+
+Restart `python main.py` afterwards. Without a key everything still works; the
+alerts simply use the built-in description.
+
 ---
 
 ## Environment Variables
