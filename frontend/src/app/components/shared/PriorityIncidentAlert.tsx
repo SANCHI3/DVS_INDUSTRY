@@ -3,10 +3,7 @@ import { AlertOctagon, ArrowRight, X } from "lucide-react";
 import { subscribeSecurityStream, subscribeStreamStatus, type SecurityStreamEvent } from "../../../lib/securityStream";
 import { getIncidents, type SecurityIncidentDto } from "../../../lib/services/security.service";
 import { needsAttention } from "../../../lib/priorityRules";
-
-function formatType(type: string) {
-  return type.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
-}
+import { alertText, confidenceLabel, incidentHeadline, priorityLabel } from "../../../lib/incidentLabels";
 
 /** Short two-tone alarm; silently skipped if the browser blocks audio. */
 function playAlarm() {
@@ -35,6 +32,12 @@ export function PriorityIncidentAlert({ onView }: { onView: (incident: SecurityI
 
   useEffect(() => {
     const handle = (event: SecurityStreamEvent) => {
+      // Refresh an alert that is already on screen or waiting, e.g. when the
+      // plain-language AI summary arrives a second after the incident.
+      if (event.type === "incident.updated") {
+        const fresh = event.incident;
+        setQueue((current) => current.map((i) => (i.id === fresh.id ? fresh : i)));
+      }
       const incident = needsAttention(event);
       if (!incident) return;
       const key = `${incident.id}:${incident.severity}`;
@@ -78,7 +81,7 @@ export function PriorityIncidentAlert({ onView }: { onView: (incident: SecurityI
     let flip = false;
     const timer = setInterval(() => {
       flip = !flip;
-      document.title = flip ? `⚠ ${formatType(current.type)} ALERT` : original;
+      document.title = flip ? `⚠ ${incidentHeadline(current)}` : original;
     }, 1000);
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setQueue((q) => q.slice(1));
@@ -98,8 +101,9 @@ export function PriorityIncidentAlert({ onView }: { onView: (incident: SecurityI
     setQueue((q) => q.slice(1));
     onView(current);
   };
-  const confidence = current.confidenceScore != null ? `${Math.round(current.confidenceScore * 100)}%` : "—";
   const occurred = new Date(current.occurredAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const { summary, action } = alertText(current);
+  const urgent = current.severity === "CRITICAL";
 
   return (
     <div
@@ -113,9 +117,11 @@ export function PriorityIncidentAlert({ onView }: { onView: (incident: SecurityI
         <div className="flex items-center gap-3 px-5 py-4" style={{ background: "#B71C1C", color: "#fff" }}>
           <AlertOctagon size={28} className="animate-pulse" />
           <div className="flex-1">
-            <p style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.08em", opacity: 0.9 }}>PRIORITY SECURITY ALERT</p>
+            <p style={{ fontSize: "0.72rem", fontWeight: 600, letterSpacing: "0.08em", opacity: 0.9 }}>
+              SAFETY ALERT · {current.location ?? "Camera"}
+            </p>
             <h2 id="priority-alert-title" style={{ fontSize: "1.15rem", fontWeight: 700 }}>
-              {formatType(current.type)} detected
+              {incidentHeadline(current)}
             </h2>
           </div>
           <button onClick={dismiss} aria-label="Dismiss alert" style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer" }}>
@@ -124,17 +130,23 @@ export function PriorityIncidentAlert({ onView }: { onView: (incident: SecurityI
         </div>
 
         <div className="px-5 py-4">
-          <p style={{ fontSize: "0.875rem", color: "#302725", lineHeight: 1.55 }}>{current.description}</p>
+          <p style={{ fontSize: "0.95rem", color: "#302725", lineHeight: 1.6 }}>{summary}</p>
+          {action && (
+            <div className="mt-3 rounded-lg px-3 py-2.5" style={{ background: "#FFF4E5", border: "1px solid #FFD8A8" }}>
+              <p style={{ fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.06em", color: "#B45309" }}>WHAT TO DO</p>
+              <p style={{ fontSize: "0.9rem", color: "#5C3A0A", lineHeight: 1.5 }}>{action}</p>
+            </div>
+          )}
           <dl className="mt-4 grid grid-cols-2 gap-3">
             {[
-              ["Location", current.location ?? "Unknown"],
-              ["Time", occurred],
-              ["AI confidence", confidence],
-              ["Severity", current.severity],
+              ["Where", current.location ?? "Unknown"],
+              ["When", occurred],
+              ["How sure", confidenceLabel(current.confidenceScore)],
+              ["Priority", priorityLabel(current.severity)],
             ].map(([label, value]) => (
               <div key={label} className="rounded-lg px-3 py-2" style={{ background: "#FBF6F5" }}>
                 <dt style={{ fontSize: "0.7rem", color: "#9A8A88" }}>{label}</dt>
-                <dd style={{ fontSize: "0.875rem", fontWeight: 600, color: label === "Severity" && value === "CRITICAL" ? "#B71C1C" : "#1C1C1C" }}>{value}</dd>
+                <dd style={{ fontSize: "0.875rem", fontWeight: 600, color: label === "Priority" && urgent ? "#B71C1C" : "#1C1C1C" }}>{value}</dd>
               </div>
             ))}
           </dl>

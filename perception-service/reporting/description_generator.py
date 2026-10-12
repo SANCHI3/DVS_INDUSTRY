@@ -1,57 +1,87 @@
 """
-Slot-filling description generator (design doc section 14). Deliberately
-template-based rather than free-generative text -- deterministic, fast,
-and safe from hallucinated facts in a report that may inform real
-security decisions.
+Plain-language incident descriptions (design doc section 14).
+
+Written for factory staff with no technical background: what is happening,
+where, and what to do -- no model scores, thresholds or jargon. Deliberately
+template-based rather than free-generative: deterministic, instant, and safe
+from hallucinated facts. The optional LLM summary (llm/summarizer.py) may only
+reword this text, and falls back to it.
 """
 from __future__ import annotations
 
-TEMPLATES = {
-    "fall": "A person was detected in {location}. The person subsequently fell "
-            "and remained on the ground for approximately {still_seconds} seconds.",
-    "intrusion": "A person entered the restricted zone '{zone_id}' in {location}.",
-    "loitering": "A person remained in zone '{zone_id}' in {location} for "
-                 "approximately {dwell_seconds} seconds, exceeding the normal dwell threshold.",
-    "crowd": "A crowd of approximately {count} people gathered in {location}, "
-             "exceeding the normal threshold of {threshold}.",
-    "fight": "Two individuals were detected in close proximity showing sustained "
-             "high-intensity movement in {location}. This is a probabilistic "
-             "detection and should be verified by a human reviewer before action is taken.",
-    "fire_smoke": "Possible fire or smoke was detected persistently in {location}. "
-                  "Detected visual classes: {detected_classes}. This is an automated "
-                  "camera-based alert and requires immediate human verification.",
-    "anomaly": "Unusual activity was detected in {location}: the scene's motion pattern scored "
-               "{anomaly_ratio}x the normal-behaviour alert threshold. Main factors: {factors}. "
-               "The anomaly model was trained only on normal footage and cannot name the event; "
-               "a human reviewer should identify it.",
-    "theft_probable": "A possible object-removal event was detected near {location}. "
-                       "This alert requires human verification and is not a confirmed "
-                       "determination of theft.",
-}
-
-DEFAULT_TEMPLATE = "An event of type '{event_type}' was detected in {location}."
+from typing import Callable, Dict
 
 RECOMMENDED_ACTIONS = {
-    "fall": "Dispatch personnel to check on the individual immediately.",
-    "intrusion": "Notify security to verify authorization and investigate the area.",
-    "loitering": "Review footage and dispatch personnel if the area requires monitoring.",
-    "crowd": "Monitor for safety; consider dispatching personnel if the gathering grows or is near an exit.",
-    "fight": "Dispatch security to verify in person before intervening; do not treat as confirmed without human review.",
-    "fire_smoke": "Immediately verify the camera, activate the site emergency procedure if confirmed, and contact trained safety personnel.",
-    "theft_probable": "Flag for human review of the footage before taking any action; do not treat as confirmed.",
-    "anomaly": "Review the live feed and the saved clip; check for injury, equipment malfunction, spills or panic, then classify the incident.",
+    "fall": "Send someone to check on the person right away.",
+    "intrusion": "Ask security to check whether the person is allowed to be there.",
+    "loitering": "Look at the camera to see who it is and whether they should be there.",
+    "crowd": "Keep an eye on the group, and send staff if it keeps growing or blocks an exit.",
+    "fight": "Send security to check. Confirm it in person before stepping in, because the camera can be wrong.",
+    "fire_smoke": "Check the area immediately. If it is real, follow the fire emergency procedure and call the fire brigade.",
+    "theft_probable": "Check the recording before taking any action, because this is not certain yet.",
+    "anomaly": "Look at the live camera or the saved clip and decide what happened.",
 }
-DEFAULT_ACTION = "Review incident footage and determine appropriate action."
+DEFAULT_ACTION = "Look at the camera recording and decide what to do."
+
+
+def _seconds(value) -> str:
+    try:
+        return f"about {int(round(float(value)))} seconds"
+    except (TypeError, ValueError):
+        return "a while"
+
+
+def _fall(location: str, d: dict) -> str:
+    if d.get("serious"):
+        return (f"Someone fell in {location} and has not got up for "
+                f"{_seconds(d.get('down_seconds'))}. They may be hurt.")
+    return f"Someone appears to have fallen down in {location}."
+
+
+def _fire_smoke(location: str, d: dict) -> str:
+    seen = set(d.get("detected_classes") or [])
+    if {"fire", "smoke"} <= seen:
+        what = "Flames and smoke have"
+    elif "smoke" in seen:
+        what = "Smoke has"
+    elif "fire" in seen:
+        what = "Flames have"
+    else:
+        what = "Possible fire or smoke has"
+    return f"{what} been seen by the camera in {location}."
+
+
+def _crowd(location: str, d: dict) -> str:
+    count = d.get("count")
+    people = f"about {count} people" if count else "a group of people"
+    return f"A crowd of {people} has gathered in {location}."
+
+
+WHAT_HAPPENED: Dict[str, Callable[[str, dict], str]] = {
+    "fall": _fall,
+    "fire_smoke": _fire_smoke,
+    "crowd": _crowd,
+    "fight": lambda loc, d: f"Two or more people in {loc} seem to be fighting or pushing each other.",
+    "loitering": lambda loc, d: (f"Someone has been standing around in the same spot in {loc} "
+                                 f"for {_seconds(d.get('dwell_seconds'))}."),
+    "intrusion": lambda loc, d: f"Someone has entered an area of {loc} where people are not allowed.",
+    "anomaly": lambda loc, d: (f"The camera in {loc} picked up sudden, unusual movement that does "
+                               "not look like normal activity, for example someone running, falling "
+                               "or something being thrown. The system cannot tell exactly what it is."),
+    "theft_probable": lambda loc, d: f"Something may have been taken from near {loc}.",
+}
+
+
+def what_happened(event_type: str, location: str, detail: dict) -> str:
+    """One or two plain sentences describing the event, without advice."""
+    builder = WHAT_HAPPENED.get(event_type)
+    if builder is None:
+        return f"The camera in {location} noticed something that needs checking."
+    return builder(location, detail or {})
 
 
 def generate_description(event_type: str, location: str, detail: dict) -> str:
-    template = TEMPLATES.get(event_type, DEFAULT_TEMPLATE)
-    slots = {"event_type": event_type, "location": location, **detail}
-    try:
-        return template.format(**slots)
-    except KeyError:
-        # a required slot was missing from `detail` -- fall back rather than crash
-        return DEFAULT_TEMPLATE.format(event_type=event_type, location=location)
+    return f"{what_happened(event_type, location, detail)} What to do: {recommended_action(event_type)}"
 
 
 def recommended_action(event_type: str) -> str:

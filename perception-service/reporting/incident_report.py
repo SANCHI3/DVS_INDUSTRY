@@ -213,28 +213,16 @@ class IncidentReporter:
         if self.backend_url:
             self._send_json("/api/incidents", report, "POST")
 
-        # Enrich confirmed incidents only. Never use latest_record() here.
-        production_llm_events = {"fight", "crowd", "fire", "smoke"}
-        event_type = str(report["event_type"]).lower()
-        tier = str(report["confidence_tier"]).upper()
-
-        if tier == "CONFIRMED":
+        # Only CONFIRMED incidents reach the dashboard, and each one gets a
+        # plain-language LLM summary (if LLM_API_KEY is set). PROBABLE ones
+        # stay local until they are confirmed (see _forward_update).
+        if str(report["confidence_tier"]).upper() == "CONFIRMED":
             self._create_dashboard_incident(report)
+            self._enrich_if_configured(report["incident_id"])
 
-            if event_type in production_llm_events:
-                self._trigger_llm_enrichment(report["incident_id"])
-            else:
-                print(
-                    "[reporter] Skipping LLM enrichment for "
-                    f"{tier} {event_type} incident "
-                    f"{report['incident_id']}"
-                )
-        else:
-            print(
-                "[reporter] Skipping LLM enrichment for "
-                f"{tier} {event_type} incident "
-                f"{report['incident_id']}"
-            )
+    def _enrich_if_configured(self, incident_id: str) -> None:
+        if os.getenv("LLM_API_KEY"):
+            self._trigger_llm_enrichment(incident_id)
 
     def _create_dashboard_incident(self, report: dict) -> None:
         """Create the dashboard incident before LLM enrichment starts."""
@@ -496,7 +484,10 @@ class IncidentReporter:
 
         was_confirmed = previous["confidence_tier"] == "CONFIRMED"
         if not was_confirmed and current["confidence_tier"] == "CONFIRMED":
-            self._dispatch(lambda: self._create_dashboard_incident(current))
+            def create_and_enrich() -> None:
+                self._create_dashboard_incident(current)
+                self._enrich_if_configured(incident_id)
+            self._dispatch(create_and_enrich)
         elif was_confirmed and (
             current["severity"] != previous["severity"]
             or current["confidence_score"] > previous["confidence_score"]

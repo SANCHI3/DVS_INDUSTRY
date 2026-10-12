@@ -111,6 +111,24 @@ class IncidentReporterTests(unittest.TestCase):
         clear=False,
     )
     @patch("reporting.incident_report.generate_description", return_value="description")
+    def test_no_llm_key_means_no_enrichment(self, _description):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {"LLM_API_KEY": ""}):
+            reporter = self.make_reporter(os.path.join(directory, "incidents.jsonl"))
+            with patch.object(reporter, "_post_dashboard_incident"), \
+                    patch.object(reporter, "_trigger_llm_enrichment") as enrich:
+                reporter.build_and_save(confirmed_event("fall"), "MEDIUM")
+        enrich.assert_not_called()
+
+    @patch.dict(
+        os.environ,
+        {
+            "DASHBOARD_BACKEND_URL": "https://dashboard.test",
+            "DASHBOARD_API_TOKEN": "secret-token",
+            "LLM_API_KEY": "test-key",
+        },
+        clear=False,
+    )
+    @patch("reporting.incident_report.generate_description", return_value="description")
     @patch("reporting.incident_report.urllib.request.urlopen", return_value=FakeResponse())
     def test_legacy_save_dashboard_create_then_enrichment(self, urlopen, _description):
         order = []

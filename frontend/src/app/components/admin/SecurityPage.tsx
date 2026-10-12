@@ -27,6 +27,7 @@ import {
 } from "../../../lib/services/security.service";
 import { getEligibleEmployees, type UserDto } from "../../../lib/services/users.service";
 import { subscribeSecurityStream, subscribeStreamStatus, type StreamStatus } from "../../../lib/securityStream";
+import { eventTypeLabel } from "../../../lib/incidentLabels";
 
 const tabs = [
   { id: "live", label: "Live Monitoring" },
@@ -52,7 +53,7 @@ type DisplayIncident = {
 };
 
 function formatEventType(type: string) {
-  return type.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (character) => character.toUpperCase());
+  return eventTypeLabel(type);
 }
 
 function formatDateTime(value: string) {

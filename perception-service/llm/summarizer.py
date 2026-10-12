@@ -5,12 +5,12 @@ import os
 import re
 import sys
 import urllib.request
-from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
 
+from reporting.description_generator import generate_description
 from schemas.incident_schema import IncidentRecord
 
 
@@ -23,191 +23,54 @@ class IncidentAnalysis(BaseModel):
     summary: str = Field(min_length=1, max_length=700)
 
 
-SYSTEM_PROMPT = """You write short incident summaries for an administrator dashboard.
-Use only the supplied structured incident facts.
+SYSTEM_PROMPT = """You write safety alerts for factory staff who have no technical background.
+They will read your text in a pop-up while doing other work, so it must be instantly clear.
 Return JSON with exactly one field: {"summary": "..."}.
-The summary must be one concise paragraph of one or two sentences.
-Do not provide recommended actions, risk assessment, timelines, bullet lists, reasoning, technical details, or extra fields.
-Do not calculate, change, round, infer, or invent event types, counts, thresholds, confidence, severity, timestamps, camera IDs, locations, zones, or PPE items.
-Use the supplied canonical summary as the factual source. You may improve its wording only if every fact and value remains unchanged.
+Write exactly two short sentences in plain, everyday English:
+  Sentence 1: what seems to be happening and where, naming the location exactly once.
+  Sentence 2: what to do now.
+Never repeat information, and never add filler such as "The situation is in ...".
+Use simple words. Never use technical terms such as model, score, threshold, confidence,
+detection, tier, track, zone ID, anomaly ratio, percent, or camera ID.
+Use the supplied plain_description as the only source of facts. Do not add facts, numbers,
+names, causes, injuries or certainty that it does not state. Keep every uncertainty word it
+uses ("appears to", "seem to", "may", "possible") so you never sound more certain than it is.
 """
+
+# Words the summary must not contain: they would confuse a non-technical reader.
+_JARGON = re.compile(
+    r"\b(model|score|threshold|confidence|tier|anomaly ratio|track|zone id|camera id|"
+    r"probable|confirmed|classifier|inference)\b",
+    re.IGNORECASE,
+)
 
 
 def _present(value: Any) -> bool:
     return value is not None and str(value).strip() != ""
 
 
-def _detail_value(detail: dict[str, Any], *keys: str) -> Any:
-    for key in keys:
-        value = detail.get(key)
-        if _present(value):
-            return value
-    return None
-
-
-def _confidence_percent(value: float | int) -> str:
-    """Format the pipeline score as a percentage without asking the LLM to calculate it."""
-
-    number = Decimal(str(value))
-    percent = number * Decimal("100") if number <= 1 else number
-    text = format(percent.normalize(), "f")
-    if "." in text:
-        text = text.rstrip("0").rstrip(".")
-    return f"{text}%"
-
-
-def _place(record: IncidentRecord) -> str:
-    location = str(record.location).strip() if _present(record.location) else ""
-    camera = str(record.camera_id).strip() if _present(record.camera_id) else ""
-    if location and camera:
-        return f"{location} ({camera})"
-    return location or camera or "the monitored area"
-
-
-def _closing_sentence(record: IncidentRecord) -> str:
-    confidence = _confidence_percent(record.confidence_score)
-    severity = str(record.severity).lower()
-    tier = str(record.confidence_tier).strip().lower()
-    if tier:
-        return (
-            f"The incident was {tier} with {confidence} confidence and "
-            f"classified as {severity} severity."
-        )
-    return f"Detection confidence was {confidence}, with {severity} severity."
-
-
 def canonical_summary(record: IncidentRecord) -> str:
-    """Create a factual fallback using only values produced by the pipeline."""
+    """The plain-language description the dashboard already shows: the LLM's
+    only factual source, and the fallback when its text is rejected."""
 
-    detail = dict(record.detail or {})
     event_type = str(record.event_type).strip().lower().replace("-", "_")
-    place = _place(record)
-    closing = _closing_sentence(record)
+    location = str(record.location).strip() if _present(record.location) else "the monitored area"
+    return generate_description(event_type, location, dict(record.detail or {}))
 
-    if event_type == "crowd":
-        count = _detail_value(detail, "observed_count", "count", "person_count")
-        if count is None and record.detected_objects:
-            count = len(record.detected_objects)
-        threshold = _detail_value(
-            detail,
-            "threshold",
-            "configured_threshold",
-            "person_count_threshold",
-        )
 
-        if count is not None and threshold is not None:
-            opening = (
-                f"A crowd of {count} people was detected in {place}, exceeding "
-                f"the configured threshold of {threshold} people."
-            )
-        elif count is not None:
-            opening = f"A crowd of {count} people was detected in {place}."
-        else:
-            opening = f"A crowd was detected in {place}."
-        return f"{opening} {closing}"
+def _facts(record: IncidentRecord) -> dict:
+    """The only information the LLM sees: plain facts, no raw model scores."""
 
-    if event_type == "intrusion":
-        zone = record.zone_id or _detail_value(detail, "zone_id", "zone")
-        zone_text = f" restricted zone {zone}" if _present(zone) else " a restricted zone"
-        opening = f"Unauthorized entry into{zone_text} was detected in {place}."
-        return f"{opening} {closing}"
-
-    if event_type == "loitering":
-        dwell = _detail_value(detail, "dwell_seconds", "duration_seconds", "dwell_s")
-        threshold = _detail_value(
-            detail,
-            "dwell_threshold_seconds",
-            "dwell_threshold",
-            "configured_dwell_seconds",
-        )
-        if dwell is not None and threshold is not None:
-            opening = (
-                f"A person remained in the monitored area at {place} for {dwell} seconds, "
-                f"exceeding the configured dwell threshold of {threshold} seconds."
-            )
-        elif dwell is not None:
-            opening = (
-                f"A person remained in the monitored area at {place} beyond the configured "
-                f"dwell threshold, with a recorded dwell time of {dwell} seconds."
-            )
-        else:
-            opening = (
-                f"A person remained in the monitored area at {place} beyond the configured "
-                "dwell threshold."
-            )
-        return f"{opening} {closing}"
-
-    if event_type == "fall":
-        return f"A person was detected falling in {place}. {closing}"
-
-    if event_type == "fight":
-        return f"A potential physical altercation was detected in {place}. {closing}"
-
-    if event_type in {"fire_smoke", "fire", "smoke"}:
-        condition = _detail_value(
-            detail,
-            "condition",
-            "detected_condition",
-            "class_name",
-            "label",
-            "type",
-        )
-        if not _present(condition):
-            condition = "fire or smoke" if event_type == "fire_smoke" else event_type
-        return f"{str(condition).replace('_', ' ').capitalize()} was detected in {place}. {closing}"
-
-    if event_type in {"ppe", "ppe_violation", "ppe violation"}:
-        violation = _detail_value(
-            detail,
-            "violation",
-            "missing_ppe",
-            "missing_item",
-            "ppe_item",
-            "item",
-        )
-        if isinstance(violation, list):
-            violation = ", ".join(str(item) for item in violation)
-        if _present(violation):
-            opening = f"A PPE violation involving {violation} was detected in {place}."
-        else:
-            opening = f"A PPE violation was detected in {place}."
-        return f"{opening} {closing}"
-
-    event_label = str(record.event_type).replace("_", " ").strip()
-    measured_detail = _detail_value(
-        detail,
-        "observed_value",
-        "count",
-        "duration_seconds",
-        "dwell_seconds",
-    )
-    if measured_detail is not None:
-        opening = (
-            f"{event_label.capitalize()} was detected in {place}, with a recorded value of "
-            f"{measured_detail}."
-        )
-    else:
-        opening = f"{event_label.capitalize()} was detected in {place}."
-    return f"{opening} {closing}"
+    return {
+        "location": record.location,
+        "event": str(record.event_type).replace("_", " "),
+        "urgency": str(record.severity).lower(),
+        "plain_description": canonical_summary(record),
+    }
 
 
 def build_payload(record: IncidentRecord) -> dict:
-    detail = dict(record.detail or {})
-    facts = {
-        "incident_id": record.incident_id,
-        "camera_id": record.camera_id,
-        "camera_location": record.location,
-        "event_type": record.event_type,
-        "timestamp": record.detected_at.isoformat(),
-        "confidence_tier": record.confidence_tier,
-        "confidence_score": record.confidence_score,
-        "confidence_percent": _confidence_percent(record.confidence_score),
-        "severity": record.severity,
-        "zone_id": record.zone_id,
-        "detail": detail,
-        "detected_object_count": len(record.detected_objects),
-        "canonical_summary": canonical_summary(record),
-    }
+    facts = _facts(record)
 
     return {
         "model": os.getenv("LLM_MODEL", "gpt-4o-mini"),
@@ -219,7 +82,7 @@ def build_payload(record: IncidentRecord) -> dict:
             {
                 "role": "user",
                 "content": (
-                    "Write the dashboard summary JSON from these immutable facts. "
+                    "Write the alert JSON from these facts. "
                     "Do not echo anything except the JSON object.\n"
                     + json.dumps(facts, ensure_ascii=False, indent=2)
                 ),
@@ -245,38 +108,23 @@ def _normalize_summary(value: Any) -> str:
         return ""
 
     sentences = re.split(r"(?<=[.!?])\s+", text)
-    text = " ".join(sentence for sentence in sentences[:2] if sentence).strip()
+    text = " ".join(sentence for sentence in sentences[:3] if sentence).strip()
     return text
 
 
+_NUMBER = re.compile(r"\d+(?:\.\d+)?")
+
+
 def _summary_preserves_required_facts(summary: str, record: IncidentRecord) -> bool:
-    """Reject model text that drops or changes essential pipeline facts."""
+    """Reject model text that drops the location, adds jargon, or contains
+    any number that is not in the plain description (no invented facts)."""
 
-    lowered = summary.lower()
-    required_tokens = [
-        _confidence_percent(record.confidence_score).lower(),
-        str(record.severity).lower(),
-    ]
-
-    if _present(record.location):
-        required_tokens.append(str(record.location).lower())
-
-    detail = dict(record.detail or {})
-    event_type = str(record.event_type).lower().replace("-", "_")
-    if event_type == "crowd":
-        count = _detail_value(detail, "observed_count", "count", "person_count")
-        threshold = _detail_value(
-            detail,
-            "threshold",
-            "configured_threshold",
-            "person_count_threshold",
-        )
-        if count is not None:
-            required_tokens.append(str(count).lower())
-        if threshold is not None:
-            required_tokens.append(str(threshold).lower())
-
-    return all(token in lowered for token in required_tokens)
+    if _present(record.location) and str(record.location).lower() not in summary.lower():
+        return False
+    if _JARGON.search(summary):
+        return False
+    allowed_numbers = set(_NUMBER.findall(json.dumps(_facts(record))))
+    return set(_NUMBER.findall(summary)) <= allowed_numbers
 
 
 def summarize_incident(record: IncidentRecord) -> IncidentAnalysis:
