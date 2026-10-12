@@ -9,6 +9,7 @@ import { ReportsPage } from "./ReportsPage";
 import { SmartAnalyticsPage } from "./SmartAnalyticsPage";
 import { UserManagementPage } from "./UserManagementPage";
 import { ERPProvider } from "./ERPContext";
+import { PriorityIncidentAlert } from "../shared/PriorityIncidentAlert";
 import { Card, CardHeader } from "../shared/UI";
 import { toast } from "sonner";
 
@@ -186,6 +187,11 @@ export function AdminApp({ onLogout, userRole }: AdminAppProps) {
       <AppShell role="admin" userRole={userRole} activeSection={section} onSectionChange={setSection} onLogout={onLogout} notificationCount={0}>
         {renderSection()}
       </AppShell>
+      {/* Security roles get high-priority incidents on every page; the store
+          role cannot read security data, so it never subscribes. */}
+      {userRole !== "store" && (
+        <PriorityIncidentAlert onView={() => setSection(userRole === "admin" ? "security-incidents" : section)} />
+      )}
     </ERPProvider>
   );
 }

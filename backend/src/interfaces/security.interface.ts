@@ -96,6 +96,7 @@ export interface UpdateIncidentData {
   aiSummary?: string | null | undefined;
   type?: IncidentType | undefined;
   severity?: IncidentSeverity | undefined;
+  confidenceScore?: number | null | undefined;
   status?: IncidentStatus | undefined;
   location?: string | null | undefined;
   departmentId?: number | null | undefined;

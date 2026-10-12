@@ -17,10 +17,12 @@ import type {
   ResolveAlertData,
   SecurityKPIs,
   IncidentStatus,
+  IncidentSeverity,
 } from '../interfaces';
 import { Prisma } from '@prisma/client';
 import { NotFoundError, BadRequestError } from '../errors';
 import { logger } from '../logger';
+import { publishSecurityEvent } from '../lib/securityEvents';
 
 /**
  * SecurityService — business rules:
@@ -47,6 +49,8 @@ const ALLOWED_INCIDENT_TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> = {
   RESOLVED: ['CLOSED'],
   CLOSED: [],
 };
+
+const SEVERITY_ORDER: IncidentSeverity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 
 export class SecurityService {
   private readonly repo: SecurityRepository;
@@ -76,6 +80,7 @@ export class SecurityService {
         id: incident.id,
         number: incident.incidentNumber,
       });
+      publishSecurityEvent({ type: 'incident.created', incident });
       return incident;
     } catch (err) {
       // Two concurrent reports with the same external number: the loser of the
@@ -115,6 +120,7 @@ export class SecurityService {
 
     const incident = await this.repo.updateIncident(id, data);
     logger.info('Security incident updated', { id, status: incident.status });
+    publishSecurityEvent({ type: 'incident.updated', incident, previousSeverity: existing.severity });
     return incident;
   }
 
@@ -142,6 +148,63 @@ export class SecurityService {
       id: incident.id,
       number: incident.incidentNumber,
     });
+    publishSecurityEvent({ type: 'incident.updated', incident, previousSeverity: existing.severity });
+    return incident;
+  }
+
+  /**
+   * Raise an incident's severity and/or AI confidence by its external incident
+   * number (used by the perception service, e.g. a fall where the person stays
+   * down, or a detection that grows more certain). Both values can only go up
+   * -- a request that raises neither is a no-op -- and every raise is recorded
+   * as an incident update so the change is auditable.
+   */
+  async escalateIncidentSeverity(
+    incidentNumber: string,
+    severity: IncidentSeverity,
+    reason: string,
+    updatedById: number | null = null,
+    updatedByName: string | null = null,
+    confidenceScore?: number,
+  ): Promise<SecurityIncidentDto> {
+    const existing = await this.repo.findIncidentByNumber(incidentNumber);
+    if (!existing) {
+      throw new NotFoundError(`Security incident ${incidentNumber} not found`);
+    }
+    if (existing.status === 'RESOLVED' || existing.status === 'CLOSED') return existing;
+
+    const raiseSeverity = SEVERITY_ORDER.indexOf(severity) > SEVERITY_ORDER.indexOf(existing.severity);
+    const raiseConfidence =
+      confidenceScore !== undefined && confidenceScore > (existing.confidenceScore ?? 0);
+    if (!raiseSeverity && !raiseConfidence) return existing;
+
+    const changes: string[] = [];
+    if (raiseSeverity) changes.push(`severity ${existing.severity} -> ${severity}`);
+    if (raiseConfidence) {
+      const pct = (v: number | null) => `${Math.round((v ?? 0) * 100)}%`;
+      changes.push(`confidence ${pct(existing.confidenceScore)} -> ${pct(confidenceScore)}`);
+    }
+    const incident = await this.repo.updateIncident(existing.id, {
+      ...(raiseSeverity && { severity }),
+      ...(raiseConfidence && { confidenceScore }),
+    });
+    await this.repo.addIncidentUpdate({
+      incidentId: existing.id,
+      comment: `Raised ${changes.join(', ')}: ${reason}`,
+      updatedById,
+      updatedByName,
+    });
+    logger.info('Security incident escalated', {
+      id: incident.id,
+      number: incident.incidentNumber,
+      changes,
+    });
+    publishSecurityEvent({
+      type: 'incident.updated',
+      incident,
+      previousSeverity: existing.severity,
+      previousConfidence: existing.confidenceScore,
+    });
     return incident;
   }
 
@@ -157,6 +220,7 @@ export class SecurityService {
     }
     await this.repo.softDeleteIncident(id);
     logger.info('Security incident soft-deleted', { id });
+    publishSecurityEvent({ type: 'incident.deleted', incidentId: id });
   }
 
   // ── Status transition shortcut ────────────────────────────────────────────
@@ -196,12 +260,13 @@ export class SecurityService {
     assignedToId: number | null,
     assignedToName?: string | null,
   ): Promise<SecurityIncidentDto> {
-    await this.getIncidentOrThrow(id);
+    const existing = await this.getIncidentOrThrow(id);
     const incident = await this.repo.updateIncident(id, {
       assignedToId,
       assignedToName: assignedToName ?? null,
     });
     logger.info('Incident assigned', { id, assignedToId });
+    publishSecurityEvent({ type: 'incident.updated', incident, previousSeverity: existing.severity });
     return incident;
   }
 

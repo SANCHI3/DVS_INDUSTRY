@@ -26,6 +26,7 @@ import {
   type SecurityAlertDto,
 } from "../../../lib/services/security.service";
 import { getEligibleEmployees, type UserDto } from "../../../lib/services/users.service";
+import { subscribeSecurityStream, subscribeStreamStatus, type StreamStatus } from "../../../lib/securityStream";
 
 const tabs = [
   { id: "live", label: "Live Monitoring" },
@@ -88,6 +89,30 @@ function EmptyState({
   );
 }
 
+const LIVE_BADGE: Record<StreamStatus, { label: string; color: string; background: string }> = {
+  live: { label: "Live", color: "#2E7D32", background: "#E8F5E9" },
+  connecting: { label: "Connecting…", color: "#8A6D00", background: "#FFF8E1" },
+  offline: { label: "Reconnecting…", color: "#A52A2A", background: "#FBECEA" },
+  forbidden: { label: "Live updates unavailable", color: "#7A6C6A", background: "#F3EFEE" },
+};
+
+function LiveBadge({ status }: { status: StreamStatus }) {
+  const badge = LIVE_BADGE[status];
+  return (
+    <span
+      className="flex items-center gap-1.5 rounded-full px-2.5 py-1"
+      style={{ background: badge.background, color: badge.color, fontSize: "0.75rem", fontWeight: 600 }}
+      title="Incidents appear here as soon as the cameras report them"
+    >
+      <span
+        className={status === "live" ? "animate-pulse" : undefined}
+        style={{ width: 7, height: 7, borderRadius: "50%", background: badge.color }}
+      />
+      {badge.label}
+    </span>
+  );
+}
+
 export function SecurityPage() {
   const [tab, setTab] = useState("live");
   const [filter, setFilter] = useState<(typeof filters)[number]>("all");
@@ -103,6 +128,7 @@ export function SecurityPage() {
   const [users, setUsers] = useState<UserDto[]>([]);
   const [usersError, setUsersError] = useState(false);
   const [assigningIncidentId, setAssigningIncidentId] = useState<number | null>(null);
+  const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
 
   const loadAll = () => {
     setKpisLoading(true);
@@ -134,6 +160,37 @@ export function SecurityPage() {
 
   useEffect(() => { loadAll(); }, []);
 
+  // Live updates: incidents pushed by the backend appear immediately; KPI
+  // totals are re-fetched quietly (debounced) so bursts cause one request.
+  useEffect(() => {
+    let kpiTimer: ReturnType<typeof setTimeout> | null = null;
+    const refreshKpis = () => {
+      if (kpiTimer) clearTimeout(kpiTimer);
+      kpiTimer = setTimeout(() => {
+        getSecurityKPIs().then(setKpis).catch(() => undefined);
+      }, 800);
+    };
+    const unsubscribe = subscribeSecurityStream((event) => {
+      if (event.type === "incident.deleted") {
+        setIncidents((current) => current.filter((incident) => incident.id !== event.incidentId));
+      } else {
+        const changed = event.incident;
+        setIncidents((current) => {
+          const exists = current.some((incident) => incident.id === changed.id);
+          if (exists) return current.map((incident) => (incident.id === changed.id ? changed : incident));
+          return [changed, ...current];
+        });
+      }
+      refreshKpis();
+    });
+    const unsubscribeStatus = subscribeStreamStatus(setStreamStatus);
+    return () => {
+      unsubscribe();
+      unsubscribeStatus();
+      if (kpiTimer) clearTimeout(kpiTimer);
+    };
+  }, []);
+
   const displayIncidents: DisplayIncident[] = incidents.map((incident) => ({
     id: incident.incidentNumber,
     dateTime: formatDateTime(incident.occurredAt),
@@ -164,8 +221,16 @@ export function SecurityPage() {
     catch { toast.error("Failed to resolve alert"); }
   };
 
+  // Incident actions apply the server's returned row and refresh only the KPIs
+  // (the live stream keeps the rest current) -- a full reload per click would
+  // spend 5 requests and could exhaust the API rate limit during triage.
+  const applyIncident = (updated: SecurityIncidentDto) => {
+    setIncidents((current) => current.map((incident) => (incident.id === updated.id ? updated : incident)));
+    getSecurityKPIs().then(setKpis).catch(() => undefined);
+  };
+
   const handleTransitionIncident = async (incidentId: number, status: "INVESTIGATING" | "RESOLVED" | "CLOSED") => {
-    try { await transitionIncidentStatus(incidentId, status); toast.success(`Incident moved to ${status}`); loadAll(); }
+    try { applyIncident(await transitionIncidentStatus(incidentId, status)); toast.success(`Incident moved to ${status}`); }
     catch { toast.error("Failed to update incident"); }
   };
 
@@ -174,9 +239,8 @@ export function SecurityPage() {
     const selectedUser = users.find((user) => user.id === assignedToId);
     setAssigningIncidentId(incidentId);
     try {
-      await assignIncident(incidentId, assignedToId, selectedUser?.fullName ?? null);
+      applyIncident(await assignIncident(incidentId, assignedToId, selectedUser?.fullName ?? null));
       toast.success(selectedUser ? `Incident assigned to ${selectedUser.fullName}` : "Incident unassigned");
-      loadAll();
     } catch { toast.error("Failed to assign incident"); }
     finally { setAssigningIncidentId(null); }
   };
@@ -230,7 +294,12 @@ export function SecurityPage() {
         <PageHeader
           title="AI Security Management"
           subtitle="AI-assisted incident monitoring, alert handling, and incident response. Live CCTV feeds are unavailable until CCTV integration is connected."
-          actions={<Btn variant="secondary" size="sm" onClick={loadAll}><RefreshCw size={14} /> Refresh</Btn>}
+          actions={
+            <>
+              <LiveBadge status={streamStatus} />
+              <Btn variant="secondary" size="sm" onClick={loadAll}><RefreshCw size={14} /> Refresh</Btn>
+            </>
+          }
         />
 
         <section className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

@@ -91,6 +91,13 @@ export const incidentAiSummarySchema = z.object({
   summary: z.string().min(1, 'summary is required').max(1000).trim(),
 });
 
+export const incidentEscalationSchema = z.object({
+  incident_id: z.string().min(1, 'incident_id is required').max(100).trim(),
+  severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']),
+  confidenceScore: z.coerce.number().min(0).max(1).optional(),
+  reason: z.string().min(1, 'reason is required').max(1000).trim(),
+});
+
 export const incidentQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional().default(1),
   pageSize: z.coerce.number().int().positive().max(100).optional().default(20),
@@ -252,6 +259,7 @@ export const securityKpiQuerySchema = z.object({
 export type CreateIncidentInput = z.infer<typeof createIncidentSchema>;
 export type UpdateIncidentInput = z.infer<typeof updateIncidentSchema>;
 export type IncidentAiSummaryInput = z.infer<typeof incidentAiSummarySchema>;
+export type IncidentEscalationInput = z.infer<typeof incidentEscalationSchema>;
 export type IncidentQueryInput = z.infer<typeof incidentQuerySchema>;
 export type IncidentStatusInput = z.infer<typeof incidentStatusSchema>;
 export type AssignIncidentInput = z.infer<typeof assignIncidentSchema>;

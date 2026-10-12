@@ -166,6 +166,7 @@ export class SecurityRepository {
     if (data.aiSummary !== undefined) up.aiSummary = data.aiSummary;
     if (data.type !== undefined) up.type = data.type;
     if (data.severity !== undefined) up.severity = data.severity;
+    if (data.confidenceScore !== undefined) up.confidenceScore = data.confidenceScore;
     if (data.status !== undefined) up.status = data.status;
     if (data.location !== undefined) up.location = data.location;
     if (data.departmentId !== undefined) up.departmentId = data.departmentId;

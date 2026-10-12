@@ -92,6 +92,10 @@ app.use(
     max: 500, // requests per window per IP
     standardHeaders: true,
     legacyHeaders: false,
+    // The live incident stream is one long-lived authenticated connection,
+    // not request traffic; counting it would let ordinary page use lock a
+    // dashboard out of real-time alerts. The client backs off on its own.
+    skip: (req) => req.path === '/api/v1/security/stream',
     message: {
       success: false,
       error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests' },

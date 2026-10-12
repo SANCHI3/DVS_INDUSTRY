@@ -3,6 +3,7 @@ import { ForbiddenError } from '../errors';
 import { ROLES } from '../constants';
 import type { AuthenticatedRequest } from '../types';
 import { SecurityService } from '../services/security.service';
+import { subscribeSecurityEvents } from '../lib/securityEvents';
 import { sendSuccess, sendCreated, sendNoContent } from '../utils/response';
 import type {
   CreateIncidentInput,
@@ -16,6 +17,7 @@ import type {
   AlertQueryInput,
   SecurityKpiQueryInput,
   IncidentAiSummaryInput,
+  IncidentEscalationInput,
 } from '../validators/security.validator';
 import type {
   IncidentFilters,
@@ -151,6 +153,55 @@ export async function updateIncidentAiSummary(req: Request, res: Response): Prom
     await svc.updateIncidentAiSummary(body.incident_id, body.summary),
     200,
     'Incident AI summary updated successfully',
+  );
+}
+
+const STREAM_HEARTBEAT_MS = 25_000;
+
+/**
+ * Server-Sent Events stream of incident changes. `no-transform` keeps the
+ * compression middleware from buffering events; the heartbeat comment keeps
+ * proxies from closing an idle connection.
+ */
+export function streamSecurityEvents(req: Request, res: Response): void {
+  res.status(200).set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.flushHeaders();
+  res.write('retry: 3000\n\n');
+
+  const unsubscribe = subscribeSecurityEvents((event) => {
+    res.write(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+  });
+  const heartbeat = setInterval(() => res.write(': ping\n\n'), STREAM_HEARTBEAT_MS);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  });
+}
+
+export async function escalateIncidentSeverity(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const body = req.body as IncidentEscalationInput;
+  const actor = actorOf(req);
+  sendSuccess(
+    res,
+    await svc.escalateIncidentSeverity(
+      body.incident_id,
+      body.severity as IncidentSeverity,
+      body.reason,
+      actor.id,
+      actor.name,
+      body.confidenceScore,
+    ),
+    200,
+    'Incident severity escalated',
   );
 }
 

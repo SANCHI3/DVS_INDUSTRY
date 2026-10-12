@@ -21,6 +21,7 @@ import {
   resolveAlertSchema,
   securityKpiQuerySchema,
   incidentAiSummarySchema,
+  incidentEscalationSchema,
 } from '../validators/security.validator';
 import { ROLES } from '../constants';
 
@@ -75,6 +76,28 @@ router.patch(
   authorize(...AI_SUMMARY_WRITERS),
   validateRequest({ body: incidentAiSummarySchema }),
   asyncHandler(SecurityController.updateIncidentAiSummary),
+);
+
+/**
+ * GET /api/v1/security/stream
+ * Server-Sent Events: incident.created / incident.updated / incident.deleted,
+ * pushed as they happen so dashboards update without polling or refresh.
+ * Access: ADMIN, MANAGER, PRODUCTION
+ */
+router.get('/stream', authorize(...SEC_READ), SecurityController.streamSecurityEvents);
+
+/**
+ * PATCH /api/v1/security/incidents/escalate
+ * Raise an incident's severity using its external incident number. Severity
+ * can only increase; each raise is logged as an incident update.
+ * Body: { incident_id, severity, reason }
+ * Access: ADMIN, MANAGER, PERCEPTION_SERVICE
+ */
+router.patch(
+  '/incidents/escalate',
+  authorize(...AI_SUMMARY_WRITERS),
+  validateRequest({ body: incidentEscalationSchema }),
+  asyncHandler(SecurityController.escalateIncidentSeverity),
 );
 
 /**

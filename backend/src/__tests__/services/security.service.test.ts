@@ -285,6 +285,98 @@ describe('SecurityService', () => {
     });
   });
 
+  describe('escalateIncidentSeverity', () => {
+    it('raises severity and records an incident update', async () => {
+      const existing = makeIncident('OPEN', { incidentNumber: 'INC-20261012-FALL01', type: 'FALL' });
+      const updated = makeIncident('OPEN', {
+        incidentNumber: 'INC-20261012-FALL01',
+        type: 'FALL',
+        severity: 'CRITICAL',
+      });
+      (prisma.securityIncident.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(existing);
+      (prisma.securityIncident.update as ReturnType<typeof vi.fn>).mockResolvedValue(updated);
+      (prisma.incidentUpdate.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 1 });
+
+      const result = await svc.escalateIncidentSeverity(
+        'INC-20261012-FALL01',
+        'CRITICAL',
+        'person still down 20s after fall',
+        4,
+        'Perception Service',
+      );
+
+      expect(result.severity).toBe('CRITICAL');
+      expect(prisma.securityIncident.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 1 }, data: { severity: 'CRITICAL' } }),
+      );
+      expect(prisma.incidentUpdate.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            incidentId: 1,
+            comment: 'Raised severity MEDIUM -> CRITICAL: person still down 20s after fall',
+            updatedById: 4,
+            updatedByName: 'Perception Service',
+          }),
+        }),
+      );
+    });
+
+    it.each([
+      ['a lower severity', 'OPEN', 'LOW'],
+      ['the same severity', 'OPEN', 'MEDIUM'],
+      ['a resolved incident', 'RESOLVED', 'CRITICAL'],
+    ])('is a no-op for %s', async (_label, status, severity) => {
+      const existing = makeIncident(status);
+      (prisma.securityIncident.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(existing);
+
+      const result = await svc.escalateIncidentSeverity('INC-0001', severity as 'LOW', 'reason');
+
+      expect(result).toEqual(existing);
+      expect(prisma.securityIncident.update).not.toHaveBeenCalled();
+      expect(prisma.incidentUpdate.create).not.toHaveBeenCalled();
+    });
+
+    it('raises confidence alone when severity is unchanged', async () => {
+      const existing = makeIncident('OPEN', { confidenceScore: 0.82 });
+      (prisma.securityIncident.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(existing);
+      (prisma.securityIncident.update as ReturnType<typeof vi.fn>).mockResolvedValue(
+        makeIncident('OPEN', { confidenceScore: 0.97 }),
+      );
+      (prisma.incidentUpdate.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 1 });
+
+      await svc.escalateIncidentSeverity('INC-0001', 'MEDIUM', 'detection grew more certain', null, null, 0.97);
+
+      expect(prisma.securityIncident.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { confidenceScore: 0.97 } }),
+      );
+      expect(prisma.incidentUpdate.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            comment: 'Raised confidence 82% -> 97%: detection grew more certain',
+          }),
+        }),
+      );
+    });
+
+    it('never lowers confidence', async () => {
+      (prisma.securityIncident.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        makeIncident('OPEN', { confidenceScore: 0.9 }),
+      );
+
+      await svc.escalateIncidentSeverity('INC-0001', 'MEDIUM', 'reason', null, null, 0.7);
+
+      expect(prisma.securityIncident.update).not.toHaveBeenCalled();
+    });
+
+    it('throws when the incident number does not exist', async () => {
+      (prisma.securityIncident.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+
+      await expect(
+        svc.escalateIncidentSeverity('INC-MISSING', 'HIGH', 'reason'),
+      ).rejects.toThrow(NotFoundError);
+    });
+  });
+
   describe('deleteIncident', () => {
     it('soft-deletes OPEN incident', async () => {
       (prisma.securityIncident.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
