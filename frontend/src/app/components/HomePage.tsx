@@ -316,17 +316,11 @@ export function HomePage({ onNavigateToLogin }: HomePageProps) {
 
           {/* ONE CTA */}
           <div className="flex items-center gap-2.5">
-            <button onClick={() => onNavigateToLogin()} className="hidden sm:flex items-center gap-2"
-              style={{ ...btnBase, padding: "0.5rem 1rem", borderRadius: "0.5rem", border: "1.5px solid #E8E2E0", background: "#fff", color: "#4A4A4A", fontSize: "0.8375rem", fontWeight: 500 }}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#A52A2A"; e.currentTarget.style.color = "#A52A2A"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E8E2E0"; e.currentTarget.style.color = "#4A4A4A"; }}>
-              <Lock size={13} /> Login
-            </button>
-            <button onClick={() => onNavigateToLogin()}
+            <button onClick={() => onNavigateToLogin()} className="flex items-center gap-2"
               style={{ ...btnBase, padding: "0.5rem 1.25rem", borderRadius: "0.5rem", background: "#A52A2A", color: "#fff", fontSize: "0.8375rem", fontWeight: 700, letterSpacing: "0.04em", boxShadow: "0 2px 10px rgba(165,42,42,0.3)" }}
               onMouseEnter={(e) => { e.currentTarget.style.background = "#8B2222"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "#A52A2A"; }}>
-              ACCESS SYSTEM
+              <Lock size={13} /> ACCESS SYSTEM
             </button>
             <button className="xl:hidden p-2 rounded-md" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               style={{ ...btnBase, color: "#4A4A4A" }}>
