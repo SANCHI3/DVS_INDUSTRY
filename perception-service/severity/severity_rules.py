@@ -33,6 +33,9 @@ def compute_severity(event_type: str, confirmed_event, severity_cfg: dict) -> st
         # person still on the ground long after the fall -> possible injury
         if duration >= detail.get("still_seconds", 8) * 1.5 or detail.get("still_seconds", 0) >= 10:
             level = _bump(level, 1)
+        # still down well after the fall (not getting up) -> possible injury
+        if detail.get("serious"):
+            level = "CRITICAL"
     elif event_type == "crowd":
         overflow = detail.get("count", 0) - detail.get("threshold", 0)
         if overflow >= 5:

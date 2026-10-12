@@ -37,6 +37,7 @@ import supervision as sv
 import yaml
 
 from confirmation.event_confirmation import EventConfirmation
+from confirmation.incident_dedup import IncidentDeduper
 from detection.yolo_detector import YoloDetector
 from evidence.clip_extractor import EvidenceBuffer
 from ingestion.stream_reader import StreamReader
@@ -247,10 +248,13 @@ def run(
     start_time = time.time()
     frames_processed = 0
     last_seen_frame_index = -1
-    active_fire_smoke_incident_id = None
-    active_fire_smoke_tier = None
-    last_fire_smoke_report_at = 0.0
-    fire_smoke_dedup_seconds = float(fire_smoke_cfg.get("incident_dedup_seconds", 60.0))
+    dedup_cfg = dict(thresholds_cfg.get("incident_dedup") or {})
+    if "incident_dedup_seconds" in fire_smoke_cfg:
+        dedup_cfg["per_event_seconds"] = {
+            "fire_smoke": fire_smoke_cfg["incident_dedup_seconds"],
+            **(dedup_cfg.get("per_event_seconds") or {}),
+        }
+    deduper = IncidentDeduper(dedup_cfg)
 
     try:
         while True:
@@ -315,6 +319,7 @@ def run(
                 candidates += fall_detector.evaluate(buffer, frame)
             if anomaly_detector is not None:
                 candidates += anomaly_detector.evaluate(frame)
+            deduper.touch(candidates)
             confirmed_events = confirmation.update(candidates)
 
             for event in confirmed_events:
@@ -328,44 +333,38 @@ def run(
                         f"severity={severity} conf={event.confidence:.2f} -- awaiting confirmation"
                     )
                     continue
-                if event.event_type == "fire_smoke" and event.tier in ("CONFIRMED", "PROBABLE"):
-                    now_event = time.time()
-                    within_dedup = (
-                        active_fire_smoke_incident_id is not None
-                        and now_event - last_fire_smoke_report_at <= fire_smoke_dedup_seconds
-                    )
-                    if within_dedup:
-                        tier_rank = {"PROBABLE": 1, "CONFIRMED": 2}
-                        should_escalate = (
-                            active_fire_smoke_tier is None
-                            or tier_rank[event.tier] > tier_rank[active_fire_smoke_tier]
-                        )
-                        # Repeated bursts update the existing episode; never
-                        # create duplicate evidence/incidents or downgrade a
-                        # previously confirmed event.
-                        if should_escalate:
-                            active_fire_smoke_tier = event.tier
-                            reporter.update_incident(active_fire_smoke_incident_id, {
-                                "confidence_tier": event.tier,
-                                "confidence_score": round(event.confidence, 2),
-                                "severity": severity,
-                                "detail": dict(event.candidate.detail),
-                                "review_status": "pending",
-                            })
-                            print(
-                                f"[{camera_id}] {event.tier} fire_smoke escalation "
-                                f"severity={severity} conf={event.confidence:.2f} "
-                                f"-> {active_fire_smoke_incident_id} (updated existing incident)"
-                            )
-                        else:
-                            print(
-                                f"[{camera_id}] fire_smoke continuation "
-                                f"conf={event.confidence:.2f} -> {active_fire_smoke_incident_id} "
-                                f"(duplicate suppressed)"
-                            )
-                        last_fire_smoke_report_at = now_event
-                        continue
                 if event.tier in ("CONFIRMED", "PROBABLE"):
+                    # One ongoing event = one incident. Repeats while it is still
+                    # active update the existing incident (escalation) or are
+                    # suppressed; they never create duplicate incidents/evidence.
+                    action, existing_id = deduper.check(event, severity)
+                    if action == "escalate":
+                        detail = event.candidate.detail
+                        reporter.update_incident(existing_id, {
+                            "confidence_tier": event.tier,
+                            "confidence_score": round(event.confidence, 2),
+                            "severity": severity,
+                            "detail": dict(detail),
+                            "review_status": "pending",
+                            "escalation_reason": (
+                                f"person still down {detail['down_seconds']:.0f}s after the fall"
+                                if detail.get("serious")
+                                else f"{event.event_type} re-detected ({event.tier}, "
+                                     f"confidence {event.confidence:.0%})"
+                            ),
+                        })
+                        print(
+                            f"[{camera_id}] {event.tier} {event.event_type} escalation "
+                            f"severity={severity} conf={event.confidence:.2f} "
+                            f"-> {existing_id} (updated existing incident)"
+                        )
+                        continue
+                    if action == "suppress":
+                        print(
+                            f"[{camera_id}] {event.event_type} continuation "
+                            f"conf={event.confidence:.2f} -> {existing_id} (duplicate suppressed)"
+                        )
+                        continue
                     # incident_id isn't known until build_and_save assigns one, but
                     # the evidence extraction needs to happen right away (before the
                     # rolling buffer ages the relevant frames out) -- so build the
@@ -373,10 +372,7 @@ def run(
                     # its real incident_id, then attach the paths.
                     report = reporter.build_and_save(event, severity)
                     incident_id = report["incident_id"]
-                    if event.event_type == "fire_smoke":
-                        active_fire_smoke_incident_id = incident_id
-                        active_fire_smoke_tier = event.tier
-                        last_fire_smoke_report_at = time.time()
+                    deduper.register(event, severity, incident_id)
 
                     clip_before = evidence_buffer.capture_before_clip(incident_id, event.camera_id)
                     keyframes = evidence_buffer.save_keyframes(incident_id, event.camera_id)

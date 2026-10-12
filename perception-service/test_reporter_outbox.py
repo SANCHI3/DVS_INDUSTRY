@@ -86,6 +86,57 @@ class OutboxTests(unittest.TestCase):
 
 
 @patch("reporting.incident_report.generate_description", return_value="description")
+class IncidentUpdateForwardingTests(unittest.TestCase):
+    def test_higher_severity_escalates_the_dashboard_incident(self, _description):
+        with tempfile.TemporaryDirectory() as directory:
+            reporter = make_reporter(directory)
+            with patch.object(reporter, "_post_dashboard_incident"), \
+                    patch.object(reporter, "_trigger_llm_enrichment"), patch("builtins.print"), \
+                    patch.object(reporter.dashboard_client, "request") as request:
+                report = reporter.build_and_save(confirmed_event("fall"), "MEDIUM")
+                reporter.update_incident(report["incident_id"], {
+                    "severity": "CRITICAL",
+                    "escalation_reason": "person still down 20s after the fall",
+                })
+                reporter.update_incident(report["incident_id"], {"severity": "HIGH"})  # never lowers
+
+            request.assert_called_once_with(
+                "/api/v1/security/incidents/escalate",
+                {"incident_id": report["incident_id"], "severity": "CRITICAL",
+                 "reason": "person still down 20s after the fall", "confidenceScore": 0.94},
+                "PATCH",
+            )
+
+    def test_rising_confidence_updates_the_dashboard_incident(self, _description):
+        with tempfile.TemporaryDirectory() as directory:
+            reporter = make_reporter(directory)
+            with patch.object(reporter, "_post_dashboard_incident"), \
+                    patch.object(reporter, "_trigger_llm_enrichment"), patch("builtins.print"), \
+                    patch.object(reporter.dashboard_client, "request") as request:
+                report = reporter.build_and_save(confirmed_event("fight"), "HIGH")
+                reporter.update_incident(report["incident_id"], {"confidence_score": 0.99})
+                reporter.update_incident(report["incident_id"], {"confidence_score": 0.80})  # never lowers
+
+            request.assert_called_once()
+            self.assertEqual(request.call_args.args[1]["confidenceScore"], 0.99)
+            self.assertEqual(request.call_args.args[1]["severity"], "HIGH")
+
+    def test_probable_incident_reaching_confirmed_is_created_on_dashboard(self, _description):
+        with tempfile.TemporaryDirectory() as directory:
+            reporter = make_reporter(directory)
+            probable = confirmed_event()
+            probable.tier = "PROBABLE"
+            posted = []
+            with patch.object(reporter, "_post_dashboard_incident", side_effect=posted.append), \
+                    patch("builtins.print"):
+                report = reporter.build_and_save(probable, "HIGH")
+                self.assertEqual(posted, [])  # PROBABLE stays local
+                reporter.update_incident(report["incident_id"], {"confidence_tier": "CONFIRMED"})
+
+            self.assertEqual([p["incident_id"] for p in posted], [report["incident_id"]])
+
+
+@patch("reporting.incident_report.generate_description", return_value="description")
 class BackgroundModeTests(unittest.TestCase):
     def test_build_and_save_returns_before_network_work_finishes(self, _description):
         with tempfile.TemporaryDirectory() as directory:

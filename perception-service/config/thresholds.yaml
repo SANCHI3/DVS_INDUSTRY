@@ -25,7 +25,8 @@ rules:
     stillness_seconds: 5                # time lying still before PROBABLE
     confirm_stillness_seconds: 8        # time lying still before CONFIRMED
   intrusion:
-    min_frames_inside: 3          # frames of continuous presence before confirming (filters flicker)
+    enabled: false                # restricted zones still feed loitering; true = also raise intrusion incidents
+    min_frames_inside: 3         # frames of continuous presence before confirming (filters flicker)
 
 confirmation:
   # number of positive evaluation windows out of the last N required per tier,
@@ -138,6 +139,10 @@ fire_smoke_detection:
   smoke_threshold: 0.50
   persistence_window: 5
   required_hits: 3
+  # Fire + smoke together -> CONFIRMED at once. A single verified class
+  # (e.g. flame with no visible smoke) is CONFIRMED after staying active this long.
+  single_class_confirm_seconds: 3
+  alarm_gap_seconds: 1.5            # a gap longer than this restarts the sustained timer
   # Suppress repeated bursts from the same ongoing camera-level incident.
   incident_dedup_seconds: 60
   verifier:
@@ -171,6 +176,12 @@ fall_detection:
     required_hits: 2                # 2 of the last 3 evaluations above threshold
     cooldown_seconds: 30            # one incident per person per fall
     max_people_for_pose: 12
+    serious:                        # fallen person who does not get back up
+      after_seconds: 20             # still down this long -> escalate the fall to CRITICAL
+      recovered_after_seconds: 2    # upright (standing or sitting up) this long = got up
+      max_unseen_seconds: 8         # person out of view longer than this -> stop watching
+      upright_torso_tilt: 0.35      # torso tilt / 90 deg; <= 0.35 (~31 deg) counts as upright
+      upright_box_aspect: 0.8       # without a skeleton: box width/height <= 0.8 = upright
   # --- settings below are for mode: model / physics ---
   checkpoint: "models/fall_rf_v1.joblib"
   pose_model_path: "yolov8n-pose.pt"
@@ -199,3 +210,16 @@ scene_anomaly:
   required_hits: 2
   confirmed_ratio: 2.0              # error >= 2x threshold -> CONFIRMED
   cooldown_seconds: 30
+
+incident_dedup:
+  # One ongoing event = one incident. While an event keeps being detected for
+  # the same camera (+ zone, for loitering/intrusion), repeats update the open
+  # incident instead of creating new ones. A new incident is raised only after
+  # the event has been quiet for this many seconds.
+  window_seconds: 60
+  per_event_seconds:
+    fight: 60
+    loitering: 120
+    crowd: 90
+    fall: 45                        # must exceed fall_detection.gru.serious.after_seconds
+    anomaly: 60

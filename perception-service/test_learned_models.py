@@ -81,7 +81,7 @@ class GruFallDetectorTests(unittest.TestCase):
                                              "persistence_window": 3, "required_hits": 2,
                                              "cooldown_seconds": 60}, pose_estimator=pose)
         state = SimpleNamespace(bbox=(80, 50, 120, 250))
-        person = SimpleNamespace(track_id=7, states=[state], last_seen=lambda: 1e12)
+        person = SimpleNamespace(track_id=7, states=[state], last_seen=1e12)
         buffer = SimpleNamespace(tracks_by_class=lambda name: [person])
         frame = np.zeros((480, 640, 3), np.uint8)
 
@@ -91,6 +91,58 @@ class GruFallDetectorTests(unittest.TestCase):
         # after 2 high evaluations; the cooldown suppresses the rest.
         self.assertEqual(sum(emitted), 1)
         self.assertEqual(emitted.index(1), 10)
+
+    LYING = (100, 200, 260, 260)    # wide box: on the ground
+    STANDING = (80, 50, 120, 250)   # tall box: upright
+
+    def _run_after_fall(self, after_fall):
+        """Trigger one fall, then step 1 s per cycle through `after_fall`, a list
+        of (track_id, bbox). Returns every candidate emitted after the fall."""
+        from temporal.fall_gru_recognition import GruFallDetector
+
+        clock = [1000.0]
+        pose = SimpleNamespace(estimate=lambda frame: [])
+        frame = np.zeros((480, 640, 3), np.uint8)
+        person = SimpleNamespace(track_id=7, states=[SimpleNamespace(bbox=self.LYING)], last_seen=0.0)
+        buffer = SimpleNamespace(tracks_by_class=lambda name: [person])
+        with patch("temporal.fall_gru_recognition.time.time", lambda: clock[0]):
+            detector = GruFallDetector("CAM-T", {
+                "checkpoint": str(self.ckpt), "evaluation_stride_frames": 1,
+                "persistence_window": 3, "required_hits": 2, "cooldown_seconds": 30,
+                "serious": {"after_seconds": 20, "recovered_after_seconds": 2},
+            }, pose_estimator=pose)
+            with patch.object(detector.classifier, "score", return_value=0.99):
+                fell = []
+                while not fell:
+                    clock[0] += 0.1
+                    person.last_seen = clock[0]
+                    fell = detector.evaluate(buffer, frame)
+                self.assertNotIn("serious", fell[0].detail)
+                out = []
+                for track_id, bbox in after_fall:
+                    clock[0] += 1.0
+                    person.track_id, person.last_seen = track_id, clock[0]
+                    person.states = [SimpleNamespace(bbox=bbox)]
+                    out += detector.evaluate(buffer, frame)
+        return out
+
+    def test_person_still_down_after_20s_escalates_once(self):
+        out = self._run_after_fall([(7, self.LYING)] * 40)
+        self.assertEqual(len(out), 1)
+        self.assertTrue(out[0].detail["serious"])
+        self.assertGreaterEqual(out[0].detail["down_seconds"], 20)
+        self.assertEqual(out[0].detail["requested_tier"], "CONFIRMED")
+
+    def test_person_who_gets_up_is_not_escalated(self):
+        out = self._run_after_fall([(7, self.LYING)] * 5 + [(7, self.STANDING)] * 30)
+        # (the stubbed classifier always scores 0.99, so a fresh "fall" after
+        # the cooldown is expected here -- only escalations matter)
+        self.assertEqual([c for c in out if c.detail.get("serious")], [])
+
+    def test_tracker_id_switch_while_down_still_escalates(self):
+        out = self._run_after_fall([(7, self.LYING)] * 8 + [(31, self.LYING)] * 20)
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0].track_ids, [31])
 
 
 class FireVerifierTests(unittest.TestCase):

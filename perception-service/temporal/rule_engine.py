@@ -48,12 +48,17 @@ class RuleEngine:
 
     # ---- Intrusion -----------------------------------------------------
     def _check_intrusion(self, buffer: TemporalBuffer) -> List[EventCandidate]:
+        """Also maintains per-person zone entry times, which loitering reads --
+        so it always runs, and `rules.intrusion.enabled: false` only stops it
+        from raising intrusion candidates."""
         out = []
         restricted_zones = [z for z in self.zones if z["type"] == "restricted"]
         if not restricted_zones:
             return out
 
-        min_frames = self.rules_cfg["intrusion"]["min_frames_inside"]
+        intrusion_cfg = self.rules_cfg["intrusion"]
+        report_intrusion = intrusion_cfg.get("enabled", True)
+        min_frames = intrusion_cfg["min_frames_inside"]
 
         for person in buffer.tracks_by_class("person"):
             for zone in restricted_zones:
@@ -65,6 +70,8 @@ class RuleEngine:
 
                 if zone["zone_id"] not in person.zone_entry_times:
                     person.zone_entry_times[zone["zone_id"]] = time.time()
+                if not report_intrusion:
+                    continue
 
                 # count how many of the last few states were also inside -- filters
                 # single-frame detection flicker right at the zone boundary

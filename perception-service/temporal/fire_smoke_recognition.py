@@ -1,8 +1,9 @@
 """Dedicated fire/smoke YOLO inference with temporal persistence."""
 from __future__ import annotations
 
+import time
 from collections import deque
-from typing import Deque, Dict, List
+from typing import Deque, Dict, List, Optional
 
 import numpy as np
 from ultralytics import YOLO
@@ -59,6 +60,10 @@ class FireSmokeDetector:
                     print(f"[{camera_id}] learned fire verifier not found at {checkpoint}; "
                           f"using rule-based verifier")
                 self.verifier = FireVerifier(verifier_cfg)
+        self.single_class_confirm_seconds = float(cfg.get("single_class_confirm_seconds", 3.0))
+        self.alarm_gap_seconds = float(cfg.get("alarm_gap_seconds", 1.5))
+        self._alarm_since: Optional[float] = None   # start of the current sustained alarm
+        self._alarm_last: Optional[float] = None
         self.cycles = 0
         self._stats = {
             "cycles": 0, "evaluations": 0,
@@ -133,12 +138,22 @@ class FireSmokeDetector:
             verified = [name for name in active_classes if self.learned_verifier.confirm(name)]
             self._stats["alarms_rejected_by_learned_verifier"] += len(active_classes) - len(verified)
             active_classes = verified
+        now = time.time()
         if not active_classes:
+            if self._alarm_last is not None and now - self._alarm_last > self.alarm_gap_seconds:
+                self._alarm_since = self._alarm_last = None
             return []
+        if self._alarm_since is None:
+            self._alarm_since = now
+        self._alarm_last = now
+        sustained_s = now - self._alarm_since
 
-        # One persistent class is a cautious operator-facing alert. Fire and
-        # smoke together are corroborating signals but still require review.
-        requested_tier = "CONFIRMED" if len(active_classes) == 2 else "PROBABLE"
+        # Fire and smoke together corroborate each other -> CONFIRMED. A single
+        # verified class starts as PROBABLE and is CONFIRMED once it has stayed
+        # active for `single_class_confirm_seconds` (a real flame often has no
+        # visible smoke, and must still reach operators).
+        sustained = sustained_s >= self.single_class_confirm_seconds
+        requested_tier = "CONFIRMED" if len(active_classes) == 2 or sustained else "PROBABLE"
         self._stats["confirmed_candidates" if requested_tier == "CONFIRMED" else "probable_candidates"] += 1
         recent_max = {
             name: round(max(self.scores[name], default=0.0), 3)
@@ -152,6 +167,7 @@ class FireSmokeDetector:
             detail={
                 "requested_tier": requested_tier,
                 "detected_classes": active_classes,
+                "sustained_seconds": round(sustained_s, 1),
                 "fire_score": recent_max["fire"],
                 "smoke_score": recent_max["smoke"],
                 "fire_hits": int(sum(self.hits["fire"])),

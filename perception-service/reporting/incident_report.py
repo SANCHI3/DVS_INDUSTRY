@@ -11,7 +11,7 @@ import threading
 import urllib.request
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Dict, Optional
 
 from reporting.dashboard_client import DashboardClient, DashboardClientError
 from reporting.description_generator import (
@@ -19,6 +19,7 @@ from reporting.description_generator import (
     recommended_action,
 )
 from schemas.incident_schema import IncidentRecord
+from severity.severity_rules import SEVERITY_ORDER
 
 
 class IncidentReporter:
@@ -53,6 +54,7 @@ class IncidentReporter:
         "loitering": "LOITERING",
         "anomaly": "OTHER",
     }
+    MAX_REMEMBERED_REPORTS = 500
 
     def __init__(
         self,
@@ -93,6 +95,10 @@ class IncidentReporter:
             os.path.dirname(output_path) or ".",
             "llm_summaries.jsonl",
         )
+
+        # Recent reports by incident_id, so lifecycle updates (escalations) can
+        # be forwarded to the dashboard without re-reading incidents.jsonl.
+        self._reports: Dict[str, dict] = {}
 
         self._queue: Optional[queue.Queue] = None
         self._worker: Optional[threading.Thread] = None
@@ -197,6 +203,7 @@ class IncidentReporter:
 
         # Save locally first. Network/LLM failures must not discard the incident.
         self._append_local(report)
+        self._remember(report)
         self._dispatch(lambda: self._publish(report))
         return report
 
@@ -476,12 +483,60 @@ class IncidentReporter:
                 + "\n"
             )
 
+    def _forward_update(self, incident_id: str, updates: dict) -> None:
+        previous = self._reports.get(incident_id)
+        if previous is None:
+            return
+        current = {**previous, **{k: v for k, v in updates.items() if k in previous}}
+
+        # Never lower what was reported (a later re-detection can score lower).
+        current["confidence_score"] = max(current["confidence_score"], previous["confidence_score"])
+        current["severity"] = max(current["severity"], previous["severity"], key=SEVERITY_ORDER.index)
+        self._remember(current)
+
+        was_confirmed = previous["confidence_tier"] == "CONFIRMED"
+        if not was_confirmed and current["confidence_tier"] == "CONFIRMED":
+            self._dispatch(lambda: self._create_dashboard_incident(current))
+        elif was_confirmed and (
+            current["severity"] != previous["severity"]
+            or current["confidence_score"] > previous["confidence_score"]
+        ):
+            reason = str(updates.get("escalation_reason") or "re-detected with higher confidence")
+            self._dispatch(lambda: self._escalate_dashboard_incident(
+                incident_id, current["severity"], reason, current["confidence_score"]
+            ))
+
+    def _escalate_dashboard_incident(
+        self, incident_id: str, severity: str, reason: str, confidence: Optional[float] = None
+    ) -> None:
+        payload = {"incident_id": incident_id, "severity": severity, "reason": reason[:1000]}
+        if confidence is not None:
+            payload["confidenceScore"] = confidence
+        try:
+            self.dashboard_client.request("/api/v1/security/incidents/escalate", payload, "PATCH")
+            print(f"[reporter] dashboard incident {incident_id} escalated "
+                  f"(severity={severity}, confidence={confidence})")
+        except DashboardClientError as exc:
+            print(f"[reporter] dashboard escalation failed for {incident_id}: {exc}")
+
+    def _remember(self, report: dict) -> None:
+        self._reports.pop(report["incident_id"], None)
+        self._reports[report["incident_id"]] = report
+        while len(self._reports) > self.MAX_REMEMBERED_REPORTS:
+            self._reports.pop(next(iter(self._reports)))
+
     def update_incident(
         self,
         incident_id: str,
         updates: dict,
     ) -> None:
-        """Append a lifecycle update for an existing incident."""
+        """Append a lifecycle update for an existing incident and forward it.
+
+        Dashboard side: an incident that reaches CONFIRMED for the first time
+        is created there; one already there gets its severity raised (never
+        lowered) through the escalate endpoint."""
+
+        self._forward_update(incident_id, updates)
 
         update_path = os.path.join(
             os.path.dirname(self.output_path) or ".",
