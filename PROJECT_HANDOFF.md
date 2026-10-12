@@ -292,14 +292,27 @@ The local project is not the same thing as a production deployment. DNS, certifi
 - Frontend production build and bundle splitting
 - PM2, Nginx, and backup templates
 
+### Done since the first handoff
+
+- Password-reset tokens are stored in PostgreSQL (`PasswordResetToken`); reset
+  emails are sent over SMTP when `SMTP_HOST` is set (logged in development)
+- Real-time security alerts: SSE stream, live Security page, priority popup on
+  every page, incident escalation API (see `docs/REALTIME_SECURITY_ALERTS.md`)
+- One-command fresh-clone setup (`scripts/setup.mjs`) and demo logins for every role
+- Frontend unit tests (Vitest) for the alert rules and stream parser
+- Frontend dependency audit: 0 vulnerabilities
+
 ### Important remaining work
 
-- Persist password-reset tokens in PostgreSQL or Redis
-- Add email provider for real password-reset emails
-- Add automated frontend tests and end-to-end tests for every form
-- Replace any remaining presentation-only mock charts or summary data with live report APIs where applicable
+- Configure a real SMTP provider (`SMTP_*` in `backend/.env`) for production reset emails
+- End-to-end browser tests for the main forms and the alert flow
+- Replace remaining presentation-only placeholder values ("Unavailable" cards,
+  e.g. camera counts) with live data sources as those integrations arrive
 - Use a real production domain, TLS, backup destination, monitoring service, and centralized logs
-- Review and remediate remaining backend dependency audit advisories without using unreviewed breaking upgrades
+- Backend dependency audit: 11 *high* advisories remain, all inside Prisma CLI
+  tooling and pm2. npm's only offered fixes are major-version **downgrades**
+  (prisma 6.12, pm2 5.3), so they were reviewed and not applied; re-check when
+  Prisma 7 / a new pm2 release is adopted. The unused `ts-node-dev` was removed.
 - Add backup restore drills and disaster-recovery documentation
 
 ## 14. How to Understand a New Feature

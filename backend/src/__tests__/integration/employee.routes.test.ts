@@ -18,6 +18,7 @@ vi.mock('../../config/env', () => ({
     BCRYPT_SALT_ROUNDS: 10,
     CORS_ORIGINS: 'http://localhost:5173',
     LOG_LEVEL: 'silent',
+    RATE_LIMIT_MAX: 500,
   },
 }));
 

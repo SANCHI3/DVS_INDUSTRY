@@ -8,7 +8,7 @@ import { env } from '../config/env';
  * reloads. In production there is only ever one process, so this is simply
  * the module-level singleton pattern.
  *
- * The global trick prevents "too many connections" warnings from ts-node-dev
+ * The global trick prevents "too many connections" warnings from tsx watch
  * which re-evaluates modules on every reload.
  */
 
