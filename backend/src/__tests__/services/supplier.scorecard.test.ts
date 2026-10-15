@@ -33,7 +33,11 @@ const delivered = (start: number, lead: number, supplierId = 1): ScorecardPoRow 
 
 describe('supplier scorecard', () => {
   it('measures on-time rate with a one-day grace period', () => {
-    const s = scoreSupplier(supplier(), [delivered(0, 7), delivered(10, 8), delivered(20, 12)], NOW);
+    const s = scoreSupplier(
+      supplier(),
+      [delivered(0, 7), delivered(10, 8), delivered(20, 12)],
+      NOW,
+    );
     expect(s.onTimeRate).toBeCloseTo(66.7, 1); // 7 and 8 days are on time, 12 is 5 days late
     expect(s.averageDelayDays).toBe(5);
   });
@@ -49,7 +53,12 @@ describe('supplier scorecard', () => {
     const pos: ScorecardPoRow[] = [
       delivered(0, 7),
       { ...delivered(5, 7), status: 'CANCELLED', actualDelivery: null },
-      { ...delivered(200, 7), status: 'CONFIRMED', actualDelivery: null, expectedDelivery: day(90) },
+      {
+        ...delivered(200, 7),
+        status: 'CONFIRMED',
+        actualDelivery: null,
+        expectedDelivery: day(90),
+      },
     ];
     const s = scoreSupplier(supplier(), pos, NOW);
     expect(s.fulfilmentRate).toBe(50);
@@ -65,7 +74,12 @@ describe('supplier scorecard', () => {
   });
 
   it('rescales weights when components are missing', () => {
-    expect(compositeScore([{ value: 80, weight: 0.4 }, { value: null, weight: 0.6 }])).toBe(80);
+    expect(
+      compositeScore([
+        { value: 80, weight: 0.4 },
+        { value: null, weight: 0.6 },
+      ]),
+    ).toBe(80);
     expect(compositeScore([{ value: null, weight: 1 }])).toBeNull();
   });
 

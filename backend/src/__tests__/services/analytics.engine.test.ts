@@ -116,7 +116,9 @@ describe('inventory maths', () => {
     const abc = abcClassify(items);
     expect(items.map((i) => abc.get(i)).join('')).toBe('ABBCC');
     expect(xyzClassify(Array.from({ length: 56 }, () => 10)).cls).toBe('X');
-    expect(xyzClassify(Array.from({ length: 56 }, (_, i) => (i % 14 === 0 ? 100 : 0))).cls).toBe('Z');
+    expect(xyzClassify(Array.from({ length: 56 }, (_, i) => (i % 14 === 0 ? 100 : 0))).cls).toBe(
+      'Z',
+    );
   });
 
   it('robust z-score flags the spike and nothing else', () => {
@@ -128,7 +130,14 @@ describe('inventory maths', () => {
 
 describe('production maths', () => {
   it('computes the OEE-style index', () => {
-    const r = oeeProxy({ good: 900, rejected: 50, scrap: 50, target: 1000, completedWithDueDate: 4, completedOnTime: 3 });
+    const r = oeeProxy({
+      good: 900,
+      rejected: 50,
+      scrap: 50,
+      target: 1000,
+      completedWithDueDate: 4,
+      completedOnTime: 3,
+    });
     expect(r.quality).toBeCloseTo(0.9);
     expect(r.attainment).toBeCloseTo(0.9);
     expect(r.schedule).toBeCloseTo(0.75);
@@ -136,9 +145,21 @@ describe('production maths', () => {
   });
 
   it('p-chart flags a bad day and a sustained drift', () => {
-    const spike = pChart(Array.from({ length: 20 }, (_, i) => ({ date: `d${i}`, inspected: 100, defective: i === 5 ? 25 : 4 })));
+    const spike = pChart(
+      Array.from({ length: 20 }, (_, i) => ({
+        date: `d${i}`,
+        inspected: 100,
+        defective: i === 5 ? 25 : 4,
+      })),
+    );
     expect(spike.outOfControlDays).toBe(1);
-    const drift = pChart(Array.from({ length: 20 }, (_, i) => ({ date: `d${i}`, inspected: 100, defective: i >= 11 ? 7 : 3 })));
+    const drift = pChart(
+      Array.from({ length: 20 }, (_, i) => ({
+        date: `d${i}`,
+        inspected: 100,
+        defective: i >= 11 ? 7 : 3,
+      })),
+    );
     expect(drift.outOfControlDays).toBe(0);
     expect(drift.shiftDetected).toBe(true);
   });
@@ -147,25 +168,81 @@ describe('production maths', () => {
     expect(pearson([1, 2, 3, 4], [2, 4, 6, 8])).toBeCloseTo(1);
     expect(pearson([1, 2], [2, 4])).toBeNull();
     expect(safetyScore([])).toBe(100);
-    expect(safetyScore([{ severity: 'CRITICAL' }])).toBeLessThan(safetyScore([{ severity: 'LOW' }]));
+    expect(safetyScore([{ severity: 'CRITICAL' }])).toBeLessThan(
+      safetyScore([{ severity: 'LOW' }]),
+    );
   });
 });
 
 describe('engine', () => {
   const r = rng(7);
   const materials: MaterialRow[] = [
-    { id: 1, code: 'STL', name: 'Steel Sheet', unit: 'kg', category: null, currentStock: 300, minStockLevel: 100, maxStockLevel: null, costPerUnit: 72 },
-    { id: 2, code: 'CU', name: 'Copper Wire', unit: 'm', category: null, currentStock: 9000, minStockLevel: 300, maxStockLevel: 3000, costPerUnit: 15 },
-    { id: 3, code: 'GSK', name: 'Gasket', unit: 'pcs', category: null, currentStock: 500, minStockLevel: 0, maxStockLevel: null, costPerUnit: 22 },
+    {
+      id: 1,
+      code: 'STL',
+      name: 'Steel Sheet',
+      unit: 'kg',
+      category: null,
+      currentStock: 300,
+      minStockLevel: 100,
+      maxStockLevel: null,
+      costPerUnit: 72,
+    },
+    {
+      id: 2,
+      code: 'CU',
+      name: 'Copper Wire',
+      unit: 'm',
+      category: null,
+      currentStock: 9000,
+      minStockLevel: 300,
+      maxStockLevel: 3000,
+      costPerUnit: 15,
+    },
+    {
+      id: 3,
+      code: 'GSK',
+      name: 'Gasket',
+      unit: 'pcs',
+      category: null,
+      currentStock: 500,
+      minStockLevel: 0,
+      maxStockLevel: null,
+      costPerUnit: 22,
+    },
   ];
   const transactions: TransactionRow[] = [];
   let id = 1;
   for (let d = 89; d >= 0; d--) {
     const date = new Date(NOW.getTime() - d * DAY);
-    transactions.push({ id: id++, materialId: 1, type: 'OUT', quantity: 40 * (0.8 + 0.4 * r()), createdAt: date, performedByName: 'A', departmentName: 'Fab' });
-    transactions.push({ id: id++, materialId: 2, type: 'OUT', quantity: 100 * (0.8 + 0.4 * r()), createdAt: date, performedByName: 'A', departmentName: 'Fab' });
+    transactions.push({
+      id: id++,
+      materialId: 1,
+      type: 'OUT',
+      quantity: 40 * (0.8 + 0.4 * r()),
+      createdAt: date,
+      performedByName: 'A',
+      departmentName: 'Fab',
+    });
+    transactions.push({
+      id: id++,
+      materialId: 2,
+      type: 'OUT',
+      quantity: 100 * (0.8 + 0.4 * r()),
+      createdAt: date,
+      performedByName: 'A',
+      departmentName: 'Fab',
+    });
   }
-  transactions.push({ id: id++, materialId: 1, type: 'ADJUSTMENT', quantity: -400, createdAt: new Date(NOW.getTime() - 2 * DAY), performedByName: 'Night', departmentName: 'Stores' });
+  transactions.push({
+    id: id++,
+    materialId: 1,
+    type: 'ADJUSTMENT',
+    quantity: -400,
+    createdAt: new Date(NOW.getTime() - 2 * DAY),
+    performedByName: 'Night',
+    departmentName: 'Stores',
+  });
 
   const intel = buildInventoryIntelligence({
     materials,
@@ -217,7 +294,14 @@ describe('engine', () => {
           scheduledEnd: new Date(start + 3 * DAY),
           actualEnd: new Date(start + (dept === 'A' ? 2 : 5) * DAY),
           updatedAt: new Date(start + 5 * DAY),
-          outputs: [{ goodQty: 95, rejectedQty: dept === 'A' ? 2 : 8, scrapQty: 1, recordedAt: new Date(start + DAY) }],
+          outputs: [
+            {
+              goodQty: 95,
+              rejectedQty: dept === 'A' ? 2 : 8,
+              scrapQty: 1,
+              recordedAt: new Date(start + DAY),
+            },
+          ],
         };
       }),
     );
@@ -230,13 +314,26 @@ describe('engine', () => {
     const health = buildPlantHealth({
       inventory: intel,
       production: perf,
-      incidents: [{ type: 'FALL', severity: 'HIGH', departmentName: 'B', occurredAt: new Date(NOW.getTime() - 3 * DAY) }],
+      incidents: [
+        {
+          type: 'FALL',
+          severity: 'HIGH',
+          departmentName: 'B',
+          occurredAt: new Date(NOW.getTime() - 3 * DAY),
+        },
+      ],
       attendance: [{ status: 'PRESENT' }, { status: 'LATE' }, { status: 'ABSENT' }],
       now: NOW,
     });
     expect(health.score).toBeGreaterThan(0);
     expect(health.score).toBeLessThanOrEqual(100);
     expect(['A', 'B', 'C', 'D']).toContain(health.grade);
-    expect(health.components.map((c) => c.key)).toEqual(['inventory', 'production', 'quality', 'safety', 'workforce']);
+    expect(health.components.map((c) => c.key)).toEqual([
+      'inventory',
+      'production',
+      'quality',
+      'safety',
+      'workforce',
+    ]);
   });
 });

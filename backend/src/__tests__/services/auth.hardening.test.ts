@@ -147,9 +147,7 @@ describe('AuthService hardening', () => {
 
     it('rejects an unknown or already-used token', async () => {
       fn(prisma.passwordResetToken.delete).mockRejectedValue(new Error('not found'));
-      await expect(svc.resetPassword('reused', 'NewPassword!234')).rejects.toThrow(
-        BadRequestError,
-      );
+      await expect(svc.resetPassword('reused', 'NewPassword!234')).rejects.toThrow(BadRequestError);
     });
   });
 

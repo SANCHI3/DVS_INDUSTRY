@@ -50,9 +50,15 @@ perception-service/data/
 perception-service/output/
 
 # Python cache and test artifacts
-perception-service/__pycache__/
-perception-service/**/*.py[cod]
-perception-service/.pytest_cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Patches, demo-script logs and local backups
+*.patch
+*.orig
+*.rej
+.demo-logs/
 
 # Local logs
 perception-service/*.log
@@ -78,3 +84,6 @@ perception-service/models/*.log
 # Demo clips come from datasets with varying redistribution terms (see demo_videos/README.md)
 perception-service/demo_videos/*
 !perception-service/demo_videos/README.md
+
+# Synthetic pose sequences, regenerate with fight_model/make_demo_data.py
+perception-service/fight_model/demo_data/

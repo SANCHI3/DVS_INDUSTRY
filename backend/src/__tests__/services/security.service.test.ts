@@ -187,7 +187,9 @@ describe('SecurityService', () => {
       const result = await svc.updateIncident(1, { aiSummary: 'AI summary' });
 
       expect(result.aiSummary).toBe('AI summary');
-      expect((prisma.securityIncident.update as ReturnType<typeof vi.fn>).mock.calls[0][0].data).toEqual({
+      expect(
+        (prisma.securityIncident.update as ReturnType<typeof vi.fn>).mock.calls[0][0].data,
+      ).toEqual({
         aiSummary: 'AI summary',
       });
     });
@@ -266,10 +268,15 @@ describe('SecurityService', () => {
 
       expect(result).toEqual(updated);
       expect(prisma.securityIncident.findFirst).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { incidentNumber: 'INC-20260921-C64998', deletedAt: null } }),
+        expect.objectContaining({
+          where: { incidentNumber: 'INC-20260921-C64998', deletedAt: null },
+        }),
       );
       expect(prisma.securityIncident.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: 1 }, data: { aiSummary: 'A possible fight was detected.' } }),
+        expect.objectContaining({
+          where: { id: 1 },
+          data: { aiSummary: 'A possible fight was detected.' },
+        }),
       );
       expect(prisma.securityIncident.create).not.toHaveBeenCalled();
     });
@@ -287,7 +294,10 @@ describe('SecurityService', () => {
 
   describe('escalateIncidentSeverity', () => {
     it('raises severity and records an incident update', async () => {
-      const existing = makeIncident('OPEN', { incidentNumber: 'INC-20261012-FALL01', type: 'FALL' });
+      const existing = makeIncident('OPEN', {
+        incidentNumber: 'INC-20261012-FALL01',
+        type: 'FALL',
+      });
       const updated = makeIncident('OPEN', {
         incidentNumber: 'INC-20261012-FALL01',
         type: 'FALL',
@@ -344,7 +354,14 @@ describe('SecurityService', () => {
       );
       (prisma.incidentUpdate.create as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 1 });
 
-      await svc.escalateIncidentSeverity('INC-0001', 'MEDIUM', 'detection grew more certain', null, null, 0.97);
+      await svc.escalateIncidentSeverity(
+        'INC-0001',
+        'MEDIUM',
+        'detection grew more certain',
+        null,
+        null,
+        0.97,
+      );
 
       expect(prisma.securityIncident.update).toHaveBeenCalledWith(
         expect.objectContaining({ data: { confidenceScore: 0.97 } }),
@@ -371,9 +388,9 @@ describe('SecurityService', () => {
     it('throws when the incident number does not exist', async () => {
       (prisma.securityIncident.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-      await expect(
-        svc.escalateIncidentSeverity('INC-MISSING', 'HIGH', 'reason'),
-      ).rejects.toThrow(NotFoundError);
+      await expect(svc.escalateIncidentSeverity('INC-MISSING', 'HIGH', 'reason')).rejects.toThrow(
+        NotFoundError,
+      );
     });
   });
 

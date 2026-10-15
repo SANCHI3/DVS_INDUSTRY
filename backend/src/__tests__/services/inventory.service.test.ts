@@ -128,7 +128,9 @@ describe('InventoryService', () => {
       const tx = {
         $queryRaw: vi
           .fn()
-          .mockResolvedValue(stock === null ? [] : [{ currentStock: stock, unit: 'kg', deletedAt }]),
+          .mockResolvedValue(
+            stock === null ? [] : [{ currentStock: stock, unit: 'kg', deletedAt }],
+          ),
         material: { update: vi.fn().mockResolvedValue({}) },
         stockTransaction: { create: vi.fn().mockResolvedValue(txnRow('OUT', '0')) },
         scrapRecord: { create: vi.fn() },
@@ -164,9 +166,9 @@ describe('InventoryService', () => {
 
     it('rejects movements on a deleted material', async () => {
       useLockedStock('50', new Date());
-      await expect(
-        svc.adjustStock({ materialId: 1, type: 'IN', quantity: '1' }),
-      ).rejects.toThrow(BadRequestError);
+      await expect(svc.adjustStock({ materialId: 1, type: 'IN', quantity: '1' })).rejects.toThrow(
+        BadRequestError,
+      );
     });
 
     it('uses exact decimal arithmetic for the new balance', async () => {
