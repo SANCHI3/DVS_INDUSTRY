@@ -22,10 +22,12 @@ cd perception-service
 python -m evaluation.run_all              # model metrics, charts, model_results.json
 python -m evaluation.false_alarms ...     # false alarms per hour on normal footage
 python -m evaluation.benchmark ...        # FPS and per-stage latency
+python -m evaluation.ablation run         # ablation of the verification stages (hours)
+python -m evaluation.interaction_separation  # fight interaction-check thresholds
 ```
 """
 
-SECTION_ORDER = ["models", "false_alarms", "benchmark"]
+SECTION_ORDER = ["models", "false_alarms", "benchmark", "ablation", "interaction"]
 
 
 def update_section(name: str, body: str) -> None:
