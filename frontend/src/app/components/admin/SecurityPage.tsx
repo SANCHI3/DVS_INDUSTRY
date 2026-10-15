@@ -28,6 +28,7 @@ import {
 import { getEligibleEmployees, type UserDto } from "../../../lib/services/users.service";
 import { subscribeSecurityStream, subscribeStreamStatus, type StreamStatus } from "../../../lib/securityStream";
 import { eventTypeLabel } from "../../../lib/incidentLabels";
+import { IncidentEvidenceDialog } from "./IncidentEvidenceDialog";
 
 const tabs = [
   { id: "live", label: "Live Monitoring" },
@@ -43,6 +44,7 @@ type DisplayIncident = {
   location: string;
   type: string;
   aiSummary: string | null;
+  description: string;
   confidence: string;
   status: string;
   severity: string;
@@ -66,7 +68,7 @@ function formatDateTime(value: string) {
 
 function kpiValue(loading: boolean, error: boolean, value: number | undefined) {
   if (loading) return "Loading...";
-  if (error || value === undefined) return "Unavailable";
+  if (error || value === undefined) return "Couldn't load";
   return String(value);
 }
 
@@ -130,6 +132,7 @@ export function SecurityPage() {
   const [usersError, setUsersError] = useState(false);
   const [assigningIncidentId, setAssigningIncidentId] = useState<number | null>(null);
   const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
+  const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(null);
 
   const loadAll = () => {
     setKpisLoading(true);
@@ -195,10 +198,11 @@ export function SecurityPage() {
   const displayIncidents: DisplayIncident[] = incidents.map((incident) => ({
     id: incident.incidentNumber,
     dateTime: formatDateTime(incident.occurredAt),
-    location: incident.location ?? "Unavailable",
+    location: incident.location ?? "—",
     type: formatEventType(incident.type),
     aiSummary: incident.aiSummary?.trim() || null,
-    confidence: incident.confidenceScore === null ? "Unavailable" : `${Math.round(incident.confidenceScore * 100)}%`,
+    description: incident.description,
+    confidence: incident.confidenceScore === null ? "—" : `${Math.round(incident.confidenceScore * 100)}%`,
     status: incident.status.toLowerCase(),
     severity: incident.severity.toLowerCase(),
     assigned: incident.assignedToName ?? "Unassigned",
@@ -211,6 +215,8 @@ export function SecurityPage() {
     ? displayIncidents
     : displayIncidents.filter((incident) => incident.status === filter);
   const activeAlerts = alerts.filter((alert) => alert.status === "ACTIVE");
+  const latestDetections = incidents.filter((incident) => incident.reportedByName === "Perception Service").slice(0, 6);
+  const selectedIncident = incidents.find((incident) => incident.id === selectedIncidentId) ?? null;
 
   const handleAcknowledge = async (alertId: number) => {
     try { await acknowledgeAlert(alertId); toast.success("Alert acknowledged"); loadAll(); }
@@ -294,7 +300,7 @@ export function SecurityPage() {
       <div className="mx-auto max-w-[1500px]">
         <PageHeader
           title="AI Security Management"
-          subtitle="AI-assisted incident monitoring, alert handling, and incident response. Live CCTV feeds are unavailable until CCTV integration is connected."
+          subtitle="Incidents detected by the CCTV AI appear here as they happen. Open an incident to see the camera snapshots and why the AI raised it."
           actions={
             <>
               <LiveBadge status={streamStatus} />
@@ -304,10 +310,10 @@ export function SecurityPage() {
         />
 
         <section className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <KPICard label="Cameras Online" value="Unavailable" sub="CCTV integration pending" icon={Camera} accent="#A52A2A" />
+          <KPICard label="Open Incidents" value={kpiValue(kpisLoading, kpisError, kpis?.openIncidents)} sub={kpis ? `${kpis.investigatingIncidents} investigating` : undefined} icon={FileWarning} accent="#A52A2A" />
           <KPICard label="Active Alerts" value={kpiValue(kpisLoading, kpisError, kpis?.activeAlerts)} sub={kpis ? `${kpis.criticalAlerts} critical` : undefined} icon={AlertTriangle} accent="#C0392B" />
           <KPICard label="Resolved This Month" value={kpiValue(kpisLoading, kpisError, kpis?.resolvedThisMonth)} icon={CheckCircle2} accent="#2E7D32" />
-          <KPICard label="Total Incidents" value={kpiValue(kpisLoading, kpisError, kpis?.totalIncidents)} sub={kpis ? `${kpis.openIncidents} open` : undefined} icon={Zap} accent="#A52A2A" />
+          <KPICard label="Total Incidents" value={kpiValue(kpisLoading, kpisError, kpis?.totalIncidents)} sub={kpis ? `${kpis.criticalIncidents} critical` : undefined} icon={Zap} accent="#A52A2A" />
         </section>
 
         <div className="mb-6 flex items-end justify-between gap-4 border-b" style={{ borderColor: "#E7DEDA" }}>
@@ -318,8 +324,24 @@ export function SecurityPage() {
         {tab === "live" && (
           <div className="space-y-5">
             <Card style={{ borderRadius: "0.75rem" }}>
-              <CardHeader title="Live Camera Feeds" subtitle="Connected camera status is not available from the current APIs." actions={<StatusBadge status="neutral" label="Unavailable" />} />
-              <div className="p-5 sm:p-6"><EmptyState icon={Camera} title="Live camera feeds unavailable" detail="CCTV integration pending. This space is reserved for connected RTSP camera streams when camera availability data is added to the system." /></div>
+              <CardHeader title="Latest AI Detections" subtitle="Newest incidents reported by the CCTV perception service; updates live" actions={<LiveBadge status={streamStatus} />} />
+              <div className="p-5">
+                {incidentsLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading detections...</p> : incidentsError ? <p style={{ color: "#C0392B", fontSize: "0.82rem" }}>Unable to load incidents.</p> : latestDetections.length === 0 ? <EmptyState icon={Camera} title="No AI detections yet" detail="When the perception service (camera or demo mode) confirms an event, it appears here within seconds together with a pop-up alert." /> : (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {latestDetections.map((incident) => (
+                      <button key={incident.id} onClick={() => setSelectedIncidentId(incident.id)} className="rounded-lg border p-4 text-left" style={{ borderColor: "#EEE4E0", background: "#FCFAF9", cursor: "pointer" }}>
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <span style={{ color: "#302725", fontSize: "0.84rem", fontWeight: 700 }}>{formatEventType(incident.type)}</span>
+                          <StatusBadge status={incident.severity.toLowerCase()} />
+                        </div>
+                        <p style={{ color: "#837572", fontSize: "0.72rem" }}>{incident.location ?? "—"} · {new Date(incident.occurredAt).toLocaleString("en-IN")}</p>
+                        <p className="mt-2 line-clamp-2" style={{ color: "#665956", fontSize: "0.75rem", lineHeight: 1.45 }}>{incident.aiSummary?.trim() || incident.description}</p>
+                        <p className="mt-2" style={{ color: "#A52A2A", fontSize: "0.72rem", fontWeight: 600 }}>View evidence →</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </Card>
 
             <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.4fr_1fr]">
@@ -364,19 +386,19 @@ export function SecurityPage() {
               <Btn variant="secondary" size="sm" className="sm:ml-auto" onClick={exportIncidents}><Download size={13} /> Export CSV</Btn>
             </div>
             <Card style={{ borderRadius: "0.75rem", overflow: "hidden" }}>
-              <CardHeader title="Incident Center" subtitle="Incident records returned by the security API. Camera data remains unavailable; confidence is shown when returned." actions={<span style={{ color: "#9A8A88", fontSize: "0.72rem" }}>{filteredIncidents.length} records</span>} />
+              <CardHeader title="Incident Center" subtitle="Click an incident ID to see the camera evidence and the AI's explanation. Confidence is shown for AI-detected incidents." actions={<span style={{ color: "#9A8A88", fontSize: "0.72rem" }}>{filteredIncidents.length} records</span>} />
               <DataTable
                 searchable
                 paginate={10}
                 emptyMsg={incidentsLoading ? "Loading incidents..." : incidentsError ? "Unable to load incidents." : "No incidents available."}
                 columns={[{ key: "id", label: "Incident ID" }, { key: "datetime", label: "Date & Time" }, { key: "location", label: "Location" }, { key: "type", label: "Event Type" }, { key: "aiSummary", label: "AI Summary" }, { key: "confidence", label: "Confidence" }, { key: "severity", label: "Severity" }, { key: "status", label: "Status" }, { key: "assigned", label: "Assigned To" }, { key: "actions", label: "Actions" }]}
                 rows={filteredIncidents.map((incident) => ({
-                  id: <span style={{ color: "#A52A2A", fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", fontWeight: 700 }}>{incident.id}</span>,
+                  id: <button onClick={() => setSelectedIncidentId(incident.numericId)} title="View evidence" style={{ color: "#A52A2A", fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", fontWeight: 700, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>{incident.id}</button>,
                   datetime: <div><p style={{ color: "#302725", fontSize: "0.78rem", fontWeight: 600 }}>{incident.dateTime.date}</p><p style={{ color: "#9A8A88", fontSize: "0.7rem" }}>{incident.dateTime.time}</p></div>,
                   location: <span style={{ fontSize: "0.78rem" }}>{incident.location}</span>,
                   type: <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>{incident.type}</span>,
-                  aiSummary: incident.aiSummary ? <span style={{ color: "#665956", display: "block", fontSize: "0.75rem", lineHeight: 1.45, maxWidth: "18rem" }}>{incident.aiSummary}</span> : <span style={{ color: "#AAA09D", fontSize: "0.74rem" }}>Unavailable</span>,
-                  confidence: <span style={{ color: incident.confidence === "Unavailable" ? "#AAA09D" : "#665956", fontSize: "0.74rem", fontWeight: 600 }}>{incident.confidence}</span>,
+                  aiSummary: incident.aiSummary ? <span style={{ color: "#665956", display: "block", fontSize: "0.75rem", lineHeight: 1.45, maxWidth: "18rem" }}>{incident.aiSummary}</span> : <span title="No AI summary; showing the built-in description" style={{ color: "#9A8A88", display: "block", fontSize: "0.74rem", lineHeight: 1.45, maxWidth: "18rem" }}>{incident.description}</span>,
+                  confidence: <span style={{ color: incident.confidence === "—" ? "#AAA09D" : "#665956", fontSize: "0.74rem", fontWeight: 600 }}>{incident.confidence}</span>,
                   severity: <StatusBadge status={incident.severity} />,
                   status: <StatusBadge status={incident.status} />,
                   assigned: renderAssignment(incident),
@@ -403,13 +425,10 @@ export function SecurityPage() {
                 </div>
               </Card>
             </section>
-            <Card style={{ borderRadius: "0.75rem" }}>
-              <CardHeader title="Report Generation" subtitle="Security report export endpoints are not available in the current backend." />
-              <div className="p-5"><EmptyState icon={FileWarning} title="Security reports unavailable" detail="The aggregate data above is available from the current KPI endpoint. Dedicated PDF and scheduled report generation are not connected." /></div>
-            </Card>
           </div>
         )}
       </div>
+      {selectedIncident && <IncidentEvidenceDialog incident={selectedIncident} onClose={() => setSelectedIncidentId(null)} />}
     </main>
   );
 }

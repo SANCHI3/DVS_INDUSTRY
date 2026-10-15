@@ -16,7 +16,6 @@ type ReportFilters = { fromDate?: string; toDate?: string; departmentId?: number
 const reportTypes: Array<{ id: ReportId; title: string; desc: string; icon: string; color: string }> = [
   { id: "production", title: "Production Report", desc: "Actual vs expected output, efficiency, scrap, department breakdown", icon: "🏭", color: "#A52A2A" },
   { id: "inventory", title: "Inventory Report", desc: "Stock levels, material consumption, reorder status, valuation", icon: "📦", color: "#4E342E" },
-  { id: "security", title: "Security Report", desc: "Security reporting is unavailable from current APIs", icon: "🛡", color: "#C0392B" },
   { id: "workforce", title: "Workforce Report", desc: "Employee status and department breakdown", icon: "👷", color: "#1565C0" },
   { id: "attendance", title: "Attendance Report", desc: "Date-range attendance summary by employee", icon: "🕒", color: "#1565C0" },
   { id: "orders", title: "Order Report", desc: "Client orders, supplier POs, fulfillment rate, delivery performance", icon: "📋", color: "#2E7D32" },
@@ -129,7 +128,7 @@ export function ReportsPage() {
     <>
       {preview && <PreviewModal report={report} title={reportTypes.find((item) => item.id === preview)?.title ?? "Report"} onClose={() => setPreview(null)} onCSV={() => handleCSV(preview)} onPrint={() => window.print()} />}
       <div className="p-6">
-        <PageHeader title="Reports Center" subtitle="Load and export operational report data from the backend" actions={<Btn variant="secondary" size="sm" disabled><Download size={14} /> Export All Unavailable</Btn>} />
+        <PageHeader title="Reports Center" subtitle="Load and export operational report data from the backend" />
         <div className="flex flex-wrap items-end gap-3 mb-6 p-4 rounded-xl" style={{ background: "#F9F6F5", border: "1px solid #E8E2E0" }}>
           <label style={{ fontSize: "0.75rem", color: "#4A4A4A" }}>From<input type="date" value={filters.fromDate ?? ""} onChange={(event) => setFilters({ ...filters, fromDate: event.target.value || undefined })} className="block mt-1 p-2 rounded-md" /></label>
           <label style={{ fontSize: "0.75rem", color: "#4A4A4A" }}>To<input type="date" value={filters.toDate ?? ""} onChange={(event) => setFilters({ ...filters, toDate: event.target.value || undefined })} className="block mt-1 p-2 rounded-md" /></label>

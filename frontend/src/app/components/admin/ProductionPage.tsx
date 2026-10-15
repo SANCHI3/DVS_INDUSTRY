@@ -28,7 +28,7 @@ import {
   type DailyAttendanceSummary,
 } from "../../../lib/services/workforce.service";
 
-const unavailable = "Unavailable";
+const unavailable = "—";
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -134,7 +134,6 @@ export function ProductionPage() {
         subtitle="Monitor output, workforce efficiency, and attendance across all departments"
         actions={
           <div className="flex gap-2">
-            <Btn variant="secondary" size="sm" disabled><Download size={14} /> Export Report Unavailable</Btn>
             <Btn size="sm" onClick={() => setTab("workforce")}><Plus size={14} /> Add Worker</Btn>
           </div>
         }
@@ -153,28 +152,6 @@ export function ProductionPage() {
       <div className="mt-5">
         {tab === "performance" && (
           <div>
-            <div className="flex gap-2 mb-5">
-              {(["today", "week", "month"] as const).map((p) => (
-                <button
-                  key={p}
-                  disabled
-                  title="Period filtering is unavailable from the current production APIs"
-                  style={{
-                    padding: "0.35rem 0.875rem",
-                    borderRadius: "0.35rem",
-                    fontSize: "0.775rem",
-                    background: "#F5F5F5",
-                    color: "#9A8A88",
-                    border: "1px solid #E8E2E0",
-                    cursor: "not-allowed",
-                  }}
-                >
-                  {p === "today" ? "Today" : p === "week" ? "This Week" : "This Month"}
-                </button>
-              ))}
-              <span style={{ alignSelf: "center", fontSize: "0.72rem", color: "#9A8A88" }}>Unavailable from current production APIs</span>
-            </div>
-
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
               <KPICard label="Active Work Orders" value={kpisLoading ? "Loading..." : kpisError ? unavailable : kpis ? String(kpis.activeWorkOrders) : unavailable} sub={kpis ? `${kpis.completedThisMonth} completed this month` : undefined} />
               <KPICard label="Produced (This Month)" value={kpisLoading ? "Loading..." : kpisError ? unavailable : kpis?.totalProducedQty ?? unavailable} trend={kpis?.overallCompletionRate} trendDir={kpis ? "up" : undefined} accent="#2E7D32" />
@@ -211,7 +188,7 @@ export function ProductionPage() {
               />
             </Card>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+            <div className="grid grid-cols-1 gap-5 mb-5">
               <Card>
                 <CardHeader title="Weekly Production Trend" subtitle={productionTrendLoading ? "Loading production trend..." : productionTrendError ? "Unable to load production trend" : productionChartData.length > 0 ? "From production trend API" : "No data available"} />
                 <div className="p-5">
@@ -237,32 +214,8 @@ export function ProductionPage() {
                 </div>
               </Card>
 
-              <Card>
-                <CardHeader title="Department Efficiency %" subtitle="Unavailable from current production APIs" />
-                <div className="p-5">
-                  <p style={{ fontSize: "0.8375rem", color: "#7A6C6A" }}>Unavailable</p>
-                </div>
-              </Card>
             </div>
 
-            <Card>
-              <CardHeader
-                title="AI-Driven Recommendations"
-                subtitle="Unavailable from current backend APIs"
-                actions={
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: "#F5F5F5", border: "1px solid #E8E2E0" }}>
-                    <Zap size={11} color="#7A6C6A" />
-                    <span style={{ fontSize: "0.68rem", fontWeight: 700, color: "#7A6C6A" }}>Unavailable</span>
-                  </div>
-                }
-              />
-              <div className="p-5">
-                <div className="flex gap-3 p-3.5 rounded-xl" style={{ background: "#F5F5F5", border: "1px solid #E8E2E0" }}>
-                  <AlertTriangle size={15} color="#7A6C6A" style={{ flexShrink: 0, marginTop: "0.15rem" }} />
-                  <p style={{ fontSize: "0.8rem", color: "#4A4A4A", lineHeight: 1.6 }}>No data available.</p>
-                </div>
-              </div>
-            </Card>
           </div>
         )}
 
@@ -270,19 +223,6 @@ export function ProductionPage() {
 
         {tab === "attendance" && (
           <div>
-            <div className="flex flex-wrap items-center gap-4 px-5 py-4 rounded-xl mb-5" style={{ background: "#F5F5F5", border: "1px solid #E8E2E0" }}>
-              <div className="flex items-center gap-3 flex-1">
-                <WifiOff size={18} color="#7A6C6A" />
-                <div>
-                  <p style={{ fontSize: "0.875rem", fontWeight: 700, color: "#1C1C1C" }}>Attendance Sync Status Unavailable</p>
-                  <p style={{ fontSize: "0.72rem", color: "#7A6C6A", marginTop: "0.25rem" }}>No backend API currently exposes face-recognition sync status.</p>
-                </div>
-              </div>
-              <button disabled className="flex items-center gap-2" style={{ padding: "0.4rem 1rem", borderRadius: "0.375rem", fontSize: "0.8rem", fontWeight: 600, background: "#D4BFBB", color: "#fff", border: "none", cursor: "not-allowed" }}>
-                Unavailable
-              </button>
-            </div>
-
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
               <KPICard label="Present Today" value={attendanceLoading ? "Loading..." : attendanceError ? unavailable : attendanceSummary ? String(attendanceSummary.present) : unavailable} trend={attendanceSummary?.attendanceRate} trendDir={attendanceSummary ? "up" : undefined} accent="#2E7D32" />
               <KPICard label="Absent" value={attendanceLoading ? "Loading..." : attendanceError ? unavailable : attendanceSummary ? String(attendanceSummary.absent) : unavailable} accent="#C0392B" />

@@ -14,7 +14,7 @@ import {
 import { getDepartments, type DepartmentDto } from "../../../lib/services/departments.service";
 import { getShifts, type ShiftDto } from "../../../lib/services/workforce.service";
 
-const unavailable = "Unavailable";
+const unavailable = "—";
 
 export interface Employee {
   id: string;
@@ -156,7 +156,7 @@ function EmployeeDialog({ employee, departments, shifts, onClose, onSave, mode }
             <div>
               <label style={labelStyle}>Department</label>
               <select value={formData.departmentId ?? ""} onChange={(e) => handleChange("departmentId", e.target.value ? Number(e.target.value) : null)} style={inputStyle}>
-                <option value="">Unavailable</option>
+                <option value="">Select department</option>
                 {departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
               </select>
             </div>
@@ -169,7 +169,7 @@ function EmployeeDialog({ employee, departments, shifts, onClose, onSave, mode }
             <div>
               <label style={labelStyle}>Shift</label>
               <select value={formData.shiftId ?? ""} onChange={(e) => handleChange("shiftId", e.target.value ? Number(e.target.value) : null)} style={inputStyle}>
-                <option value="">Unavailable</option>
+                <option value="">Select shift</option>
                 {shifts.map((shift) => <option key={shift.id} value={shift.id}>{shift.name}</option>)}
               </select>
             </div>

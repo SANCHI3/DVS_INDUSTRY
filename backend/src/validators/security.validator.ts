@@ -270,3 +270,7 @@ export type AlertQueryInput = z.infer<typeof alertQuerySchema>;
 export type AcknowledgeAlertInput = z.infer<typeof acknowledgeAlertSchema>;
 export type ResolveAlertInput = z.infer<typeof resolveAlertSchema>;
 export type SecurityKpiQueryInput = z.infer<typeof securityKpiQuerySchema>;
+
+export const evidenceFileQuerySchema = z.object({
+  file: z.string().min(1).max(300),
+});

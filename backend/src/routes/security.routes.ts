@@ -22,6 +22,7 @@ import {
   securityKpiQuerySchema,
   incidentAiSummarySchema,
   incidentEscalationSchema,
+  evidenceFileQuerySchema,
 } from '../validators/security.validator';
 import { ROLES } from '../constants';
 
@@ -147,6 +148,31 @@ router.get(
   authorize(...SEC_READ),
   validateRequest({ params: incidentIdParamSchema }),
   asyncHandler(SecurityController.getIncidentDetail),
+);
+
+/**
+ * GET /api/v1/security/incidents/:id/evidence
+ * Camera evidence (keyframes, Grad-CAM, clips) and the AI explanation stored
+ * by the perception service. Raw model output is included for ADMIN only.
+ * Access: ADMIN, MANAGER, PRODUCTION
+ */
+router.get(
+  '/incidents/:id/evidence',
+  authorize(...SEC_READ),
+  validateRequest({ params: incidentIdParamSchema }),
+  asyncHandler(SecurityController.getIncidentEvidenceSummary),
+);
+
+/**
+ * GET /api/v1/security/incidents/:id/evidence/file?file=evidence/CAM-01/x.jpg
+ * One evidence file; only files listed for this incident are served.
+ * Access: ADMIN, MANAGER, PRODUCTION
+ */
+router.get(
+  '/incidents/:id/evidence/file',
+  authorize(...SEC_READ),
+  validateRequest({ params: incidentIdParamSchema, query: evidenceFileQuerySchema }),
+  asyncHandler(SecurityController.getIncidentEvidenceFile),
 );
 
 /**

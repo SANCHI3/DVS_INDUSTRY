@@ -1,8 +1,9 @@
 import type { Request, Response } from 'express';
-import { ForbiddenError } from '../errors';
+import { ForbiddenError, NotFoundError } from '../errors';
 import { ROLES } from '../constants';
 import type { AuthenticatedRequest } from '../types';
 import { SecurityService } from '../services/security.service';
+import { getIncidentEvidence, resolveEvidenceFile } from '../services/perceptionEvidence.service';
 import { subscribeSecurityEvents } from '../lib/securityEvents';
 import { sendSuccess, sendCreated, sendNoContent } from '../utils/response';
 import type {
@@ -116,6 +117,29 @@ export async function getIncidentById(req: Request, res: Response): Promise<void
 
 export async function getIncidentDetail(req: Request, res: Response): Promise<void> {
   sendSuccess(res, await svc.getIncidentDetail(parseId(req.params['id'])));
+}
+
+/** Camera evidence and AI explanation; raw model output for administrators only. */
+export async function getIncidentEvidenceSummary(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const incident = await svc.getIncidentById(parseId(req.params['id']));
+  const includeTechnical = req.user?.role === ROLES.ADMIN;
+  sendSuccess(res, await getIncidentEvidence(incident.incidentNumber, includeTechnical));
+}
+
+export async function getIncidentEvidenceFile(req: Request, res: Response): Promise<void> {
+  const incident = await svc.getIncidentById(parseId(req.params['id']));
+  const file = typeof req.query['file'] === 'string' ? req.query['file'] : '';
+  const absolute = await resolveEvidenceFile(incident.incidentNumber, file);
+  if (!absolute) throw new NotFoundError('Evidence file not found for this incident');
+  res.setHeader('Cache-Control', 'private, max-age=300');
+  if (file.endsWith('.mp4')) {
+    res.download(absolute);
+    return;
+  }
+  res.sendFile(absolute);
 }
 
 export async function updateIncident(req: Request, res: Response): Promise<void> {

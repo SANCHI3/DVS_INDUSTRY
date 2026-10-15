@@ -526,10 +526,10 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        <KPICard label="Active Client Orders" value={statsLoading ? "Loading..." : statsError ? "Unavailable" : apiStats ? String(apiStats.clientOrders.total - apiStats.clientOrders.delivered - apiStats.clientOrders.cancelled) : "Unavailable"} sub="in progress" accent="#A52A2A" />
-        <KPICard label="Pending Supplier POs" value={statsLoading ? "Loading..." : statsError ? "Unavailable" : apiStats ? String(apiStats.purchaseOrders.pending) : "Unavailable"} sub="awaiting processing" accent="#E65100" trendDir="down" />
-        <KPICard label="Dispatched Orders" value={statsLoading ? "Loading..." : statsError ? "Unavailable" : apiStats ? String(apiStats.clientOrders.dispatched) : "Unavailable"} accent="#1565C0" />
-        <KPICard label="Fulfillment Rate" value={statsLoading ? "Loading..." : statsError ? "Unavailable" : apiStats?.fulfillmentRate ?? "Unavailable"} accent="#2E7D32" />
+        <KPICard label="Active Client Orders" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats ? String(apiStats.clientOrders.total - apiStats.clientOrders.delivered - apiStats.clientOrders.cancelled) : "—"} sub="in progress" accent="#A52A2A" />
+        <KPICard label="Pending Supplier POs" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats ? String(apiStats.purchaseOrders.pending) : "—"} sub="awaiting processing" accent="#E65100" trendDir="down" />
+        <KPICard label="Dispatched Orders" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats ? String(apiStats.clientOrders.dispatched) : "—"} accent="#1565C0" />
+        <KPICard label="Fulfillment Rate" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats?.fulfillmentRate ?? "—"} accent="#2E7D32" />
       </div>
 
       <TabBar
@@ -633,35 +633,13 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
 
         {/* ── SUPPLY CHAIN ── */}
         {tab === "supply-chain" && (
-          <div>
-            <Card className="mb-5">
-              <CardHeader title="Supply Chain Flow" subtitle="Unavailable from current order APIs" />
-              <div className="p-8">
-                <p style={{ fontSize: "0.875rem", color: "#7A6C6A", textAlign: "center" }}>No supply-chain flow data available.</p>
-              </div>
-            </Card>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              <Card>
-                <CardHeader title="Order Fulfillment Rate" subtitle="Trend unavailable" />
-                <div className="p-5">
-                  <p style={{ fontSize: "0.8375rem", color: "#7A6C6A" }}>No fulfillment trend data available.</p>
-                </div>
-              </Card>
-
-              <Card>
-                <CardHeader title="Supply Chain Analytics" />
-                <div className="p-5 flex flex-col gap-3">
-                  {["On-Time Delivery Rate", "Avg Supplier Lead Time", "Order Processing Time", "Client Satisfaction Score", "PO Approval Rate"].map((label) => (
-                    <div key={label} className="flex items-center justify-between py-2" style={{ borderBottom: "1px solid #F0ECEB" }}>
-                      <span style={{ fontSize: "0.8375rem", color: "#4A4A4A" }}>{label}</span>
-                      <span style={{ fontSize: "0.9rem", fontWeight: 700, color: "#7A6C6A" }}>Unavailable</span>
-                    </div>
-                  ))}
-                </div>
-              </Card>
+          <Card>
+            <CardHeader title="Supplier performance" subtitle="On-time delivery, lead time, lead-time drift and supplier grades are calculated from purchase-order history" />
+            <div className="p-6 flex flex-col items-start gap-3">
+              <p style={{ fontSize: "0.85rem", color: "#4A4A4A" }}>These live metrics are on the Smart Analytics page, Supplier Scorecard tab.</p>
+              <Btn size="sm" onClick={() => onNavigate?.("analytics")}>Open Supplier Scorecard</Btn>
             </div>
-          </div>
+          </Card>
         )}
       </div>
     </div>

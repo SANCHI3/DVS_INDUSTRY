@@ -266,7 +266,7 @@ function ProductionCalculator({ materials }: { materials: InventoryMaterial[] })
                       style={{ ...inputStyle(), cursor: "pointer" }}
                       onFocus={onFocus} onBlur={onBlur}
                     >
-                      {materials.length === 0 ? <option value="">Unavailable</option> : materials.map((m) => <option key={m.apiId} value={m.name}>{m.name}</option>)}
+                      {materials.length === 0 ? <option value="">No materials yet</option> : materials.map((m) => <option key={m.apiId} value={m.name}>{m.name}</option>)}
                     </select>
                     {/* Live stock badge */}
                     {materials.find((m) => m.name === inputs.materialType) && (
@@ -322,7 +322,7 @@ function ProductionCalculator({ materials }: { materials: InventoryMaterial[] })
                     <input
                       name="costPerKg"
                       type="number" min="0" step="0.5"
-                      placeholder="Unavailable"
+                      placeholder="Enter cost per kg"
                       value={inputs.costPerKg}
                       onChange={(e) => setField("costPerKg")(e.target.value)}
                       style={inputStyle(errors.costPerKg)}
@@ -349,7 +349,7 @@ function ProductionCalculator({ materials }: { materials: InventoryMaterial[] })
                     onFocus={onFocus} onBlur={onBlur}
                   >
                     <option value="">Select operator</option>
-                    <option value="Unavailable">Unavailable</option>
+                    <option value="Not assigned">Not assigned</option>
                   </select>
                 </Field>
               </div>
@@ -613,7 +613,7 @@ function downloadCSV(filename: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
-const unavailable = "Unavailable";
+const unavailable = "—";
 
 function toInventoryMaterial(material: MaterialDto): InventoryMaterial {
   const quantity = parseFloat(material.currentStock);

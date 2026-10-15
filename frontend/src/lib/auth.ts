@@ -143,3 +143,9 @@ export function getStoredFrontendRole(): FrontendRole | null {
 export async function resetPassword(token: string, newPassword: string): Promise<void> {
   await api.post('/auth/reset-password', { token, newPassword, confirmPassword: newPassword });
 }
+
+/** True when the signed-in user has the backend ADMIN role (not MANAGER/HR). */
+export function isAdministrator(): boolean {
+  const user = getUser();
+  return !!user && getBackendRoleName(user.role) === 'ADMIN';
+}

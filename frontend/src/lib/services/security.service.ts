@@ -143,3 +143,41 @@ export async function resolveAlert(id: number): Promise<SecurityAlertDto> {
 export async function deleteAlert(id: number): Promise<void> {
   await api.delete(`/security/alerts/${id}`);
 }
+
+// ── Camera evidence (stored by the perception service) ───────────────────────
+
+export interface EvidenceFile {
+  file: string;
+  kind: 'keyframe' | 'gradcam' | 'clip_before' | 'clip_after';
+}
+
+export type IncidentEvidence =
+  | {
+      available: true;
+      incidentId: string;
+      cameraId: string | null;
+      eventType: string;
+      tier: string;
+      confidenceScore: number | null;
+      confidenceBasis: string | null;
+      validationVersion: number | null;
+      recommendedAction: string | null;
+      explanation: { label: string; value: string }[];
+      files: EvidenceFile[];
+      /** Raw model output; the API returns it to administrators only. */
+      technical?: Record<string, unknown>;
+    }
+  | { available: false; reason: string };
+
+export async function getIncidentEvidence(id: number): Promise<IncidentEvidence> {
+  return unwrap(await api.get(`/security/incidents/${id}/evidence`));
+}
+
+/** Evidence file as a Blob (the API needs the bearer token, so no plain <img src>). */
+export async function getIncidentEvidenceFile(id: number, file: string): Promise<Blob> {
+  const res = await api.get(`/security/incidents/${id}/evidence/file`, {
+    params: { file },
+    responseType: 'blob',
+  });
+  return res.data as Blob;
+}

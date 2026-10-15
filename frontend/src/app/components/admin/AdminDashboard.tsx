@@ -10,6 +10,7 @@ import {
 import { KPICard, Card, CardHeader, StatusBadge, Btn } from "../shared/UI";
 import { getDashboard, type DashboardKPIs, type DashboardCharts } from "../../../lib/services/dashboard.service";
 import { getAlerts, type SecurityAlertDto } from "../../../lib/services/security.service";
+import { getProductionTrend, type ProductionTrendEntry } from "../../../lib/services/production.service";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -26,17 +27,17 @@ function fmtTime(iso: string | null): string {
 
 function dataMessage(loading: boolean, failed: boolean): string {
   if (loading) return "Loading…";
-  if (failed) return "Unavailable";
+  if (failed) return "Couldn't load";
   return "No data available";
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void }) {
-  const [period, setPeriod] = useState<"today" | "week" | "month">("today");
   const [kpis,    setKpis]   = useState<DashboardKPIs | null>(null);
   const [charts,  setCharts] = useState<DashboardCharts | null>(null);
   const [alerts,  setAlerts] = useState<SecurityAlertDto[] | null>(null);
+  const [trend,   setTrend]  = useState<ProductionTrendEntry[] | null>(null);
   const [dashboardError, setDashboardError] = useState(false);
   const [alertsError, setAlertsError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -47,8 +48,10 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
     Promise.allSettled([
       getDashboard(),
       getAlerts({ status: "ACTIVE", pageSize: 5, sortBy: "severity", sortOrder: "desc" }),
-    ]).then(([dashResult, alertResult]) => {
+      getProductionTrend({ days: 7 }),
+    ]).then(([dashResult, alertResult, trendResult]) => {
       if (cancelled) return;
+      setTrend(trendResult.status === "fulfilled" ? trendResult.value : []);
       if (dashResult.status === "fulfilled") {
         setKpis(dashResult.value.kpis);
         setCharts(dashResult.value.charts);
@@ -131,22 +134,6 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
             {loading && <span style={{ color: "#B0A0A0", marginLeft: "0.5rem" }}>Loading…</span>}
           </p>
         </div>
-        <div className="flex gap-2">
-          {(["today", "week", "month"] as const).map((p) => (
-            <button key={p} disabled title="The existing dashboard API returns current aggregate data only" onClick={() => setPeriod(p)}
-              style={{
-                padding: "0.375rem 0.875rem", borderRadius: "0.375rem",
-                fontSize: "0.775rem", fontWeight: 500, cursor: "pointer", textTransform: "capitalize",
-                background: period === p ? "#A52A2A" : "#fff",
-                color:      period === p ? "#fff"    : "#4A4A4A",
-                border: `1px solid ${period === p ? "#A52A2A" : "#E8E2E0"}`,
-                opacity: 0.65,
-              }}
-            >
-              {p === "today" ? "Today" : p === "week" ? "This Week" : "This Month"}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* KPI Grid */}
@@ -163,10 +150,22 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
-        {/* Production trend — use scrap trend as proxy for real data until prod trend endpoint added */}
         <Card style={{ gridColumn: "span 2" }}>
-          <CardHeader title="Production vs Target" subtitle="Expected vs Actual units produced" />
-          <div className="p-5"><p style={{ color: "#7A6C6A", fontSize: "0.8375rem" }}>Production target data is unavailable from the existing dashboard APIs.</p></div>
+          <CardHeader title="Production Output" subtitle="Units produced and rejected per day, last 7 days" />
+          <div className="p-4">
+            {trend === null ? <p style={{ color: "#7A6C6A", fontSize: "0.8375rem" }}>Loading…</p> : trend.every((t) => t.produced === 0 && t.rejected === 0) ? <p style={{ color: "#7A6C6A", fontSize: "0.8375rem" }}>No production output recorded in the last 7 days.</p> : (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={trend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0ECEB" vertical={false} />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#9A8A88" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#9A8A88" }} axisLine={false} tickLine={false} />
+                  <Tooltip contentStyle={{ fontSize: "0.8rem" }} />
+                  <Bar dataKey="produced" name="Produced" fill="#A52A2A" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="rejected" name="Rejected" fill="#E65100" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </Card>
 
         {/* Order status pie */}

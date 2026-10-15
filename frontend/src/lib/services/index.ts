@@ -9,3 +9,4 @@ export * from './inventory.service';
 export * from './orders.service';
 export * from './reports.service';
 export * from './users.service';
+export * from './ai.service';
