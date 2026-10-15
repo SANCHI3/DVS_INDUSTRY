@@ -61,7 +61,7 @@ Detailed diagrams (perception pipeline, ER diagram, incident sequence):
 
 ## Screenshots
 
-<!-- Replace these placeholders with your own screenshots, e.g. docs/screenshots/*.png -->
+<!-- Taken at 1366x768 from the dev database on 15 Oct 2026; retake after a rehearsal if you want fuller data. -->
 | | |
 |---|---|
 | ![Security page with live AI detections](docs/screenshots/security.png) | ![Incident evidence with Grad-CAM](docs/screenshots/evidence.png) |
