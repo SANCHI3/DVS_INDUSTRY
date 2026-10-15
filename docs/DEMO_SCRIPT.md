@@ -1,53 +1,83 @@
-# Demo script (about 10 minutes)
+# Live demo: 5 minutes
 
-One continuous story that shows every layer: camera AI → incident → live alert →
-human response → reporting. Rehearse it once on the demo machine.
+One story: **camera AI → one incident → live alert → evidence → human
+response → measured results.** Rehearse it twice on the demo laptop. Use the
+laptop with the NVIDIA GPU: on CPU the pipeline runs at about 6 frames/s
+instead of 10, and the demo fall clip did not trigger in a CPU test.
 
-## Before the demo
+## The day before
 
-1. Start PostgreSQL, then in three terminals:
-   ```bash
-   cd backend  && npm run dev
-   cd frontend && npm run dev
-   cd perception-service && python main.py --camera CAM-01
-   ```
-2. Open http://localhost:5173 and log in as **Administrator**. Open **AI Security** and check
-   the green **Live** badge next to *Refresh*.
-3. Have ready on a phone or second screen: a fight clip and a fire clip
-   (e.g. from `perception-service/data/` or any public video). Showing a video
-   to the webcam is how the live models are demonstrated safely.
-4. Close or resolve old test incidents so new ones stand out.
+1. `git lfs pull` (fight model weights), then
+   `python perception-service/scripts/prepare_demo_videos.py` (demo clips).
+2. Draw the real restricted zone:
+   `cd perception-service && python scripts/draw_zones.py --camera CAM-01`.
+   Paste the result into `config/cameras.yaml` and give the zone a name.
+3. Full rehearsal: `.\start-demo.ps1` (Windows) or `./start-demo.sh`.
+4. On the **AI Security → Incident Center** page, resolve or close old test
+   incidents so new ones stand out.
+5. Optional: put an `LLM_API_KEY` in `perception-service/.env` for AI-written
+   summaries. Without one, the built-in description is used; that is fine.
 
-## The story
+## Start (before the examiners arrive)
 
-| # | Do | Point out |
-|---|----|-----------|
-| 1 | Show the **Dashboard**, then **Production** and **Inventory → Smart Analytics**. | One ERP for the whole factory; analytics (forecasting, OEE, SPC) on live data. |
-| 2 | Open **AI Security**. Stand in front of the webcam (the live window shows boxes and track IDs). | YOLO detection + ByteTrack tracking at 10 fps. |
-| 3 | Show the **fight clip** to the webcam. | Within ~2 s a **FIGHT** incident appears in the table *without refreshing*, and the **priority popup** appears if confidence ≥ 90 %. Keep the clip playing: no duplicate incidents. |
-| 4 | Switch to the **Dashboard** page, then show the **fire clip**. | The popup appears on *any* page with an alarm tone; fire/smoke always interrupts. |
-| 5 | Sit or lie down out of a standing position in view of the camera and **stay down for 20 s**. | A **FALL** incident at MEDIUM, then the *same* incident turns **CRITICAL** with a popup: "person still down 20 s after the fall". Its history shows the escalation. |
-| 6 | Click **View incident**, assign it to an employee, move it to *Investigating* → *Resolved*. | Human in the loop; every change is audited. |
-| 7 | Open the evidence folder `perception-service/output/evidence/CAM-01/`. | Before/after clips and keyframes saved automatically at confirmation. |
-| 8 | Log out and log in as **Production** (`production.test@dvsindustry.local` / `production`), then **Store**. | Role-based access: each role sees only its modules; Store cannot read security data (HTTP 403). |
-| 9 | Show **Reports Center**. | Security and operational reports from the same data. |
+```powershell
+.\start-demo.ps1            # checks everything, starts backend + frontend, opens the browser
+```
 
-## Questions to expect
+- Log in as **Administrator**.
+- Open **AI Security** and check the green **Live** badge.
+- For the camera version: stop the script (Ctrl+C) and run
+  `.\start-demo.ps1 -Camera` (webcam with a live annotated window). Keep the
+  demo-clip version as the backup (see below).
 
-* *How do you avoid false alarms?* Persistence over several windows (PROBABLE →
-  CONFIRMED), a learned fire verifier, a motion gate before the fight model, and
-  de-duplication. See `docs/REALTIME_SECURITY_ALERTS.md`.
-* *How accurate are the models?* Fight F1 0.96 (344 test videos), fall F1 0.90,
-  fire verifier F1 0.95, anomaly F1 0.79, evaluated with video-level splits. See
-  `ML_AND_ANALYTICS_UPGRADE.md`.
-* *How fast is an alert?* Detection → ERP median 0.43 s; ERP → screen median 11 ms.
-* *Why rules for severity?* Auditable and policy-capped; a human makes the final call.
+## The 5 minutes
 
-## If something goes wrong
+| Time | Do | Say |
+|---|---|---|
+| 0:00–0:30 | **Dashboard**, then click through Production, Inventory, Smart Analytics. | "One ERP for the whole plant: workforce, stock, orders, production, analytics. Security is part of the same system." |
+| 0:30–1:15 | **AI Models** page: pipeline diagram and model cards. | "YOLO only finds and tracks people. Each incident type has its own model: a 3D CNN for fights, pose plus GRU for falls, YOLO plus a verifier for fire, an autoencoder for unusual activity. Each one beats its baseline on held-out videos, for example fight F1 0.85 to 0.96." |
+| 1:15–2:30 | **AI Security → Live Monitoring.** The demo clips (or the camera) are playing in the video window. | When the fight clip plays: "Within a few seconds: one incident, live, no refresh, and the priority pop-up on any page." When the fire clip plays: "Fire always interrupts. The same ongoing fire updates one incident; no duplicates." |
+| 2:30–3:30 | Click the new **fight** card → **evidence dialog**. | "Snapshots saved at confirmation. Grad-CAM shows where the model looked: on the people, not the background. Confidence in words, and why: two people close for at least a second, moving agitatedly. That check is how we removed the false fights we found on our own camera." |
+| 3:30–4:15 | **Incident Center**: assign the incident, Investigate → Resolve. | "A human always decides; every change is audited. Roles matter: a store user cannot see security data at all." |
+| 4:15–5:00 | **AI Models**, scroll to the table and Speed. Or show `docs/RESULTS.md`. | "Every number on this page is generated from the training metrics files, never typed in. On this laptop GPU the full pipeline runs at about 9 of the 10 target frames per second. What we have not measured yet is false alarms per hour on long normal footage; the script for it is ready." |
 
-| Symptom | Fix |
+What to expect from the clips (`perception-service/demo_videos/`, about 48 s
+per loop):
+
+| Clip | Result |
 |---|---|
-| Badge shows *Reconnecting…* | Backend not running, or the login expired: refresh the page. |
-| No incidents appear | Check the perception terminal for `CONFIRMED …` lines and for `dashboard … failed`. |
-| "Too many requests" | Raise `RATE_LIMIT_MAX` in `backend/.env` and restart the backend. |
-| Camera window does not open | Another app is using the webcam; close it and restart `main.py`. |
+| normal activity | nothing |
+| fight | 1 FIGHT (HIGH) |
+| fire | 1 FIRE_SMOKE (HIGH) |
+| fall | 1 FALL (MEDIUM) |
+
+Repeats on the next loop are suppressed for 60 s. A fall can appear again on
+every loop, because its 45-s window is shorter than one loop. Unusual
+activity stays silent for the first 5 minutes (calibration).
+
+## Backup plan
+
+| Problem | Do this |
+|---|---|
+| Webcam not found / wrong camera / poor lighting | Ctrl+C, then `.\start-demo.ps1` (demo clips, no camera needed). Say: "the same pipeline, fed from recorded clips". |
+| An incident does not appear | Look at the perception window/terminal for `CONFIRMED …` and `dashboard … failed`. If there is a `CONFIRMED` line but no row, refresh the browser (login expired). Have a resolved earlier incident ready to open as the evidence example. |
+| No incidents at all after a clip | Clips already raised an incident in the last 60 s (de-duplication, which is by design). Restart the perception service: Ctrl+C, run the script again. |
+| Badge shows *Reconnecting…* | The backend window has an error, or the login expired: refresh the page. |
+| "Too many requests" | Raise `RATE_LIMIT_MAX` in `backend/.env`, restart the backend. |
+| Perception service crashes | The start script restarts it after a native crash. Otherwise run `.\start-demo.ps1` again; backend and frontend are reused. |
+| Fight model message "Git LFS pointer" | Fight detection is off; fire and fall still work. Show the fight evidence from an earlier incident. Fix later with `git lfs pull`. |
+| Everything fails | Open `docs/RESULTS.md` and the report figures (`docs/figures/`), plus screenshots of the dashboard and evidence dialog taken during rehearsal. |
+
+## Likely questions
+
+See [VIVA_QA.md](VIVA_QA.md). Three quick ones:
+
+- *How do you avoid false alarms?* Persistence (PROBABLE → CONFIRMED),
+  interaction check for fights, flicker/growth check plus a learned verifier
+  for fire, per-camera calibration for anomalies, and de-duplication.
+- *Can the LLM invent things?* No. Its text is rejected if it changes the
+  location or adds a number, and it cannot set the type, severity or
+  confidence.
+- *How fast?* 52 ms per frame on the laptop GPU; an alert shows within
+  seconds. An earlier measurement (`docs/REALTIME_SECURITY_ALERTS.md`)
+  reported a median of 0.43 s from detection to ERP record.

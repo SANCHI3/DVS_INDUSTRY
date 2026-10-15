@@ -87,3 +87,6 @@ perception-service/demo_videos/*
 
 # Synthetic pose sequences, regenerate with fight_model/make_demo_data.py
 perception-service/fight_model/demo_data/
+
+# Zones drawn with scripts/draw_zones.py (copy into cameras.yaml)
+perception-service/config/zones_*.yaml

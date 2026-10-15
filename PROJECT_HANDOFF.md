@@ -248,7 +248,7 @@ A healthy local installation should have:
 
 - Backend build passing
 - Backend lint passing
-- 77 backend tests passing
+- All backend tests passing (157 at the time of writing)
 - Frontend production build passing
 - No pending Prisma migrations
 - `GET /api/v1/health` returning `{ "status": "ok", "database": "ok" }`
@@ -301,13 +301,14 @@ The local project is not the same thing as a production deployment. DNS, certifi
 - One-command fresh-clone setup (`scripts/setup.mjs`) and demo logins for every role
 - Frontend unit tests (Vitest) for the alert rules and stream parser
 - Frontend dependency audit: 0 vulnerabilities
+- Demo mode and one-command start (`start-demo.ps1` / `start-demo.sh`), evaluation
+  scripts and `docs/RESULTS.md`, AI Models page, incident evidence view;
+  placeholder "Unavailable" cards replaced with live data or removed
 
 ### Important remaining work
 
 - Configure a real SMTP provider (`SMTP_*` in `backend/.env`) for production reset emails
 - End-to-end browser tests for the main forms and the alert flow
-- Replace remaining presentation-only placeholder values ("Unavailable" cards,
-  e.g. camera counts) with live data sources as those integrations arrive
 - Use a real production domain, TLS, backup destination, monitoring service, and centralized logs
 - Backend dependency audit: 11 *high* advisories remain, all inside Prisma CLI
   tooling and pm2. npm's only offered fixes are major-version **downgrades**

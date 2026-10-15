@@ -1,205 +1,141 @@
-# DVS Industries — Enterprise ERP Platform
+# DVS Industries: ERP with multi-model CCTV safety AI
 
-Full-stack ERP system for DVS Industries manufacturing operations.
+A full-stack ERP for a manufacturing plant (workforce, inventory, orders,
+production, reports, analytics) with an integrated CCTV AI. The AI detects
+fights, falls, fire/smoke, unusual activity, loitering, intrusion and crowding,
+and turns each event into **one** incident with evidence. The incident appears
+live on every open dashboard.
 
-For a complete newcomer handoff covering architecture, storage, workflows, setup, current progress, and remaining work, read [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md). Deployment notes are in [ops/README.md](ops/README.md).
+> Final-year project. All model numbers below come from
+> [docs/RESULTS.md](docs/RESULTS.md), generated from the training metrics files.
 
----
+## Features
+
+- **ERP:** employees, shifts and attendance; materials, stock and scrap;
+  client and purchase orders; production work orders; reports; audit trail;
+  role-based access for 8 roles plus a service role.
+- **Smart Analytics:** demand forecasting (Holt / Croston–SBA), dynamic
+  reorder points, ABC-XYZ, stock-anomaly detection, an OEE-style index with SPC
+  charts, a supplier scorecard, and a Plant Health Index.
+- **CCTV AI, one model per incident type** (YOLO finds and tracks people;
+  dedicated models decide what is happening):
+
+  | Incident | Model |
+  |---|---|
+  | Fight | R3D-18 3D CNN on video clips + track-based interaction check |
+  | Fall | YOLOv8-Pose skeletons → temporal CNN + BiGRU |
+  | Fire / smoke | Fine-tuned YOLOv8n + flicker/growth check + learned verifier |
+  | Unusual activity | Optical flow → denoising autoencoder (unsupervised, per-camera calibration) |
+  | Loitering, intrusion, crowd | Geometric rules on ByteTrack tracks inside camera zones |
+
+- **One event = one incident:** N-of-M confirmation (PROBABLE → CONFIRMED),
+  rule-based severity with hard caps, and de-duplication.
+- **Live alerts:** Server-Sent Events push incidents to every page, with a
+  priority pop-up for fire, critical events and high confidence.
+- **Evidence and explanations:** keyframes, before/after clips, Grad-CAM
+  heatmaps for fights, plain-language reasons, and the basis of every
+  confidence value. Technical details are shown to admins only.
+- **AI summaries:** an optional LLM rewrites the alert in plain language. It
+  is validated so that it cannot add facts, and a built-in description is
+  used without a key.
+- **AI Models page:** results table, charts, pipeline diagram and speed,
+  served from the evaluation output.
+- **Demo mode:** one command runs the whole chain on recorded clips, without
+  a camera.
 
 ## Architecture
 
-```
-Frontend (React + Vite)  →  Backend (Express + TypeScript)  →  PostgreSQL
-     localhost:5173               localhost:3000                 localhost:5432/dvs_factory
-                                        ↑  incidents (REST)  +  live stream (SSE) → browser
-                             Perception service (Python, CCTV/webcam AI models)
-```
-
-**File uploads** — stored locally at `backend/uploads/`, served as static assets by Express.  
-**No Supabase. No cloud database. No third-party auth.**
-
----
-
-## Modules
-
-| Module | API prefix | Description |
-|--------|-----------|-------------|
-| Auth | `/api/v1/auth` | JWT login/logout/refresh, RBAC roles |
-| Departments | `/api/v1/departments` | Department CRUD + soft-delete |
-| Employees | `/api/v1/employees` | Full employee lifecycle, profile images |
-| Workforce | `/api/v1/workforce` | Shifts + Attendance (clock-in/out, bulk mark, trend) |
-| Inventory | `/api/v1/inventory` | Materials, stock transactions, scrap records |
-| Orders | `/api/v1/orders` | Client orders + Purchase orders, full lifecycle |
-| Production | `/api/v1/production` | Work orders, output recording, KPIs |
-| Security | `/api/v1/security` | Incidents + Alerts with state machines |
-| Reports | `/api/v1/reports` | KPI dashboard, all module reports |
-| Audit | `/api/v1/audit` | Auto-captured audit trail for all write operations |
-| Smart Analytics | `/api/v1/analytics` | Demand forecasting, dynamic reorder point, ABC-XYZ, stock anomaly detection, OEE + SPC, Plant Health Index |
-
----
-
-> **AI & analytics:** see [ML_AND_ANALYTICS_UPGRADE.md](ML_AND_ANALYTICS_UPGRADE.md) for the multi-model CCTV
-> perception pipeline (YOLOv8, R3D-18, pose-LSTM, pose + Random Forest fall model, unsupervised
-> autoencoder, fire verifier) and the Smart Analytics module.
-
----
-
-## Roles
-
-| Role | Access |
-|------|--------|
-| ADMIN | Full system access |
-| MANAGER | Cross-department oversight, reports |
-| HR | Workforce, employees, attendance |
-| PRODUCTION | Production module |
-| STORE | Orders & supply chain |
-| SALES | Client orders |
-
----
-
-## Tech Stack
-
-**Backend**
-- Node.js + TypeScript + Express 5
-- Prisma 6 ORM + PostgreSQL 18
-- Zod validation, JWT auth, bcrypt, multer
-- Vitest + Supertest (77 tests)
-
-**Frontend**
-- React 18 + Vite + TypeScript
-- Tailwind CSS + Recharts
-- Axios with JWT interceptor + auto-refresh
-- Pages use the real API for persisted records; presentation-only empty states may appear when the database has no records
-
-**Database**
-- PostgreSQL 18.4 (local)
-- 20 models, 9 migrations, 104 indexes, 188 constraints
-
----
-
-## Getting Started (fresh clone)
-
-### Prerequisites
-- Node.js 20+
-- PostgreSQL 15+ running, with an empty database named `dvs_factory`
-  (`createdb dvs_factory`, or create it in pgAdmin)
-- Python 3.10–3.12 (for the CCTV perception service; an NVIDIA GPU is optional)
-- **Git LFS** — two fight-detection models are stored with it. Before or after cloning:
-  ```bash
-  git lfs install
-  git lfs pull
-  ```
-
-### 1. Create the `.env` files
-
-`.env` files hold secrets and are never committed. One command creates both
-(`backend/.env` and `perception-service/.env`) with fresh secrets and matching
-camera-service credentials:
-
-```bash
-node scripts/setup.mjs --db-url "postgresql://postgres:<your-db-password>@localhost:5432/dvs_factory"
+```mermaid
+flowchart LR
+    CAM["Camera / RTSP / video<br/>or demo clips"] --> P["Perception service (Python)<br/>YOLOv8 + ByteTrack → fight · fall · fire/smoke · anomaly · rules<br/>→ confirmation → severity → de-dup"]
+    P -- "CONFIRMED incidents (REST)" --> API["Backend<br/>Express 5 + TypeScript"]
+    P -. "facts only" .-> LLM["LLM (optional)"]
+    API <--> DB[("PostgreSQL<br/>Prisma, 22 models")]
+    API -- "SSE live stream" --> UI["Dashboard<br/>React + Vite"]
+    UI -- "REST + JWT" --> API
+    API -. "evidence (read-only)" .-> P
 ```
 
-Add `--install` to also run `npm install`, the database migrations, the seed
-and `pip install` in one go. Existing `.env` files are kept (use `--force` to
-regenerate them). The script prints the logins it created.
+Detailed diagrams (perception pipeline, ER diagram, incident sequence):
+[docs/report/04_architecture.md](docs/report/04_architecture.md).
 
-### 2. Install, migrate and seed (skip if you used `--install`)
+## Screenshots
 
-```bash
-cd backend  && npm install && npx prisma generate && npx prisma migrate deploy && npm run db:seed
-cd frontend && npm install
-cd perception-service && pip install -r requirements.txt
-```
+<!-- Replace these placeholders with your own screenshots, e.g. docs/screenshots/*.png -->
+| | |
+|---|---|
+| ![Security page with live AI detections](docs/screenshots/security.png) | ![Incident evidence with Grad-CAM](docs/screenshots/evidence.png) |
+| *AI Security: live detections* | *Incident evidence: snapshots, Grad-CAM, explanation* |
+| ![AI Models page](docs/screenshots/ai-models.png) | ![Dashboard](docs/screenshots/dashboard.png) |
+| *AI Models: results and pipeline* | *Operations dashboard* |
 
-### 3. Run
+## Setup (Windows, macOS or Linux)
 
-```bash
-cd backend  && npm run dev          # → http://localhost:3000
-cd frontend && npm run dev          # → http://localhost:5173
-cd perception-service && python main.py --camera CAM-01    # webcam + live window (press q to quit)
-```
+Requires Node.js 20+, Python 3.10–3.12, PostgreSQL 15+ and Git LFS. An NVIDIA
+GPU is optional.
 
-### Logins (development seed)
+1. Clone, then fetch the fight-model weights: `git lfs install && git lfs pull`
+2. Create an empty database: `createdb dvs_factory` (or use pgAdmin)
+3. Create both `.env` files with fresh secrets, then install, migrate and seed:
+   ```bash
+   node scripts/setup.mjs --db-url "postgresql://postgres:<password>@localhost:5432/dvs_factory" --install
+   ```
+   (For a GPU, first install PyTorch from the CUDA index; see `perception-service/requirements.txt`.)
+4. Get the demo clips: `python perception-service/scripts/prepare_demo_videos.py`
+   (or add your own, see [demo_videos/README.md](perception-service/demo_videos/README.md))
+5. Start everything: `.\start-demo.ps1` (Windows) or `./start-demo.sh`
+6. Open http://localhost:5173 and log in as **Administrator**, using the
+   `SEED_ADMIN_PASSWORD` printed by step 3 (also in `backend/.env`)
+7. Open **AI Security**. Incidents appear as the clips play. For a webcam,
+   use `.\start-demo.ps1 -Camera`
+8. Optional: add `LLM_API_KEY` to `perception-service/.env` for AI-written
+   summaries, and draw your restricted zones with
+   `python perception-service/scripts/draw_zones.py --camera CAM-01`
 
-| Portal | Email | Password |
-|--------|-------|----------|
-| Administrator | `admin@dvsindustry.com` | `SEED_ADMIN_PASSWORD` in `backend/.env` (printed by the setup script) |
-| Production | `production.test@dvsindustry.local` | `production` |
-| Store | `store.test@dvsindustry.local` | `store` |
-| Supplier | `supplier.test@dvsindustry.local` | `supplier` |
-| Client | `client.test@dvsindustry.local` | `client` |
+Running the parts by hand, the environment variables and the deployment
+templates are covered in [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md) and
+[ops/README.md](ops/README.md).
 
-> Demo passwords are for local development only; the seed never creates the
-> demo accounts when `NODE_ENV=production`.
+## Results
 
-### AI-written alert summaries (optional)
+Held-out evaluation of the deployed models (full table with 21 rows, charts
+and protocols: [docs/RESULTS.md](docs/RESULTS.md)):
 
-Safety alerts always show a plain-language description. To have an LLM rewrite
-it into two short sentences, put an API key for any OpenAI-compatible provider
-in **`perception-service/.env`** (never in a committed file):
+| Task | Deployed model | F1 | Precision / Recall | False alarms | Test set | Baseline F1 |
+|---|---|---|---|---|---|---|
+| Fight | R3D-18 v2 (live 2-of-3 rule) | **0.96** | 0.94 / 0.97 | 10 | 344 videos | 0.85 (R3D-18 v1) |
+| Fall | Pose + BiGRU | **0.90** | 0.86 / 0.94 | 12 | 160 videos, grouped 5-fold CV | 0.81 (box rule, relaxed) |
+| Fire | YOLOv8n + learned verifier | **0.95** | 1.00 / 0.91 | 0 | 27 videos (FIRESENSE) | 0.87 (YOLO only, 2 false alarms) |
+| Smoke | YOLOv8n + learned verifier | **0.92** | 1.00 / 0.85 | 0 | 22 videos (FIRESENSE) | 0.92 (YOLO only) |
+| Unusual activity | Autoencoder v2 (unsupervised) | **0.79** | 0.96 / 0.67 | 2 | 102 videos | 0.52 (v1) |
 
-```
-LLM_BASE_URL=https://api.groq.com/openai/v1
-LLM_MODEL=openai/gpt-oss-20b
-LLM_API_KEY=<your key>          # free keys: https://console.groq.com/keys
-```
+- **Speed:** on an RTX 3050 laptop GPU the full pipeline takes 51.9 ms per
+  frame and sustains 9.2 of the 10 target frames/s. On CPU it reaches 6.1
+  frames/s.
+- **False-positive fixes:** false alarms seen on a real camera were traced to
+  root causes and fixed, with 26 regression scenarios
+  ([details](perception-service/docs/FALSE_POSITIVE_FIXES.md)). False alarms
+  per hour on long normal footage have not been measured yet; the script is
+  ready (`python -m evaluation.false_alarms`).
+- **Tests:** backend 157, frontend 19, perception 115, all passing. CI runs on
+  every push.
 
-Restart `python main.py` afterwards. Without a key everything still works; the
-alerts simply use the built-in description.
+## Documentation
 
----
+| Document | Contents |
+|---|---|
+| [docs/RESULTS.md](docs/RESULTS.md) | All metrics, charts, speed benchmark, false-alarm measurement |
+| [docs/report/](docs/report/) | Report chapters (abstract to conclusion, with Mermaid diagrams) |
+| [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | 5-minute live demo plan with a backup plan |
+| [docs/VIVA_QA.md](docs/VIVA_QA.md) | 30 likely viva questions with answers |
+| [ML_AND_ANALYTICS_UPGRADE.md](ML_AND_ANALYTICS_UPGRADE.md) | How each model was trained and evaluated; Smart Analytics maths |
+| [perception-service/README.md](perception-service/README.md) | Perception service: run options, demo mode, tests |
+| [docs/REALTIME_SECURITY_ALERTS.md](docs/REALTIME_SECURITY_ALERTS.md) | Live alert stream, pop-up rules, latency measurements |
+| [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md) | Architecture, data storage, workflows, setup details |
 
-## Environment Variables
+## Tech stack
 
-`scripts/setup.mjs` fills these in. To do it by hand, copy `backend/.env.example` to `backend/.env` and set:
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | 64-byte hex secret for access tokens |
-| `REFRESH_TOKEN_SECRET` | 64-byte hex secret for refresh tokens |
-| `PORT` | Backend port (default: 3000) |
-| `CORS_ORIGINS` | Frontend origin (default: http://localhost:5173) |
-
-Generate secrets:
-```bash
-node -e "const c=require('crypto'); console.log(c.randomBytes(64).toString('hex'))"
-```
-
----
-
-## Database Schema
-
-20 models across 4 domains:
-
-**Auth:** Role, User, RefreshToken  
-**Workforce:** Department, Shift, Employee, Attendance  
-**Inventory:** Material, StockTransaction, ScrapRecord  
-**Orders:** Supplier, Client, ClientOrder, PurchaseOrder  
-**Production:** WorkOrder, WorkOrderOutput  
-**Security:** SecurityIncident, IncidentUpdate, SecurityAlert  
-**Audit:** AuditLog  
-
----
-
-## Tests
-
-```bash
-cd backend
-npm test
-# 77 tests — 8 test files — 0 failures
-```
-
----
-
-## Project Status
-
-| Area | Status |
-|------|--------|
-| Backend — all 10 modules | ✅ Complete |
-| Database — 9 migrations applied | ✅ Complete |
-| Backend tests — 77/77 passing | ✅ Complete |
-| Frontend — API layer (12 services) | ✅ Complete |
-| Frontend — all pages wired to real API | ✅ Complete |
-| Frontend production build | ✅ Clean |
+React 18 · Vite · TypeScript · Tailwind · Recharts | Node.js · Express 5 ·
+Prisma 6 · PostgreSQL · Zod · JWT · Vitest | Python 3.12 · PyTorch · Ultralytics
+YOLOv8 · supervision (ByteTrack) · OpenCV · scikit-learn · NumPy · pytest |
+GitHub Actions · PM2 · Nginx

@@ -6,8 +6,8 @@
 #
 # Zones are defined as polygons in pixel coordinates of the *processing*
 # resolution (see thresholds.yaml -> perception.process_width/height).
-# Draw these by eye against a saved snapshot from the camera, or build a
-# small helper script later to click points on a frame.
+# Draw them by clicking on a camera frame:
+#   python scripts/draw_zones.py --camera CAM-01
 #
 # Optional per-zone keys:
 #   name: "Loading bay"         shown to staff in incident descriptions
