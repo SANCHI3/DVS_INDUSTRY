@@ -214,7 +214,10 @@ def markdown(result: dict) -> str:
                f"{r['close_fight_pass_rate']:.2f}, normal clips {r['close_normal_pass_rate']:.2f}.", "",
            f"Difference in J, best minus configured: {ci(r['best_minus_configured_j_ci95']) or '–'} "
            f"(the best threshold is chosen on these same clips, so this is optimistic). "
-           + ("**The data favour the best-J threshold; the configured value is kept and both are reported.**"
+           + ("**On these clips the best-J threshold is better.** Both are reported; the configured 0.1 is "
+              "kept because the better value was chosen on the same clips, they are proxy clips from other "
+              "cameras rather than the deployment camera, and the ablation (section 4) runs at 0.1. Re-check "
+              "on field recordings before changing it."
               if r["best_clearly_better"] else
               "The interval includes 0, so the data do not clearly favour another value; the configured "
               "threshold is kept."),
@@ -228,7 +231,12 @@ def markdown(result: dict) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--limit", type=int, help="at most N clips per class (smoke testing; no docs written)")
+    parser.add_argument("--report", action="store_true", help="rewrite the RESULTS.md section from the saved JSON")
     args = parser.parse_args()
+    if args.report:
+        update_section("interaction", markdown(json.loads(
+            (RESULTS_DIR / "interaction_separation.json").read_text(encoding="utf-8"))))
+        return
     cfg = load_cfg()
     inter_cfg = cfg["fight_detection"]["interaction"]
     if FIELD.exists():
