@@ -117,7 +117,7 @@ and protocols: [docs/RESULTS.md](docs/RESULTS.md)):
   ([details](perception-service/docs/FALSE_POSITIVE_FIXES.md)). False alarms
   per hour on long normal footage have not been measured yet; the script is
   ready (`python -m evaluation.false_alarms`).
-- **Tests:** backend 157, frontend 19, perception 115, all passing. CI runs on
+- **Tests:** backend 157, frontend 19, perception 117, all passing. CI runs on
   every push.
 
 ## Documentation

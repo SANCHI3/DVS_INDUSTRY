@@ -12,7 +12,7 @@ confusion counts.
 |---|---|---|
 | Backend (Vitest + Supertest) | `cd backend && npm test` | 157 tests in 15 files, all passing; typecheck, ESLint and Prettier clean |
 | Frontend (Vitest) | `cd frontend && npm test && npm run build` | 19 tests in 3 files, all passing; production build succeeds |
-| Perception (pytest) | `cd perception-service && python -m pytest -q` | 115 tests, all passing |
+| Perception (pytest) | `cd perception-service && python -m pytest -q` | 117 tests, all passing |
 
 The perception tests run without a camera or GPU. They cover:
 
