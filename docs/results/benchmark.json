@@ -1,0 +1,159 @@
+{
+  "run_at": "2026-10-15T08:38:53+00:00",
+  "seconds": 100.0,
+  "detection_fps": 10,
+  "hardware": {
+    "os": "Windows-11-10.0.26200-SP0",
+    "cpu": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+    "python": "3.12.8",
+    "torch": "2.5.1+cu121",
+    "gpu": "NVIDIA GeForce RTX 3050 A Laptop GPU"
+  },
+  "runs": {
+    "gpu": {
+      "camera_id": "CAM-01",
+      "device": "GPU (NVIDIA GeForce RTX 3050 A Laptop GPU)",
+      "throttled": true,
+      "elapsed_s": 100.01,
+      "cycles": 918,
+      "cycles_per_s": 9.18,
+      "pipeline_capacity_fps": 19.27,
+      "stages": {
+        "yolo_detect": {
+          "mean_ms_per_call": 19.76,
+          "mean_ms_per_cycle": 19.76,
+          "calls": 918
+        },
+        "bytetrack": {
+          "mean_ms_per_call": 0.43,
+          "mean_ms_per_cycle": 0.43,
+          "calls": 918
+        },
+        "rule_engine": {
+          "mean_ms_per_call": 0.15,
+          "mean_ms_per_cycle": 0.15,
+          "calls": 918
+        },
+        "fight": {
+          "mean_ms_per_call": 7.22,
+          "mean_ms_per_cycle": 7.22,
+          "calls": 918
+        },
+        "fire_smoke": {
+          "mean_ms_per_call": 11.02,
+          "mean_ms_per_cycle": 11.02,
+          "calls": 918
+        },
+        "fall": {
+          "mean_ms_per_call": 8.1,
+          "mean_ms_per_cycle": 8.1,
+          "calls": 918
+        },
+        "anomaly": {
+          "mean_ms_per_call": 2.94,
+          "mean_ms_per_cycle": 2.94,
+          "calls": 918
+        },
+        "cycle_total": {
+          "mean_ms_per_call": 51.89,
+          "mean_ms_per_cycle": 51.89,
+          "calls": 918
+        }
+      },
+      "detectors": {
+        "fight": true,
+        "fire_smoke": true,
+        "fall": true,
+        "anomaly": true
+      },
+      "incidents": [
+        {
+          "event_type": "fall",
+          "tier": "CONFIRMED",
+          "count": 1
+        },
+        {
+          "event_type": "fight",
+          "tier": "CONFIRMED",
+          "count": 1
+        },
+        {
+          "event_type": "fire_smoke",
+          "tier": "PROBABLE",
+          "count": 1
+        }
+      ],
+      "attempts": 1
+    },
+    "cpu": {
+      "camera_id": "CAM-01",
+      "device": "CPU (no CUDA GPU found)",
+      "throttled": true,
+      "elapsed_s": 101.07,
+      "cycles": 618,
+      "cycles_per_s": 6.11,
+      "pipeline_capacity_fps": 6.5,
+      "stages": {
+        "yolo_detect": {
+          "mean_ms_per_call": 61.68,
+          "mean_ms_per_cycle": 61.68,
+          "calls": 618
+        },
+        "bytetrack": {
+          "mean_ms_per_call": 0.32,
+          "mean_ms_per_cycle": 0.32,
+          "calls": 618
+        },
+        "rule_engine": {
+          "mean_ms_per_call": 0.09,
+          "mean_ms_per_cycle": 0.09,
+          "calls": 618
+        },
+        "fight": {
+          "mean_ms_per_call": 18.98,
+          "mean_ms_per_cycle": 18.98,
+          "calls": 618
+        },
+        "fire_smoke": {
+          "mean_ms_per_call": 28.64,
+          "mean_ms_per_cycle": 28.64,
+          "calls": 618
+        },
+        "fall": {
+          "mean_ms_per_call": 40.56,
+          "mean_ms_per_cycle": 40.56,
+          "calls": 618
+        },
+        "anomaly": {
+          "mean_ms_per_call": 2.11,
+          "mean_ms_per_cycle": 2.11,
+          "calls": 618
+        },
+        "cycle_total": {
+          "mean_ms_per_call": 153.75,
+          "mean_ms_per_cycle": 153.75,
+          "calls": 618
+        }
+      },
+      "detectors": {
+        "fight": true,
+        "fire_smoke": true,
+        "fall": true,
+        "anomaly": true
+      },
+      "incidents": [
+        {
+          "event_type": "fight",
+          "tier": "CONFIRMED",
+          "count": 2
+        },
+        {
+          "event_type": "fire_smoke",
+          "tier": "PROBABLE",
+          "count": 1
+        }
+      ],
+      "attempts": 1
+    }
+  }
+}
