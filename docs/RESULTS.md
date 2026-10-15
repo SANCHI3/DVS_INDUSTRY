@@ -9,6 +9,8 @@ cd perception-service
 python -m evaluation.run_all              # model metrics, charts, model_results.json
 python -m evaluation.false_alarms ...     # false alarms per hour on normal footage
 python -m evaluation.benchmark ...        # FPS and per-stage latency
+python -m evaluation.ablation run         # ablation of the verification stages (hours)
+python -m evaluation.interaction_separation  # fight interaction-check thresholds
 ```
 
 <!-- BEGIN:models -->
@@ -86,6 +88,42 @@ Files not used:
 - `fight_lstm_v1_window_model.metrics.json`: identical copy of fight_lstm.metrics.json
 - `fight_lstm_v2_baseline.metrics.json`: identical copy of fight_lstm_v2.metrics.json
 - `fire_smoke_video_eval_baseline.summary.json`: same YOLO-only evaluation as the verifier file's yolo_only rows (identical counts)
+
+### Bootstrap 95% confidence intervals
+
+Percentile bootstrap, 1000 resamples over test videos, fixed seed (`evaluation/stats.py`). Only rows whose per-video predictions are stored in the repository can be resampled; the recomputed confusion counts equal the stored ones.
+
+| Task | Model | n | Precision | Recall | F1 | AUC | Per-video source |
+|---|---|---|---|---|---|---|---|
+| Fire | YOLOv8n fire only | 27 | 0.83 [0.60, 1.00] | 0.91 [0.71, 1.00] | 0.87 [0.70, 1.00] | – | `fire_smoke_video_eval_baseline.results.csv` |
+| Smoke | YOLOv8n smoke only | 22 | 1.00 [1.00, 1.00] | 0.85 [0.64, 1.00] | 0.92 [0.78, 1.00] | – | `fire_smoke_video_eval_baseline.results.csv` |
+| Unusual activity | Autoencoder v1 | 60 | 0.83 [0.65, 1.00] | 0.38 [0.24, 0.52] | 0.52 [0.37, 0.65] | 0.74 [0.60, 0.87] | `scene_anomaly_ae_v1.per_video.json` |
+| Unusual activity | Autoencoder v2 (deployed) | 102 | 0.96 [0.91, 1.00] | 0.67 [0.57, 0.77] | 0.79 [0.71, 0.86] | 0.84 [0.72, 0.93] | `scene_anomaly_ae_v2.per_video.json` |
+
+No interval (per-video predictions not stored; not approximated):
+
+- Fight / R3D-18 v1: only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py).
+- Fight / R3D-18 v2 (deployed): only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py).
+- Fight / R3D-18 v1, single clip: only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py).
+- Fight / R3D-18 v2, 3-clip mean: only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py).
+- Fight / Pose-LSTM v1 (fallback): only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py).
+- Fight / Pose-LSTM v2: only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py).
+- Fall / Box rule, as deployed (5 s still): only aggregate out-of-fold counts are stored.
+- Fall / Box rule, relaxed (1 s): only aggregate out-of-fold counts are stored.
+- Fall / Pose + BiGRU (deployed): only aggregate out-of-fold counts are stored.
+- Fall / Pose features + Random Forest: only aggregate out-of-fold counts are stored.
+- Fall / Pose features + Gradient Boosting: only aggregate out-of-fold counts are stored.
+- Fall / Pose features + Logistic Regression: only aggregate out-of-fold counts are stored.
+- Fall / Physics score (no training): only aggregate out-of-fold counts are stored.
+- Fire / YOLOv8n + learned verifier (deployed): only aggregate leave-one-video-out counts are stored.
+- Smoke / YOLOv8n + learned verifier (deployed): only aggregate leave-one-video-out counts are stored.
+- Fire / YOLOv8n, stricter thresholds (rejected): per-video lines exist only in an untracked local log, not in the repo.
+- Smoke / YOLOv8n, stricter thresholds (rejected): per-video lines exist only in an untracked local log, not in the repo.
+
+Paired significance tests (exact McNemar):
+
+- fight_v1_vs_v2: not computed: per-video predictions of R3D-18 v1 and v2 are not stored (only confusion counts), so the paired test cannot be computed.
+- autoencoder_v1_vs_v2: not computed: v1 and v2 were tested on different video sets (60 vs 102 videos, split by file vs by event), so their predictions are not paired.
 
 ### Figures
 

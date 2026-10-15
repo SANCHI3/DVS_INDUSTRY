@@ -12,6 +12,13 @@ confusion counts only as a consistency check). Outputs:
     docs/figures/model_scores.png        final model per task: precision / recall / F1
     docs/figures/baseline_vs_final.png   F1 and false alarms, baseline vs final
     docs/figures/confusion_matrices.png  final models (and fight v1) where counts exist
+
+Rows whose per-video predictions are stored in the repository also get
+bootstrap 95% confidence intervals (1000 resamples over test videos, see
+evaluation/stats.py). The recomputed confusion counts must equal the stored
+ones. Rows without stored per-video predictions get no interval: they are
+listed, not approximated. McNemar's test needs paired per-video predictions of
+both models on the same videos, so it is run only where both are stored.
 """
 from __future__ import annotations
 
@@ -19,7 +26,10 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+import csv
+
 from evaluation.common import FIGURES, RESULTS_DIR, SERVICE_ROOT, fmt, update_section
+from evaluation.stats import N_RESAMPLES, classification_cis, mcnemar
 
 MODELS = SERVICE_ROOT / "models"
 
@@ -142,6 +152,66 @@ def collect() -> list[dict]:
     return rows
 
 
+def per_video_predictions() -> dict:
+    """(task, model) -> per-video labels, predictions and scores stored in the repo."""
+    out = {}
+    for name, model in [("scene_anomaly_ae_v1.per_video.json", "Autoencoder v1"),
+                        ("scene_anomaly_ae_v2.per_video.json", "Autoencoder v2 (deployed)")]:
+        items = load(name)
+        out[("Unusual activity", model)] = {
+            "source": name, "y": [int(i["label"]) for i in items], "pred": [int(bool(i["alert"])) for i in items],
+            "score": [float(i["score"]) for i in items]}
+    with (MODELS / "fire_smoke_video_eval_baseline.results.csv").open(encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    for cls in ("fire", "smoke"):
+        items = [r for r in rows if r["target"] == cls]
+        out[(cls.capitalize(), f"YOLOv8n {cls} only")] = {
+            "source": "fire_smoke_video_eval_baseline.results.csv", "y": [int(r["expected_positive"]) for r in items],
+            "pred": [int(r["confirmed"]) for r in items], "score": None}
+    return out
+
+
+NO_PER_VIDEO = {  # why a row has no interval, by task or model
+    "Fight": "the metrics files store only aggregate confusion counts, no per-video predictions",
+    "Fall": "only aggregate out-of-fold counts are stored",
+    "YOLOv8n + learned verifier (deployed)": "only aggregate leave-one-video-out counts are stored",
+    "YOLOv8n, stricter thresholds (rejected)": "per-video lines exist only in an untracked local log, not in the repo",
+}
+
+
+def add_confidence_intervals(rows: list[dict]) -> dict:
+    stored = per_video_predictions()
+    for r in rows:
+        data = stored.get((r["task"], r["model"]))
+        if data is None:
+            r["ci95"] = None
+            r["ci_note"] = (NO_PER_VIDEO.get(r["model"]) or NO_PER_VIDEO.get(r["task"])
+                            or "only aggregate counts are stored")
+            continue
+        cis = classification_cis(data["y"], data["pred"], data["score"])
+        for k in ("tp", "fp", "fn", "tn"):
+            assert cis[k] == r[k], (data["source"], k, cis[k], r[k], "per-video predictions disagree with counts")
+        if data["score"] is not None and r["auc"] is not None:
+            assert abs(cis["auc"] - r["auc"]) < 0.002, (data["source"], "AUC mismatch", cis["auc"], r["auc"])
+        r["ci95"] = {k: cis[f"{k}_ci95"] for k in ("precision", "recall", "f1", "auc") if f"{k}_ci95" in cis}
+        r["ci_source"] = data["source"]
+    # McNemar needs paired per-video predictions of both models on the same videos.
+    tests = {}
+    fight = ("Fight", "R3D-18 v1"), ("Fight", "R3D-18 v2 (deployed)")
+    if all(k in stored for k in fight):
+        a, b = stored[fight[0]], stored[fight[1]]
+        tests["fight_v1_vs_v2"] = mcnemar([p == y for p, y in zip(a["pred"], a["y"])],
+                                          [p == y for p, y in zip(b["pred"], b["y"])])
+    else:
+        tests["fight_v1_vs_v2"] = {"skipped": "per-video predictions of R3D-18 v1 and v2 are not stored "
+                                              "(only confusion counts), so the paired test cannot be computed"}
+    ae = stored[("Unusual activity", "Autoencoder v1")], stored[("Unusual activity", "Autoencoder v2 (deployed)")]
+    tests["autoencoder_v1_vs_v2"] = {"skipped": f"v1 and v2 were tested on different video sets ({len(ae[0]['y'])} "
+                                                f"vs {len(ae[1]['y'])} videos, split by file vs by event), "
+                                                "so their predictions are not paired"}
+    return tests
+
+
 SHORT = {  # chart labels only
     "R3D-18 v1": "R3D-18 v1", "R3D-18 v2 (deployed)": "R3D-18 v2",
     "Box rule, relaxed (1 s)": "box rule (1 s)", "Pose + BiGRU (deployed)": "pose + BiGRU",
@@ -253,7 +323,35 @@ def make_figures(rows: list[dict]) -> list[str]:
     return written
 
 
-def markdown(rows: list[dict], figures: list[str]) -> str:
+def ci_markdown(rows: list[dict], tests: dict) -> list[str]:
+    def c(v, ci):
+        return f"{v:.2f} [{ci[0]:.2f}, {ci[1]:.2f}]" if v is not None and ci else fmt(v)
+    out = ["### Bootstrap 95% confidence intervals", "",
+           f"Percentile bootstrap, {N_RESAMPLES} resamples over test videos, fixed seed "
+           "(`evaluation/stats.py`). Only rows whose per-video predictions are stored in the repository "
+           "can be resampled; the recomputed confusion counts equal the stored ones.", "",
+           "| Task | Model | n | Precision | Recall | F1 | AUC | Per-video source |", "|---|---|---|---|---|---|---|---|"]
+    for r in rows:
+        if r.get("ci95"):
+            ci = r["ci95"]
+            out.append(f"| {r['task']} | {r['model']} | {r['test_size']} | {c(r['precision'], ci.get('precision'))} | "
+                       f"{c(r['recall'], ci.get('recall'))} | {c(r['f1'], ci.get('f1'))} | "
+                       f"{c(r['auc'], ci.get('auc'))} | `{r['ci_source']}` |")
+    out += ["", "No interval (per-video predictions not stored; not approximated):", ""]
+    for r in rows:
+        if not r.get("ci95"):
+            out.append(f"- {r['task']} / {r['model']}: {r['ci_note']}.")
+    out += ["", "Paired significance tests (exact McNemar):", ""]
+    for name, t in tests.items():
+        if "skipped" in t:
+            out.append(f"- {name}: not computed: {t['skipped']}.")
+        else:
+            out.append(f"- {name}: discordant pairs {t['discordant']} ({t['a_only_correct']} / "
+                       f"{t['b_only_correct']}), p = {t['p_value_exact']:.4f}.")
+    return out
+
+
+def markdown(rows: list[dict], figures: list[str], tests: dict | None = None) -> str:
     out = ["## 1. Model metrics", "",
            "Generated by `python -m evaluation.run_all` from `perception-service/models/*.json`.",
            "**Role:** *final* = the model the live pipeline uses; *baseline* = what it replaced or is "
@@ -280,6 +378,8 @@ def markdown(rows: list[dict], figures: list[str]) -> str:
     out += ["", "Files not used:", ""]
     for name, why in EXCLUDED.items():
         out.append(f"- `{name}`: {why}")
+    if tests is not None:
+        out += [""] + ci_markdown(rows, tests)
     out += ["", "### Figures", ""]
     captions = {
         "model_scores.png": "Deployed model per task: precision, recall and F1.",
@@ -298,6 +398,7 @@ def main() -> None:
                          if p.name not in used and p.name not in EXCLUDED and "per_video" not in p.name)
     if unaccounted:
         raise SystemExit(f"metrics files neither used nor excluded: {unaccounted}")
+    tests = add_confidence_intervals(rows)
     figures = make_figures(rows)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     (RESULTS_DIR / "model_results.json").write_text(json.dumps({
@@ -305,9 +406,11 @@ def main() -> None:
         "generated_by": "perception-service/evaluation/run_all.py",
         "rows": rows,
         "comparisons": [{"task": t, "baseline": b, "final": f} for t, b, f in PAIRS],
+        "bootstrap": {"resamples": N_RESAMPLES, "unit": "test video", "interval": "percentile 95%"},
+        "significance_tests": tests,
         "excluded_files": EXCLUDED,
     }, indent=2), encoding="utf-8")
-    update_section("models", markdown(rows, figures))
+    update_section("models", markdown(rows, figures, tests))
     print(f"{len(rows)} result rows -> docs/RESULTS.md, docs/results/model_results.json")
     print("figures:", ", ".join(f"docs/figures/{f}" for f in figures))
 

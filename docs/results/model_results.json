@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-15T08:30:38+00:00",
+  "generated_at": "2026-10-15T17:56:11+00:00",
   "generated_by": "perception-service/evaluation/run_all.py",
   "rows": [
     {
@@ -18,7 +18,9 @@
       "fn": 37,
       "tn": 162,
       "source": "fight_r3d18_v2.runtime.json compared_with.test_live_rule",
-      "note": ""
+      "note": "",
+      "ci95": null,
+      "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
     },
     {
       "task": "Fight",
@@ -36,7 +38,9 @@
       "fn": 5,
       "tn": 162,
       "source": "fight_r3d18_v2.runtime.json model.test_live_rule",
-      "note": ""
+      "note": "",
+      "ci95": null,
+      "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
     },
     {
       "task": "Fight",
@@ -54,7 +58,9 @@
       "fn": 49,
       "tn": 145,
       "source": "fight_r3d18_v1.metrics.json test",
-      "note": ""
+      "note": "",
+      "ci95": null,
+      "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
     },
     {
       "task": "Fight",
@@ -72,7 +78,9 @@
       "fn": 5,
       "tn": 161,
       "source": "fight_r3d18_v2.metrics.json test",
-      "note": ""
+      "note": "",
+      "ci95": null,
+      "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
     },
     {
       "task": "Fight",
@@ -90,7 +98,9 @@
       "fn": 11,
       "tn": 122,
       "source": "fight_lstm.metrics.json test",
-      "note": "different test set (pose windows); weights not in the repo"
+      "note": "different test set (pose windows); weights not in the repo",
+      "ci95": null,
+      "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
     },
     {
       "task": "Fight",
@@ -108,7 +118,9 @@
       "fn": 59,
       "tn": 132,
       "source": "fight_lstm_v2.metrics.json test",
-      "note": "different test set (pose windows); weights not in the repo"
+      "note": "different test set (pose windows); weights not in the repo",
+      "ci95": null,
+      "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
     },
     {
       "task": "Fall",
@@ -126,7 +138,9 @@
       "fn": 74,
       "tn": 77,
       "source": "fall_gru_v1.metrics.json rule_baseline_deployed_5s",
-      "note": ""
+      "note": "",
+      "ci95": null,
+      "ci_note": "only aggregate out-of-fold counts are stored"
     },
     {
       "task": "Fall",
@@ -144,7 +158,9 @@
       "fn": 14,
       "tn": 65,
       "source": "fall_gru_v1.metrics.json rule_baseline_relaxed_1s",
-      "note": "generous version: omits the rule's 8-px stillness check"
+      "note": "generous version: omits the rule's 8-px stillness check",
+      "ci95": null,
+      "ci_note": "only aggregate out-of-fold counts are stored"
     },
     {
       "task": "Fall",
@@ -162,7 +178,9 @@
       "fn": 5,
       "tn": 69,
       "source": "fall_gru_v1.metrics.json pose_gru_model",
-      "note": ""
+      "note": "",
+      "ci95": null,
+      "ci_note": "only aggregate out-of-fold counts are stored"
     },
     {
       "task": "Fall",
@@ -180,7 +198,9 @@
       "fn": 5,
       "tn": 69,
       "source": "fall_rf_v1.metrics.json models.random_forest",
-      "note": ""
+      "note": "",
+      "ci95": null,
+      "ci_note": "only aggregate out-of-fold counts are stored"
     },
     {
       "task": "Fall",
@@ -198,7 +218,9 @@
       "fn": 6,
       "tn": 69,
       "source": "fall_rf_v1.metrics.json models.gradient_boosting",
-      "note": ""
+      "note": "",
+      "ci95": null,
+      "ci_note": "only aggregate out-of-fold counts are stored"
     },
     {
       "task": "Fall",
@@ -216,7 +238,9 @@
       "fn": 10,
       "tn": 70,
       "source": "fall_rf_v1.metrics.json models.logistic_regression",
-      "note": ""
+      "note": "",
+      "ci95": null,
+      "ci_note": "only aggregate out-of-fold counts are stored"
     },
     {
       "task": "Fall",
@@ -234,7 +258,9 @@
       "fn": 17,
       "tn": 71,
       "source": "fall_rf_v1.metrics.json baselines['physics_score (no training)']",
-      "note": ""
+      "note": "",
+      "ci95": null,
+      "ci_note": "only aggregate out-of-fold counts are stored"
     },
     {
       "task": "Fire",
@@ -252,7 +278,22 @@
       "fn": 1,
       "tn": 14,
       "source": "fire_smoke_verifier_v1.metrics.json fire.yolo_only",
-      "note": ""
+      "note": "",
+      "ci95": {
+        "precision": [
+          0.6,
+          1.0
+        ],
+        "recall": [
+          0.7143,
+          1.0
+        ],
+        "f1": [
+          0.7,
+          1.0
+        ]
+      },
+      "ci_source": "fire_smoke_video_eval_baseline.results.csv"
     },
     {
       "task": "Fire",
@@ -270,7 +311,9 @@
       "fn": 1,
       "tn": 16,
       "source": "fire_smoke_verifier_v1.metrics.json fire.yolo_plus_verifier",
-      "note": ""
+      "note": "",
+      "ci95": null,
+      "ci_note": "only aggregate leave-one-video-out counts are stored"
     },
     {
       "task": "Smoke",
@@ -288,7 +331,22 @@
       "fn": 2,
       "tn": 9,
       "source": "fire_smoke_verifier_v1.metrics.json smoke.yolo_only",
-      "note": ""
+      "note": "",
+      "ci95": {
+        "precision": [
+          1.0,
+          1.0
+        ],
+        "recall": [
+          0.6429,
+          1.0
+        ],
+        "f1": [
+          0.7826,
+          1.0
+        ]
+      },
+      "ci_source": "fire_smoke_video_eval_baseline.results.csv"
     },
     {
       "task": "Smoke",
@@ -306,7 +364,9 @@
       "fn": 2,
       "tn": 9,
       "source": "fire_smoke_verifier_v1.metrics.json smoke.yolo_plus_verifier",
-      "note": ""
+      "note": "",
+      "ci95": null,
+      "ci_note": "only aggregate leave-one-video-out counts are stored"
     },
     {
       "task": "Fire",
@@ -324,7 +384,9 @@
       "fn": 6,
       "tn": 16,
       "source": "fire_smoke_calibration_v2.rejected.summary.json fire",
-      "note": "fire 0.7 / smoke 0.45: lost recall, so not adopted"
+      "note": "fire 0.7 / smoke 0.45: lost recall, so not adopted",
+      "ci95": null,
+      "ci_note": "per-video lines exist only in an untracked local log, not in the repo"
     },
     {
       "task": "Smoke",
@@ -342,7 +404,9 @@
       "fn": 2,
       "tn": 8,
       "source": "fire_smoke_calibration_v2.rejected.summary.json smoke",
-      "note": "fire 0.7 / smoke 0.45: lost recall, so not adopted"
+      "note": "fire 0.7 / smoke 0.45: lost recall, so not adopted",
+      "ci95": null,
+      "ci_note": "per-video lines exist only in an untracked local log, not in the repo"
     },
     {
       "task": "Unusual activity",
@@ -360,7 +424,26 @@
       "fn": 25,
       "tn": 17,
       "source": "scene_anomaly_ae_v1.metrics.json video_level",
-      "note": "split by file (camera angles of one event could leak); 40 abnormal test videos"
+      "note": "split by file (camera angles of one event could leak); 40 abnormal test videos",
+      "ci95": {
+        "precision": [
+          0.65,
+          1.0
+        ],
+        "recall": [
+          0.2432,
+          0.5163
+        ],
+        "f1": [
+          0.3673,
+          0.6546
+        ],
+        "auc": [
+          0.5969,
+          0.8665
+        ]
+      },
+      "ci_source": "scene_anomaly_ae_v1.per_video.json"
     },
     {
       "task": "Unusual activity",
@@ -378,7 +461,26 @@
       "fn": 26,
       "tn": 21,
       "source": "scene_anomaly_ae_v2.metrics.json video_level",
-      "note": "split by event; 79 abnormal test videos"
+      "note": "split by event; 79 abnormal test videos",
+      "ci95": {
+        "precision": [
+          0.9057,
+          1.0
+        ],
+        "recall": [
+          0.5658,
+          0.7738
+        ],
+        "f1": [
+          0.7121,
+          0.8633
+        ],
+        "auc": [
+          0.7241,
+          0.931
+        ]
+      },
+      "ci_source": "scene_anomaly_ae_v2.per_video.json"
     }
   ],
   "comparisons": [
@@ -408,6 +510,19 @@
       "final": "Autoencoder v2 (deployed)"
     }
   ],
+  "bootstrap": {
+    "resamples": 1000,
+    "unit": "test video",
+    "interval": "percentile 95%"
+  },
+  "significance_tests": {
+    "fight_v1_vs_v2": {
+      "skipped": "per-video predictions of R3D-18 v1 and v2 are not stored (only confusion counts), so the paired test cannot be computed"
+    },
+    "autoencoder_v1_vs_v2": {
+      "skipped": "v1 and v2 were tested on different video sets (60 vs 102 videos, split by file vs by event), so their predictions are not paired"
+    }
+  },
   "excluded_files": {
     "fight_r3d18_smoke.metrics.json": "pipeline smoke test on 10 clips, not an evaluation",
     "fight_r3d18_unfreeze_smoke.metrics.json": "pipeline smoke test on 10 clips, not an evaluation",
