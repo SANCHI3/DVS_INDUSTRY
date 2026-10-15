@@ -13,8 +13,7 @@ from reporting.dashboard_client import DashboardClient, DashboardClientError
 from schemas.incident_schema import IncidentRecord
 
 
-def load_incident(incident_id: str) -> IncidentRecord:
-    incident_path = Path("output/incidents.jsonl")
+def load_incident(incident_id: str, incident_path: Path = Path("output/incidents.jsonl")) -> IncidentRecord:
     records = [
         IncidentRecord.model_validate_json(line)
         for line in incident_path.read_text(encoding="utf-8").splitlines()
@@ -44,13 +43,14 @@ def attach_to_backend(record: IncidentRecord, summary: str) -> dict:
         raise RuntimeError(str(exc)) from exc
 
 
-def enrich_incident(incident_id: str) -> dict:
-    record = load_incident(incident_id)
+def enrich_incident(incident_id: str, incident_log: Path = Path("output/incidents.jsonl"),
+                    summaries: Path | None = None) -> dict:
+    record = load_incident(incident_id, incident_log)
     analysis = summarize_incident(record)
     output = summary_output(record, analysis)
 
     # Idempotent local persistence: rerunning an incident replaces its row.
-    upsert_summary(output)
+    upsert_summary(output, summaries)
 
     backend_result = attach_to_backend(record, analysis.summary)
     return {
@@ -63,10 +63,12 @@ def enrich_incident(incident_id: str) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--incident-id", required=True)
+    parser.add_argument("--incident-log", type=Path, default=Path("output/incidents.jsonl"))
+    parser.add_argument("--summaries", type=Path, default=None)
     args = parser.parse_args()
     print(
         json.dumps(
-            enrich_incident(args.incident_id),
+            enrich_incident(args.incident_id, args.incident_log, args.summaries),
             ensure_ascii=False,
             indent=2,
         )

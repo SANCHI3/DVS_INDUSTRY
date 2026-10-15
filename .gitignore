@@ -74,3 +74,7 @@ perception-service/models/*.log
 !perception-service/models/fire_smoke_yolov8n_v1.pt
 !perception-service/yolov8n.pt
 !perception-service/yolov8n-pose.pt
+
+# Demo clips come from datasets with varying redistribution terms (see demo_videos/README.md)
+perception-service/demo_videos/*
+!perception-service/demo_videos/README.md

@@ -14,6 +14,20 @@ from temporal.fire_verifier import FireVerifier
 from temporal.rule_engine import EventCandidate
 
 
+def _resolve_device(device):
+    """`device: 0` (first GPU) falls back to the CPU on machines without CUDA,
+    where Ultralytics would otherwise refuse to run."""
+    if str(device).lower() == "cpu":
+        return "cpu"
+    try:
+        import torch
+        if torch.cuda.is_available() and torch.cuda.device_count() > 0:
+            return device
+    except ImportError:
+        pass
+    return "cpu"
+
+
 class FireSmokeDetector:
     """Evaluates fire/smoke at a controlled stride and applies N-of-M persistence.
 
@@ -28,6 +42,7 @@ class FireSmokeDetector:
             from ultralytics import YOLO  # imported lazily so tests can inject a model
             model = YOLO(cfg["checkpoint"])
         self.model = model
+        self.device = _resolve_device(cfg.get("device", 0))
         self.imgsz = int(cfg.get("imgsz", 640))
         self.evaluation_stride = max(1, int(cfg.get("evaluation_stride_frames", 2)))
         self.window = max(1, int(cfg.get("persistence_window", 5)))
@@ -109,7 +124,7 @@ class FireSmokeDetector:
 
         result = self.model.predict(
             source=frame, conf=0.01, imgsz=self.imgsz,
-            device=self.cfg.get("device", 0), verbose=False,
+            device=self.device, verbose=False,
         )[0]
         best = {"fire": 0.0, "smoke": 0.0}
         raw_best = {"fire": 0.0, "smoke": 0.0}

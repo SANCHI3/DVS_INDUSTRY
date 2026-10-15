@@ -18,6 +18,10 @@ or a live RTSP feed -- just point cameras.yaml's `source` at a file path,
 or override with --source):
     python main.py --camera CAM-01 --source /path/to/test_video.mp4 --no-display
 
+Demo mode (no camera needed): loop every video in demo_videos/ through the
+full pipeline -> dashboard -> live alert chain (see demo_videos/README.md):
+    python main.py --demo
+
 The processing loop deliberately runs at a fixed `detection_fps` (from
 thresholds.yaml) rather than every captured frame, per the design doc's
 real-time performance guidance (section 9/19).
@@ -25,8 +29,12 @@ real-time performance guidance (section 9/19).
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import time
+from collections import Counter, defaultdict
+from contextlib import contextmanager
+from pathlib import Path
 
 # scikit-learn (learned fire verifier) must load before torch/ultralytics:
 # the reverse order trips an OpenMP DLL clash on Windows.
@@ -40,6 +48,7 @@ from confirmation.event_confirmation import EventConfirmation
 from confirmation.incident_dedup import IncidentDeduper
 from detection.yolo_detector import YoloDetector
 from evidence.clip_extractor import EvidenceBuffer
+from ingestion.demo_playlist import DemoPlaylistReader, find_demo_videos
 from ingestion.stream_reader import StreamReader
 from reporting.incident_report import IncidentReporter
 from severity.severity_rules import compute_severity
@@ -118,12 +127,82 @@ def resolve_camera_runtime(
     return effective_camera_id, source, location, {"source_kind": source_kind, **reader_options}
 
 
+def checkpoint_problem(path: str | None) -> str | None:
+    """Why a model file can't be loaded, in words an operator can act on."""
+
+    if not path or not os.path.exists(path):
+        return f"checkpoint '{path}' not found"
+    if os.path.getsize(path) < 1024:
+        with open(path, "rb") as handle:
+            if handle.read(64).startswith(b"version https://git-lfs"):
+                return (f"checkpoint '{path}' is a Git LFS pointer, not the model. "
+                        f"Run: git lfs install && git lfs pull")
+    return None
+
+
+def start_optional(camera_id: str, name: str, factory, checkpoint: str | None = None):
+    """Build an optional detector. A missing or broken model disables only that
+    detector; the camera and every other detector keep running."""
+
+    problem = checkpoint_problem(checkpoint) if checkpoint is not None else None
+    if problem is None:
+        try:
+            return factory()
+        except Exception as exc:  # noqa: BLE001 - any load failure disables just this detector
+            problem = f"{type(exc).__name__}: {exc}"
+    print(f"[{camera_id}] WARNING {name} detection disabled -- {problem}")
+    return None
+
+
+def redirect_output(path: str, output_dir: str) -> str:
+    """Move a configured `output/...` path under --output-dir."""
+
+    norm = path.replace("\\", "/")
+    if output_dir == "output" or not (norm == "output" or norm.startswith("output/")):
+        return path
+    return os.path.join(output_dir, norm[len("output/"):]) if norm != "output" else output_dir
+
+
+class StageTimer:
+    """Per-stage wall-clock timing of the processing loop (for --stats-json)."""
+
+    def __init__(self):
+        self.total_ms = defaultdict(float)
+        self.calls = Counter()
+
+    @contextmanager
+    def stage(self, name: str):
+        start = time.perf_counter()
+        try:
+            yield
+        finally:
+            self.add(name, (time.perf_counter() - start) * 1000.0)
+
+    def add(self, name: str, ms: float):
+        self.total_ms[name] += ms
+        self.calls[name] += 1
+
+    def summary(self, cycles: int) -> dict:
+        return {
+            name: {
+                "mean_ms_per_call": round(self.total_ms[name] / self.calls[name], 2),
+                "mean_ms_per_cycle": round(self.total_ms[name] / max(cycles, 1), 2),
+                "calls": self.calls[name],
+            }
+            for name in self.total_ms
+        }
+
+
 def run(
     camera_id: str,
     source_override: str | None,
     display: bool,
     max_seconds: float | None,
     only_events: set[str] | None = None,
+    demo_dir: str | None = None,
+    output_dir: str = "output",
+    stats_json: str | None = None,
+    throttle: bool = True,
 ):
     cameras_cfg, thresholds_cfg = load_config()
     cam_cfg = find_camera_config(cameras_cfg, camera_id)
@@ -136,54 +215,90 @@ def run(
     perception_cfg = thresholds_cfg["perception"]
     tracking_cfg = thresholds_cfg["tracking"]
 
+    evidence_cfg = dict(thresholds_cfg["evidence"])
+    evidence_cfg["output_dir"] = redirect_output(evidence_cfg["output_dir"], output_dir)
+    anomaly_cfg = dict(thresholds_cfg.get("scene_anomaly", {}))
+    if anomaly_cfg.get("calibration"):
+        anomaly_cfg["calibration"] = dict(anomaly_cfg["calibration"])
+        anomaly_cfg["calibration"]["dir"] = redirect_output(
+            anomaly_cfg["calibration"].get("dir", "output/calibration"), output_dir)
+        if demo_dir is not None:
+            # demo clips must never become the real camera's notion of "normal"
+            anomaly_cfg["calibration"]["dir"] = os.path.join(anomaly_cfg["calibration"]["dir"], "demo")
+    fight_cfg = dict(thresholds_cfg["fight_detection"])
+    if fight_cfg.get("rgb"):
+        fight_cfg["rgb"] = dict(fight_cfg["rgb"])
+        fight_cfg["rgb"]["explain_dir"] = redirect_output(
+            fight_cfg["rgb"].get("explain_dir", "output/evidence/gradcam"), output_dir)
+
+    videos = []
+    if demo_dir is not None:
+        videos = find_demo_videos(demo_dir)
+        if not videos:
+            raise SystemExit(
+                f"Demo mode: no videos found in '{demo_dir}'. Put short .mp4/.avi clips there "
+                f"(see demo_videos/README.md) or pass another folder: --demo <folder>"
+            )
+        print(f"[{camera_id}] DEMO MODE: looping {len(videos)} video(s) from {demo_dir}")
+        source_kind = "demo playlist"
+    else:
+        source_kind = reader_options["source_kind"]
+
     print(
-        f"[{camera_id}] starting pipeline. source={reader_options['source_kind']} "
+        f"[{camera_id}] starting pipeline. source={source_kind} "
         f"location={camera_location}"
     )
 
-    reader = StreamReader(
-        source=source,
-        camera_id=camera_id,
-        target_fps=perception_cfg["detection_fps"],
-        connect_timeout_s=reader_options["connect_timeout_s"],
-        read_timeout_s=reader_options["read_timeout_s"],
-        reconnect_delay_s=reader_options["reconnect_delay_s"],
-        reconnect_max_delay_s=reader_options["reconnect_max_delay_s"],
-        reconnect_attempts=reader_options["reconnect_attempts"],
-    ).start()
     detector = YoloDetector(
         model_path=perception_cfg["model_path"],
         confidence_threshold=perception_cfg["confidence_threshold"],
         classes_of_interest=perception_cfg["classes_of_interest"],
     )
-    tracker = ByteTracker(
-        track_activation_threshold=tracking_cfg["track_activation_threshold"],
-        lost_track_buffer=tracking_cfg["lost_track_buffer"],
-        minimum_matching_threshold=tracking_cfg["minimum_matching_threshold"],
-        frame_rate=perception_cfg["detection_fps"],
-    )
-    buffer = TemporalBuffer(window_seconds=thresholds_cfg["temporal_buffer"]["window_seconds"])
-    rule_engine = RuleEngine(cam_cfg, thresholds_cfg)
+    try:
+        import torch
+        device_label = (f"GPU ({torch.cuda.get_device_name(0)})"
+                        if torch.cuda.is_available() and torch.cuda.device_count() > 0
+                        else "CPU (no CUDA GPU found)")
+    except (ImportError, RuntimeError, AssertionError):
+        device_label = "CPU"
+    print(f"[{camera_id}] inference device: {device_label}")
+
+    def new_scene_state():
+        return (
+            ByteTracker(
+                track_activation_threshold=tracking_cfg["track_activation_threshold"],
+                lost_track_buffer=tracking_cfg["lost_track_buffer"],
+                minimum_matching_threshold=tracking_cfg["minimum_matching_threshold"],
+                frame_rate=perception_cfg["detection_fps"],
+            ),
+            TemporalBuffer(window_seconds=thresholds_cfg["temporal_buffer"]["window_seconds"]),
+            RuleEngine(cam_cfg, thresholds_cfg),
+        )
+
+    tracker, buffer, rule_engine = new_scene_state()
     for warning in zone_warnings(cam_cfg.get("zones", []), perception_cfg["process_width"],
                                  perception_cfg["process_height"]):
         print(f"[{camera_id}] WARNING {warning}")
-    fight_cfg = thresholds_cfg["fight_detection"]
     run_fight = fight_cfg.get("enabled", True) and (
         only_events is None or "fight" in only_events
     )
     fight_detector = None
     if run_fight:
-        fight_detector = (
-            RgbFightDetector(camera_id, fight_cfg)
-            if fight_cfg.get("mode") == "rgb"
-            else FightDetector(camera_id, fight_cfg)
-        )
+        if fight_cfg.get("mode") == "rgb":
+            fight_detector = start_optional(
+                camera_id, "fight", lambda: RgbFightDetector(camera_id, fight_cfg),
+                checkpoint=fight_cfg["rgb"]["checkpoint"])
+        else:
+            fight_detector = start_optional(
+                camera_id, "fight", lambda: FightDetector(camera_id, fight_cfg))
     fire_smoke_cfg = thresholds_cfg.get("fire_smoke_detection", {})
     run_fire_smoke = fire_smoke_cfg.get("enabled", False) and (
         only_events is None or "fire_smoke" in only_events
     )
     fire_smoke_detector = (
-        FireSmokeDetector(camera_id, fire_smoke_cfg) if run_fire_smoke else None
+        start_optional(camera_id, "fire/smoke", lambda: FireSmokeDetector(camera_id, fire_smoke_cfg),
+                       checkpoint=fire_smoke_cfg.get("checkpoint"))
+        if run_fire_smoke else None
     )
 
     # Learned fall detection (replaces the bounding-box aspect-ratio rule). Modes:
@@ -201,38 +316,42 @@ def run(
     if run_pose_fall:
         gru_checkpoint = fall_cfg.get("gru_checkpoint", "models/fall_gru_v1.pt")
         if fall_mode == "gru" and os.path.exists(gru_checkpoint):
-            from temporal.fall_gru_recognition import GruFallDetector
-            fall_detector = GruFallDetector(
-                camera_id, {**fall_cfg, **(fall_cfg.get("gru") or {}), "checkpoint": gru_checkpoint}
-            )
-        else:
+            def build_gru_fall():
+                from temporal.fall_gru_recognition import GruFallDetector
+                return GruFallDetector(
+                    camera_id, {**fall_cfg, **(fall_cfg.get("gru") or {}), "checkpoint": gru_checkpoint}
+                )
+            fall_detector = start_optional(camera_id, "fall (GRU)", build_gru_fall)
+        if fall_detector is None:
             if fall_mode == "gru":
-                print(f"[{camera_id}] GRU fall checkpoint '{gru_checkpoint}' not found -> Random Forest / physics")
-            from temporal.pose_fall_recognition import PoseFallDetector
-            fall_detector = PoseFallDetector(camera_id, {**fall_cfg, "mode": "model" if fall_mode == "gru" else fall_mode})
+                print(f"[{camera_id}] GRU fall model unavailable ('{gru_checkpoint}') -> Random Forest / physics")
+
+            def build_pose_fall():
+                from temporal.pose_fall_recognition import PoseFallDetector
+                return PoseFallDetector(
+                    camera_id, {**fall_cfg, "mode": "model" if fall_mode == "gru" else fall_mode})
+            fall_detector = start_optional(camera_id, "fall", build_pose_fall)
 
     # Unsupervised scene-anomaly autoencoder (catches unlabelled abnormal events)
-    anomaly_cfg = thresholds_cfg.get("scene_anomaly", {})
     anomaly_detector = None
     if anomaly_cfg.get("enabled", False) and (only_events is None or "anomaly" in only_events):
         if os.path.exists(anomaly_cfg.get("checkpoint", "")):
-            from temporal.scene_anomaly import SceneAnomalyDetector
-            anomaly_detector = SceneAnomalyDetector(
-                camera_id, anomaly_cfg, fps=perception_cfg["detection_fps"]
-            )
+            def build_anomaly():
+                from temporal.scene_anomaly import SceneAnomalyDetector
+                return SceneAnomalyDetector(camera_id, anomaly_cfg, fps=perception_cfg["detection_fps"])
+            anomaly_detector = start_optional(camera_id, "scene-anomaly", build_anomaly)
         else:
             print(f"[{camera_id}] scene-anomaly checkpoint not found -- anomaly detection disabled. "
                   f"Train one with: python -m anomaly.train_autoencoder --normal <folder>")
     confirmation = EventConfirmation(thresholds_cfg["confirmation"])
     reporter = IncidentReporter(
-        output_path="output/incidents.jsonl",
+        output_path=os.path.join(output_dir, "incidents.jsonl"),
         camera_locations={camera_id: camera_location},
         # Optional local incident API (backend/api.py); unset to disable
         backend_url=os.getenv("LEGACY_INCIDENT_API_URL", "").strip() or None,
         # Dashboard posts and LLM enrichment must never stall frame processing
         background=True,
     )
-    evidence_cfg = thresholds_cfg["evidence"]
     evidence_buffer = EvidenceBuffer(
         output_dir=evidence_cfg["output_dir"],
         raw_buffer_window_seconds=evidence_cfg["raw_buffer_window_seconds"],
@@ -259,6 +378,30 @@ def run(
             **(dedup_cfg.get("per_event_seconds") or {}),
         }
     deduper = IncidentDeduper(dedup_cfg)
+    timer = StageTimer()
+    incident_counts: Counter = Counter()
+    clip_changed = [False]
+
+    if demo_dir is not None:
+        def on_clip_start(_video):
+            # A new clip is a different scene: start tracking afresh so tracks
+            # from the previous clip can't pair with people in this one.
+            clip_changed[0] = True
+        reader = DemoPlaylistReader(
+            videos, camera_id, perception_cfg["detection_fps"], on_clip_start=on_clip_start
+        ).start()
+    else:
+        reader = StreamReader(
+            source=source,
+            camera_id=camera_id,
+            target_fps=perception_cfg["detection_fps"],
+            connect_timeout_s=reader_options["connect_timeout_s"],
+            read_timeout_s=reader_options["read_timeout_s"],
+            reconnect_delay_s=reader_options["reconnect_delay_s"],
+            reconnect_max_delay_s=reader_options["reconnect_max_delay_s"],
+            reconnect_attempts=reader_options["reconnect_attempts"],
+        ).start()
+    start_time = time.time()
 
     try:
         while True:
@@ -267,12 +410,15 @@ def run(
                 break
 
             now = time.time()
-            if now - last_process_time < process_interval:
+            if throttle and now - last_process_time < process_interval:
                 time.sleep(0.01)
                 continue
             last_process_time = now
 
             sample = reader.get_latest()
+            if clip_changed[0]:
+                clip_changed[0] = False
+                tracker, buffer, rule_engine = new_scene_state()
             if sample is None:
                 if reader.is_end_of_stream():
                     print(f"[{camera_id}] no frames and stream ended -- stopping")
@@ -288,13 +434,16 @@ def run(
                 break
             last_seen_frame_index = sample.frame_index
 
+            cycle_start = time.perf_counter()
             frame = cv2.resize(sample.frame, (proc_w, proc_h))
             # feed the evidence buffer with the *original* full-resolution frame,
             # not the downscaled one used for inference (design doc section 8)
             evidence_buffer.add_frame(sample.frame, timestamp=sample.timestamp)
 
-            detections = detector.detect(frame)
-            tracked = tracker.update(detections)
+            with timer.stage("yolo_detect"):
+                detections = detector.detect(frame)
+            with timer.stage("bytetrack"):
+                tracked = tracker.update(detections)
 
             for i in range(len(tracked)):
                 bbox = tracked.xyxy[i]
@@ -307,22 +456,27 @@ def run(
 
             buffer.evict_stale()
 
-            candidates = rule_engine.evaluate(buffer)
+            with timer.stage("rule_engine"):
+                candidates = rule_engine.evaluate(buffer)
             if only_events is not None:
                 candidates = [c for c in candidates if c.event_type in only_events]
             # fight detection is the expensive, gated path -- only actually runs
             # pose estimation when the motion-of-interest gate finds a pair worth
             # checking (see temporal/motion_gate.py and action_recognition.py)
             if fight_detector is not None:
-                candidates += fight_detector.evaluate(buffer, frame)
+                with timer.stage("fight"):
+                    candidates += fight_detector.evaluate(buffer, frame)
             if fire_smoke_detector is not None:
-                candidates += fire_smoke_detector.evaluate(frame)
+                with timer.stage("fire_smoke"):
+                    candidates += fire_smoke_detector.evaluate(frame)
             if fall_detector is not None:
                 # the learned pose model supersedes the bbox aspect-ratio fall rule
                 candidates = [c for c in candidates if c.event_type != "fall"]
-                candidates += fall_detector.evaluate(buffer, frame)
+                with timer.stage("fall"):
+                    candidates += fall_detector.evaluate(buffer, frame)
             if anomaly_detector is not None:
-                candidates += anomaly_detector.evaluate(frame)
+                with timer.stage("anomaly"):
+                    candidates += anomaly_detector.evaluate(frame)
             deduper.touch(candidates)
             confirmed_events = confirmation.update(candidates)
 
@@ -376,6 +530,7 @@ def run(
                     # its real incident_id, then attach the paths.
                     report = reporter.build_and_save(event, severity)
                     incident_id = report["incident_id"]
+                    incident_counts[(event.event_type, event.tier)] += 1
                     deduper.register(event, severity, incident_id)
 
                     clip_before = evidence_buffer.capture_before_clip(incident_id, event.camera_id)
@@ -399,6 +554,7 @@ def run(
                 print(f"[{camera_id}] after-clip ready for {incident_id}")
 
             frames_processed += 1
+            timer.add("cycle_total", (time.perf_counter() - cycle_start) * 1000.0)
 
             if display:
                 annotated = box_annotator.annotate(scene=frame.copy(), detections=tracked)
@@ -443,6 +599,30 @@ def run(
             print(f"[{camera_id}] scene-anomaly diagnostics: {anomaly_detector.diagnostics()}")
         print(f"[{camera_id}] stopped. processed {frames_processed} cycles in {elapsed:.1f}s "
               f"(~{frames_processed / max(elapsed, 1e-6):.2f} eval/s)")
+        if stats_json:
+            Path(stats_json).parent.mkdir(parents=True, exist_ok=True)
+            cycle_ms = timer.total_ms["cycle_total"] / max(timer.calls["cycle_total"], 1)
+            Path(stats_json).write_text(json.dumps({
+                "camera_id": camera_id,
+                "device": device_label,
+                "throttled": throttle,
+                "elapsed_s": round(elapsed, 2),
+                "cycles": frames_processed,
+                "cycles_per_s": round(frames_processed / max(elapsed, 1e-6), 2),
+                "pipeline_capacity_fps": round(1000.0 / cycle_ms, 2) if cycle_ms else None,
+                "stages": timer.summary(frames_processed),
+                "detectors": {
+                    "fight": fight_detector is not None,
+                    "fire_smoke": fire_smoke_detector is not None,
+                    "fall": fall_detector is not None,
+                    "anomaly": anomaly_detector is not None,
+                },
+                "incidents": [
+                    {"event_type": event_type, "tier": tier, "count": count}
+                    for (event_type, tier), count in sorted(incident_counts.items())
+                ],
+            }, indent=2), encoding="utf-8")
+            print(f"[{camera_id}] stats written to {stats_json}")
 
 
 if __name__ == "__main__":
@@ -452,6 +632,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CCTV perception pipeline")
     parser.add_argument("--camera", default="CAM-01", help="camera id from config/cameras.yaml")
     parser.add_argument("--source", default=None, help="override source (webcam index, RTSP URL, or file path)")
+    parser.add_argument("--demo", nargs="?", const="demo_videos", default=None, metavar="FOLDER",
+                        help="loop every video in FOLDER (default demo_videos/) instead of a camera")
+    parser.add_argument("--output-dir", default="output",
+                        help="where incidents, evidence and calibration are written (default output/)")
+    parser.add_argument("--stats-json", default=None,
+                        help="write FPS, per-stage timing and incident counts to this JSON file on exit")
+    parser.add_argument("--no-throttle", action="store_true",
+                        help="process frames as fast as possible (benchmarking only: detectors use "
+                             "wall-clock time, so incident timing is not realistic)")
     parser.add_argument("--no-display", action="store_true", help="disable cv2.imshow (needed on headless machines)")
     parser.add_argument("--max-seconds", type=float, default=None, help="stop after N seconds (useful for testing)")
     parser.add_argument(
@@ -462,6 +651,8 @@ if __name__ == "__main__":
         help="run/report only selected event modules (useful for isolated testing)",
     )
     args = parser.parse_args()
+    if args.demo is not None and args.source is not None:
+        parser.error("--demo and --source can't be used together")
 
     run(
         camera_id=args.camera,
@@ -469,4 +660,8 @@ if __name__ == "__main__":
         display=not args.no_display,
         max_seconds=args.max_seconds,
         only_events=set(args.only_events) if args.only_events else None,
+        demo_dir=args.demo,
+        output_dir=args.output_dir,
+        stats_json=args.stats_json,
+        throttle=not args.no_throttle,
     )

@@ -80,6 +80,24 @@ python main.py --camera CAM-01 --source path/to/video.mp4 --no-display --max-sec
 Confirmed/Probable incidents are appended to `output/incidents.jsonl`, one
 JSON object per line, and printed to the console.
 
+### Demo mode (no camera)
+```bash
+python scripts/prepare_demo_videos.py   # copies 4 verified clips from data/ (or add your own)
+python main.py --demo                   # loops demo_videos/ through the full pipeline
+```
+See [demo_videos/README.md](demo_videos/README.md). `../start-demo.ps1` /
+`../start-demo.sh` also check prerequisites and start the backend and frontend.
+
+Other options: `--output-dir DIR` (keeps test runs out of `output/`),
+`--stats-json FILE` (FPS, per-stage timing and incident counts on exit) and
+`--no-throttle` (benchmarking only).
+
+**Missing optional parts do not stop the service.** If there is no CUDA GPU,
+everything runs on the CPU. If there is no `LLM_API_KEY`, alerts use the
+built-in description. If a model file is missing or is a Git LFS pointer, that
+one detector is disabled with a message saying how to fix it, and the others
+keep running.
+
 ## Verify the logic without a camera
 ```bash
 python test_rules_logic.py       # rule engine + confirmation + severity, synthetic tracks
