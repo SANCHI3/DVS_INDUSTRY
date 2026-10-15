@@ -31,6 +31,14 @@ def _seconds(value) -> str:
         return "a while"
 
 
+def _area(d: dict) -> str:
+    """'the restricted area "Loading bay"' when the zone has a configured
+    `name`, else a generic phrase (zone IDs such as 'z1' mean nothing to staff)."""
+    kind = "restricted area" if d.get("zone_type") in (None, "restricted") else "watched area"
+    name = d.get("zone_name")
+    return f'the {kind} "{name}"' if name else f"a {kind}"
+
+
 def _fall(location: str, d: dict) -> str:
     if d.get("serious"):
         return (f"Someone fell in {location} and has not got up for "
@@ -62,9 +70,9 @@ WHAT_HAPPENED: Dict[str, Callable[[str, dict], str]] = {
     "fire_smoke": _fire_smoke,
     "crowd": _crowd,
     "fight": lambda loc, d: f"Two or more people in {loc} seem to be fighting or pushing each other.",
-    "loitering": lambda loc, d: (f"Someone has been standing around in the same spot in {loc} "
+    "loitering": lambda loc, d: (f"Someone has stayed in {_area(d)} in {loc} "
                                  f"for {_seconds(d.get('dwell_seconds'))}."),
-    "intrusion": lambda loc, d: f"Someone has entered an area of {loc} where people are not allowed.",
+    "intrusion": lambda loc, d: f"Someone has entered {_area(d)} in {loc} where people are not allowed.",
     "anomaly": lambda loc, d: (f"The camera in {loc} picked up sudden, unusual movement that does "
                                "not look like normal activity, for example someone running, falling "
                                "or something being thrown. The system cannot tell exactly what it is."),

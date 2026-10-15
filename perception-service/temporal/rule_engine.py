@@ -13,9 +13,10 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from temporal.geometry import point_in_polygon
+from temporal.zones import loitering_zones, zone_is_active, zone_label
 from temporal.temporal_buffer import TemporalBuffer, TrackHistory
 
 
@@ -29,6 +30,16 @@ class EventCandidate:
     raw_confidence: float = 0.6  # rule-based signals get a fixed/derived confidence, not a learned score
 
 
+@dataclass
+class _DwellState:
+    entered_at: float          # timestamp of the first sighting inside the zone
+    last_inside: float         # timestamp of the latest sighting inside
+    last_processed: float      # newest observation already counted
+    observations: int = 0      # sightings during this visit (inside or briefly outside)
+    inside: int = 0            # sightings inside the zone
+    confidence_sum: float = 0.0
+
+
 class RuleEngine:
     def __init__(self, camera_config: dict, thresholds: dict):
         self.camera_id = camera_config["id"]
@@ -37,6 +48,9 @@ class RuleEngine:
         # Per-camera, scene-level state used by the crowd rule.  Keeping this
         # here makes sustained_seconds a real duration instead of a frame count.
         self._crowd_state: Dict[str, Any] = {}
+        # (track_id, zone_id) -> dwell bookkeeping for the loitering rule
+        self._dwell: Dict[Tuple[int, str], _DwellState] = {}
+        self._rejection_logged: Dict[str, float] = {}
 
     def evaluate(self, buffer: TemporalBuffer) -> List[EventCandidate]:
         candidates: List[EventCandidate] = []
@@ -46,67 +60,150 @@ class RuleEngine:
         candidates += self._check_fall(buffer)
         return candidates
 
+    def _active_people(self, buffer: TemporalBuffer, key: str) -> List[TrackHistory]:
+        max_age = float(self.rules_cfg.get(key, {}).get("active_track_seconds", 1.0))
+        return buffer.active_tracks_by_class("person", max_age_s=max_age)
+
     # ---- Intrusion -----------------------------------------------------
     def _check_intrusion(self, buffer: TemporalBuffer) -> List[EventCandidate]:
-        """Also maintains per-person zone entry times, which loitering reads --
-        so it always runs, and `rules.intrusion.enabled: false` only stops it
-        from raising intrusion candidates."""
-        out = []
-        restricted_zones = [z for z in self.zones if z["type"] == "restricted"]
-        if not restricted_zones:
-            return out
-
+        """A person whose foot point has been inside an active restricted zone
+        for the last `min_frames_inside` observations. Only people in view now
+        count (not tracks kept in the buffer after they left)."""
         intrusion_cfg = self.rules_cfg["intrusion"]
-        report_intrusion = intrusion_cfg.get("enabled", True)
-        min_frames = intrusion_cfg["min_frames_inside"]
-
-        for person in buffer.tracks_by_class("person"):
-            for zone in restricted_zones:
-                foot = person.states[-1].foot_point
-                inside_now = point_in_polygon(foot, zone["polygon"])
-                if not inside_now:
-                    person.zone_entry_times.pop(zone["zone_id"], None)
+        if not intrusion_cfg.get("enabled", True):
+            return []
+        min_frames = int(intrusion_cfg["min_frames_inside"])
+        out = []
+        for person in self._active_people(buffer, "intrusion"):
+            now = person.last_seen
+            for zone in self.zones:
+                if zone.get("type") != "restricted" or not zone_is_active(zone, now):
                     continue
-
-                if zone["zone_id"] not in person.zone_entry_times:
-                    person.zone_entry_times[zone["zone_id"]] = time.time()
-                if not report_intrusion:
-                    continue
-
-                # count how many of the last few states were also inside -- filters
-                # single-frame detection flicker right at the zone boundary
                 recent = list(person.states)[-min_frames:]
-                inside_count = sum(1 for s in recent if point_in_polygon(s.foot_point, zone["polygon"]))
-                if inside_count >= min_frames:
-                    out.append(EventCandidate(
-                        event_type="intrusion",
-                        track_ids=[person.track_id],
-                        camera_id=self.camera_id,
-                        zone_id=zone["zone_id"],
-                        detail={"zone_type": zone["type"]},
-                        raw_confidence=0.85,
-                    ))
+                if len(recent) < min_frames or not all(
+                        point_in_polygon(s.foot_point, zone["polygon"]) for s in recent):
+                    continue
+                detector_conf = sum(s.confidence for s in recent) / len(recent)
+                out.append(EventCandidate(
+                    event_type="intrusion",
+                    track_ids=[person.track_id],
+                    camera_id=self.camera_id,
+                    zone_id=zone["zone_id"],
+                    detail={"zone_type": zone["type"], "zone_name": zone.get("name"),
+                            "frames_inside": len(recent),
+                            "confidence_basis": "mean person-detector confidence while inside the zone"},
+                    raw_confidence=round(detector_conf, 3),
+                ))
         return out
 
     # ---- Loitering -------------------------------------------------------
-    def _check_loitering(self, buffer: TemporalBuffer) -> List[EventCandidate]:
-        out = []
-        dwell_threshold = self.rules_cfg["loitering"]["dwell_seconds"]
-        now = time.time()
+    def _update_dwell(self, person: TrackHistory, zone: dict, exit_grace: float) -> Optional[_DwellState]:
+        """Advance the per-(track, zone) dwell state with the observations made
+        since the last call. Dwell is measured from observation timestamps, so
+        it only grows while the person is actually seen inside the zone."""
+        key = (person.track_id, zone["zone_id"])
+        state = self._dwell.get(key)
+        for obs in person.states:
+            if state is not None and obs.timestamp <= state.last_processed:
+                continue
+            inside = point_in_polygon(obs.foot_point, zone["polygon"])
+            if state is None:
+                if not inside:
+                    continue
+                state = _DwellState(entered_at=obs.timestamp, last_inside=obs.timestamp,
+                                    last_processed=obs.timestamp)
+            # A gap in observations (person hidden / track lost) or time spent
+            # outside the zone longer than the grace period ends the visit.
+            if obs.timestamp - state.last_inside > exit_grace:
+                if not inside:
+                    state = None
+                    continue
+                state = _DwellState(entered_at=obs.timestamp, last_inside=obs.timestamp,
+                                    last_processed=obs.timestamp)
+            state.last_processed = obs.timestamp
+            state.observations += 1
+            if inside:
+                state.inside += 1
+                state.last_inside = obs.timestamp
+                state.confidence_sum += obs.confidence
+        if state is None:
+            self._dwell.pop(key, None)
+        else:
+            self._dwell[key] = state
+        return state
 
-        for person in buffer.tracks_by_class("person"):
-            for zone_id, entry_time in person.zone_entry_times.items():
-                dwell = now - entry_time
-                if dwell >= dwell_threshold:
-                    out.append(EventCandidate(
-                        event_type="loitering",
-                        track_ids=[person.track_id],
-                        camera_id=self.camera_id,
-                        zone_id=zone_id,
-                        detail={"dwell_seconds": round(dwell, 1)},
-                        raw_confidence=min(0.5 + dwell / (dwell_threshold * 4), 0.95),
-                    ))
+    def _check_loitering(self, buffer: TemporalBuffer) -> List[EventCandidate]:
+        """Lingering = one tracked person staying inside an active
+        restricted/loitering zone for at least the zone's dwell threshold.
+
+        Fixed false positives (see docs/FALSE_POSITIVE_FIXES.md):
+        - only people in view now count; buffered "ghost" tracks of people who
+          already left never accumulate dwell time;
+        - dwell is the time between observed sightings inside the zone, with
+          a short exit grace for detector flicker -- not wall-clock time since
+          a single first sighting;
+        - the person must have been inside for most of the visit
+          (`min_inside_fraction`), so boundary flicker does not count;
+        - per-zone `loitering_seconds` and `active_hours` are honoured;
+        - confidence is the measured person-detector confidence, not a
+          number that grows with the dwell time."""
+        cfg = self.rules_cfg["loitering"]
+        default_dwell = float(cfg["dwell_seconds"])
+        exit_grace = float(cfg.get("exit_grace_seconds", 2.0))
+        min_fraction = float(cfg.get("min_inside_fraction", 0.8))
+        zones = loitering_zones(self.zones)
+        people = self._active_people(buffer, "loitering")
+        live_keys = set()
+        out = []
+        for person in people:
+            now = person.last_seen
+            for zone in zones:
+                live_keys.add((person.track_id, zone["zone_id"]))
+                state = self._update_dwell(person, zone, exit_grace)
+                if state is None or not zone_is_active(zone, now):
+                    continue
+                # Still inside right now (allowing the short exit grace)?
+                if now - state.last_inside > exit_grace:
+                    continue
+                dwell = state.last_inside - state.entered_at
+                threshold = float(zone.get("loitering_seconds", default_dwell))
+                inside_fraction = state.inside / max(state.observations, 1)
+                if dwell < threshold:
+                    continue
+                if inside_fraction < min_fraction:
+                    self._log_rejection(
+                        f"loitering:{person.track_id}:{zone['zone_id']}",
+                        f"loitering rejected: track {person.track_id} in zone {zone_label(zone)} only "
+                        f"{inside_fraction:.0%} of {dwell:.0f}s (needs {min_fraction:.0%})")
+                    continue
+                detector_conf = state.confidence_sum / max(state.inside, 1)
+                out.append(EventCandidate(
+                    event_type="loitering",
+                    track_ids=[person.track_id],
+                    camera_id=self.camera_id,
+                    zone_id=zone["zone_id"],
+                    detail={
+                        "dwell_seconds": round(dwell, 1),
+                        "dwell_threshold_seconds": threshold,
+                        "zone_type": zone.get("type"),
+                        "zone_name": zone.get("name"),
+                        "inside_fraction": round(inside_fraction, 2),
+                        "observations": state.observations,
+                        "confidence_basis": "mean person-detector confidence while inside the zone "
+                                            "x share of the visit spent inside",
+                    },
+                    raw_confidence=round(detector_conf * inside_fraction, 3),
+                ))
+        # Forget dwell state of people no longer in view.
+        for key in [k for k in self._dwell if k not in live_keys]:
+            del self._dwell[key]
         return out
+
+    def _log_rejection(self, key: str, message: str, every_s: float = 10.0) -> None:
+        now = time.time()
+        if now - self._rejection_logged.get(key, 0.0) >= every_s:
+            self._rejection_logged[key] = now
+            print(f"[{self.camera_id}] {message}")
 
     # ---- Crowd gathering ---------------------------------------------
     @staticmethod
@@ -229,9 +326,11 @@ class RuleEngine:
             best_region = state.get("region_id", "full-frame")
 
         reported_count = int(state.get("last_count", count))
-        overflow = max(0, reported_count - threshold)
-        duration_bonus = min(max(0.0, sustained - sustained_needed) * 0.015, 0.12)
-        confidence = min(0.62 + overflow * 0.07 + duration_bonus, 0.95)
+        # Measured evidence, not a formula: mean person-detector confidence of
+        # the people forming the group (kept from the last positive cycle).
+        if count >= threshold:
+            state["detector_confidence"] = sum(p.states[-1].confidence for p in best_group) / len(best_group)
+        confidence = round(float(state.get("detector_confidence", 0.0)), 3)
         return [EventCandidate(
             event_type="crowd",
             track_ids=ids,
@@ -245,6 +344,7 @@ class RuleEngine:
                 "region_id": best_region,
                 "clustered": True,
                 "within_exit_grace": count < threshold,
+                "confidence_basis": "mean person-detector confidence of the group",
             },
             raw_confidence=confidence,
         )]
@@ -309,7 +409,9 @@ class RuleEngine:
                         "aspect_ratio_before": round(pre_onset[-1].aspect_ratio, 2) if pre_onset else None,
                         "aspect_ratio_after": round(last.aspect_ratio, 2),
                         "still_seconds": round(duration_fallen, 1),
+                        "confidence_basis": "mean person-detector confidence while down "
+                                            "(box-shape rule has no probability of its own)",
                     },
-                    raw_confidence=0.7,
+                    raw_confidence=round(sum(st.confidence for st in fallen_run) / len(fallen_run), 3),
                 ))
         return out

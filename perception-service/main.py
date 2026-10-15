@@ -48,6 +48,7 @@ from temporal.fire_smoke_recognition import FireSmokeDetector
 from temporal.rgb_action_recognition import RgbFightDetector
 from temporal.rule_engine import RuleEngine
 from temporal.temporal_buffer import TemporalBuffer
+from temporal.zones import zone_warnings
 from tracking.byte_tracker import ByteTracker
 
 TIER_COLOR = {
@@ -163,6 +164,9 @@ def run(
     )
     buffer = TemporalBuffer(window_seconds=thresholds_cfg["temporal_buffer"]["window_seconds"])
     rule_engine = RuleEngine(cam_cfg, thresholds_cfg)
+    for warning in zone_warnings(cam_cfg.get("zones", []), perception_cfg["process_width"],
+                                 perception_cfg["process_height"]):
+        print(f"[{camera_id}] WARNING {warning}")
     fight_cfg = thresholds_cfg["fight_detection"]
     run_fight = fight_cfg.get("enabled", True) and (
         only_events is None or "fight" in only_events

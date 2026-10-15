@@ -8,6 +8,7 @@ from collections import deque
 import cv2
 
 from rgb_fight_model.infer import RgbFightClassifier
+from temporal.interaction import InteractionValidator
 from temporal.motion_gate import MotionOfInterestGate
 from temporal.rule_engine import EventCandidate
 from temporal.temporal_buffer import TemporalBuffer
@@ -38,6 +39,11 @@ class RgbFightDetector:
         self.persistence_window = int(rgb_cfg.get("persistence_window", 3))
         self.required_confirmed = int(rgb_cfg.get("required_confirmed", 2))
         self.confirmed_history = deque(maxlen=self.persistence_window)
+        self.score_history = deque(maxlen=self.persistence_window)
+        # Track-level evidence required before a fight incident is created
+        # (temporal/interaction.py): two distinct people, close, agitated.
+        self.interaction = InteractionValidator(cfg.get("interaction"))
+        self._last_rejection_log = -1e18
         # Grad-CAM heatmaps saved with each confirmed fight (explain/gradcam.py)
         self.explain = bool(rgb_cfg.get("explain", True))
         self.explain_dir = rgb_cfg.get("explain_dir", "output/evidence/gradcam")
@@ -45,6 +51,8 @@ class RgbFightDetector:
         self.gate = MotionOfInterestGate(
             proximity_px=cfg["gate"]["proximity_px"],
             velocity_threshold_px_s=cfg["gate"]["velocity_threshold_px_s"],
+            active_track_seconds=self.interaction.active_track_seconds,
+            duplicate_iou=self.interaction.duplicate_iou,
         )
         # Checkpoints trained with real-time sampling (clip_fps) get clips
         # rebuilt from timestamps, so a live clip spans the same duration the
@@ -61,7 +69,8 @@ class RgbFightDetector:
         self.last_evaluated_cycle = -10**9
         self._stats = {"cycles": 0, "gate_open": 0, "scored": 0,
                        "review_signals": 0, "high_score_windows": 0,
-                       "confirmed_candidates": 0, "max_score": 0.0}
+                       "confirmed_candidates": 0, "max_score": 0.0,
+                       "rejected_no_interaction": 0}
         print(
             f"[{camera_id}] RGB fight model loaded: {rgb_cfg['checkpoint']} "
             f"probable={self.probable_threshold:.2f} confirmed={self.confirmed_threshold:.2f}"
@@ -94,6 +103,7 @@ class RgbFightDetector:
         self._stats["max_score"] = max(self._stats["max_score"], score)
         high_score = score >= self.confirmed_threshold
         self.confirmed_history.append(high_score)
+        self.score_history.append(score)
         if score < self.probable_threshold:
             return []
         if not high_score:
@@ -111,16 +121,36 @@ class RgbFightDetector:
                 f"awaiting persistence ({confirmed_hits}/{self.required_confirmed})"
             )
             return []
+        # The clip classifier alone is not enough: people walking, standing or
+        # talking near each other must not become a fight incident.
+        interacting, evidence = self.interaction.validate(buffer)
+        if not interacting:
+            self._stats["rejected_no_interaction"] += 1
+            if now - self._last_rejection_log >= 10.0:
+                self._last_rejection_log = now
+                print(f"[{self.camera_id}] fight rejected despite model score {score:.2f}: "
+                      f"{evidence.get('reason')} {evidence}")
+            return []
         self._stats["confirmed_candidates"] += 1
+        # Confidence = mean model score of the high-scoring clips in the
+        # persistence window (not the single latest clip).
+        high_scores = [s for s, h in zip(self.score_history, self.confirmed_history) if h]
+        confidence = sum(high_scores) / len(high_scores)
+        track_ids = evidence.get("track_ids") or self.last_track_ids
+        print(f"[{self.camera_id}] fight candidate conf={confidence:.2f} tracks={track_ids} {evidence}")
         heatmaps = self._explain(clip)
         return [EventCandidate(
             event_type="fight",
-            track_ids=self.last_track_ids,
+            track_ids=list(track_ids),
             camera_id=self.camera_id,
             detail={"mode": "rgb_r3d18", "score": round(score, 3),
                     "clip_frames": self.clip_frames,
+                    "interaction": evidence,
+                    "confidence_basis": "mean R3D-18 fight probability over high-scoring clips "
+                                        "in the persistence window; emitted only with track-level "
+                                        "interaction evidence",
                     **({"gradcam_heatmaps": heatmaps} if heatmaps else {})},
-            raw_confidence=score,
+            raw_confidence=confidence,
         )]
 
     def _explain(self, clip) -> list:

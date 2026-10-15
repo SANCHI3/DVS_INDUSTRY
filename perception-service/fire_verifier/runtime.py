@@ -42,6 +42,12 @@ class LearnedFireVerifier:
             best = {k: (tuple(c * scale for c in v[0]), v[1]) if v else None for k, v in best.items()}
         self.history.append({"frame": frame, **best})
 
+    def reset(self, name: str) -> None:
+        """Forget verdicts for a class once its YOLO persistence has ended, so
+        approvals from an earlier episode cannot pass a later, unrelated one."""
+        self.verdicts[name].clear()
+        self.last_probability[name] = 0.0
+
     def confirm(self, name: str) -> bool:
         """Score the current window for a class YOLO considers persistent."""
         if len(self.history) < self.history.maxlen:

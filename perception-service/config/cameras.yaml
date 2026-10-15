@@ -8,6 +8,18 @@
 # resolution (see thresholds.yaml -> perception.process_width/height).
 # Draw these by eye against a saved snapshot from the camera, or build a
 # small helper script later to click points on a frame.
+#
+# Optional per-zone keys:
+#   name: "Loading bay"         shown to staff in incident descriptions
+#   loitering_seconds: 30       dwell before a lingering alert (default rules.loitering.dwell_seconds)
+#   loitering: true/false       force lingering checks on/off for this zone
+#   active_hours: "08:00-20:00" zone only raises alerts inside these hours (overnight ranges allowed)
+#
+# IMPORTANT: the z1/z2 polygons below are EXAMPLES covering whole thirds of
+# the frame. Anyone sitting in the left third of a webcam view counts as
+# "inside a restricted area" and will raise lingering alerts. Redraw them
+# around the real restricted area before relying on lingering/intrusion alerts.
+# main.py prints a warning at start-up for zones covering >= 25% of the view.
 
 cameras:
   - id: CAM-01

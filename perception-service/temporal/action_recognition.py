@@ -15,6 +15,7 @@ import numpy as np
 
 from detection.pose_estimator import PersonPose, PoseEstimator
 from temporal.fight_features import FEATURE_DIM, match_pose_to_bbox, pair_feature_vector
+from temporal.interaction import InteractionValidator
 from temporal.motion_gate import MotionOfInterestGate
 from temporal.rule_engine import EventCandidate
 from temporal.temporal_buffer import TemporalBuffer
@@ -30,6 +31,7 @@ class FightDetector:
         self.confidence_threshold = float(cfg.get("confidence_threshold", 0.6))
         self.sequence_stale_after_s = float(cfg.get("pair_stale_after_s", 5.0))
         self.gate_hold_seconds = float(cfg.get("gate_hold_seconds", 1.5))
+        self.interaction = InteractionValidator(cfg.get("interaction"))
         self.gate = MotionOfInterestGate(
             proximity_px=cfg["gate"]["proximity_px"],
             velocity_threshold_px_s=cfg["gate"]["velocity_threshold_px_s"],
@@ -135,13 +137,20 @@ class FightDetector:
         self._stats["max_score"] = max(self._stats["max_score"], float(score))
         if score < self.confidence_threshold:
             return []
+        interacting, evidence = self.interaction.validate(buffer)
+        if not interacting:
+            self._stats["rejected_no_interaction"] = self._stats.get("rejected_no_interaction", 0) + 1
+            print(f"[{self.camera_id}] fight rejected despite score {score:.2f}: {evidence.get('reason')}")
+            return []
         self._stats["candidates"] += 1
         return [EventCandidate(
             event_type="fight",
             track_ids=list(pair),
             camera_id=self.camera_id,
             detail={"mode": self.mode, "score": round(float(score), 2),
-                    "frames_evaluated": len(self._frames)},
+                    "frames_evaluated": len(self._frames),
+                    "interaction": evidence,
+                    "confidence_basis": "pose-sequence fight classifier score"},
             raw_confidence=float(score),
         )]
 

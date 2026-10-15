@@ -108,4 +108,28 @@ class TemporalBuffer:
         return self.tracks.values()
 
     def tracks_by_class(self, class_name: str):
+        """Every buffered track of a class, INCLUDING ones not seen for up to
+        `stale_after_seconds`. Use active_tracks_by_class() for decisions about
+        what is in view right now."""
         return [h for h in self.tracks.values() if h.class_name == class_name]
+
+    def latest_timestamp(self) -> Optional[float]:
+        """Timestamp of the newest observation in the buffer (the pipeline's
+        current frame time); None when the buffer is empty."""
+        return max((h.last_seen for h in self.tracks.values()), default=None)
+
+    def active_tracks_by_class(self, class_name: str, max_age_s: float = 1.0,
+                               now: Optional[float] = None):
+        """Tracks of a class observed within the last `max_age_s` seconds.
+
+        A track stays buffered for `stale_after_seconds` (15 s) after the
+        person leaves view or ByteTrack switches their ID. Rules that count
+        people, time a dwell or pair people up must ignore those "ghost"
+        tracks, otherwise someone who already left keeps accumulating dwell
+        time and one person's old and new IDs look like two people."""
+        if now is None:
+            now = self.latest_timestamp()
+            if now is None:
+                return []
+        return [h for h in self.tracks.values()
+                if h.class_name == class_name and h.states and now - h.last_seen <= max_age_s]

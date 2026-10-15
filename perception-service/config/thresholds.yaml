@@ -16,7 +16,12 @@ temporal_buffer:
 
 rules:
   loitering:
-    dwell_seconds: 10             # time in a zone before "loitering" candidate fires
+    # Applies to zones of type restricted/loitering (or `loitering: true`).
+    # A zone can override the dwell with `loitering_seconds` in cameras.yaml.
+    dwell_seconds: 10             # time inside a zone before "loitering" candidate fires
+    exit_grace_seconds: 2.0       # brief detector flicker/occlusion shorter than this does not end a visit
+    min_inside_fraction: 0.8      # share of sightings during the visit that must be inside the zone
+    active_track_seconds: 1.0     # a track not seen for longer is ignored (person left / ID switched)
   crowd:
     person_count_threshold: 4
     sustained_seconds: 5
@@ -25,6 +30,7 @@ rules:
     stillness_seconds: 5                # time lying still before PROBABLE
     confirm_stillness_seconds: 8        # time lying still before CONFIRMED
   intrusion:
+    active_track_seconds: 1.0
     enabled: false                # restricted zones still feed loitering; true = also raise intrusion incidents
     min_frames_inside: 3         # frames of continuous presence before confirming (filters flicker)
 
@@ -128,6 +134,20 @@ fight_detection:
     confirmed_threshold: 0.55       # alert threshold chosen on validation
     persistence_window: 3
     required_confirmed: 2
+  interaction:
+    # Track evidence required before a fight incident (temporal/interaction.py).
+    # The R3D model scores whole clips and can fire on normal activity; a fight
+    # also needs two distinct people, close together, moving in an agitated way.
+    enabled: true
+    active_track_seconds: 1.0       # ignore tracks not seen this recently (left / old IDs)
+    duplicate_iou: 0.7              # two boxes this overlapped = one person tracked twice
+    proximity_heights: 1.2          # centre distance <= 1.2 x mean body height counts as close
+    min_interaction_seconds: 1.0    # close for at least this long ...
+    lookback_seconds: 3.0           # ... within this window
+    min_agitation_heights: 0.1      # erratic box motion + shape change / body height.
+                                    # standing (detector jitter) ~0.02-0.05, walking ~0.01-0.04,
+                                    # punching / shoving / grappling well above 0.1
+    merged_hold_seconds: 2.0        # grappling people are often merged into one box
 
 fire_smoke_detection:
   enabled: true
@@ -156,6 +176,19 @@ fire_smoke_detection:
     mode: learned
     checkpoint: "models/fire_smoke_verifier_v1.pkl"
     alpha: 0.6               # rules mode only
+  dynamics:
+    # Static look-alike rejection (temporal/fire_dynamics.py). A persistent
+    # fire/smoke box must change more than the rest of the scene: flames
+    # flicker frame to frame, smoke drifts/grows over seconds. An orange
+    # poster, a lamp, a grey wall or a window scores ~1 and is rejected.
+    # Uses the frames already evaluated, so it adds no alarm delay.
+    enabled: true
+    min_ratio: 2.0                  # in-box change must be >= 2x the scene's median change
+    noise_floor_gray: 1.0           # grey levels; stops a perfectly still scene dividing by ~0
+    recent_frames: 5                # frames compared for flicker (= persistence_window)
+    reference_min_age_seconds: 8    # smoke growth is measured against the scene this long ago
+    reference_max_age_seconds: 30
+    reference_interval_seconds: 1
 
 fall_detection:
   # Pose-based fall detection. mode:
@@ -210,6 +243,20 @@ scene_anomaly:
   required_hits: 2
   confirmed_ratio: 2.0              # error >= 2x threshold -> CONFIRMED
   cooldown_seconds: 30
+  calibration:
+    # The model's threshold comes from its TRAINING footage; on this camera
+    # normal activity can exceed it all the time ("Unusual activity" every few
+    # minutes). Observe this camera first, without alerting, and use the 99th
+    # percentile of its normal windows as the camera threshold (never below the
+    # model's). Saved to output/calibration/scene_anomaly_<camera>.json and
+    # reused on restart. Run it while the scene is NORMAL; recalibrate after
+    # moving the camera (delete the file or set recalibrate: true).
+    enabled: true
+    seconds: 300
+    percentile: 99
+    min_windows: 50
+    dir: "output/calibration"
+    recalibrate: false
 
 incident_dedup:
   # One ongoing event = one incident. While an event keeps being detected for

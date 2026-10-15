@@ -19,7 +19,10 @@ import math
 from itertools import combinations
 from typing import List, Tuple
 
+from temporal.interaction import distinct_people
 from temporal.temporal_buffer import TemporalBuffer, TrackHistory
+
+SPEED_SPAN_S = 0.5  # speed measured over ~0.5 s so per-frame box jitter is not "motion"
 
 
 def _distance(a: Tuple[float, float], b: Tuple[float, float]) -> float:
@@ -27,19 +30,35 @@ def _distance(a: Tuple[float, float], b: Tuple[float, float]) -> float:
 
 
 def _speed(history: TrackHistory) -> float:
-    v = history.velocity()
-    if v is None:
+    """Centre speed (px/s) over the last ~SPEED_SPAN_S seconds."""
+    if len(history.states) < 2:
         return 0.0
-    return math.hypot(*v)
+    last = history.states[-1]
+    first = last
+    for state in reversed(history.states):
+        first = state
+        if last.timestamp - state.timestamp >= SPEED_SPAN_S:
+            break
+    dt = last.timestamp - first.timestamp
+    if dt <= 0:
+        return 0.0
+    return _distance(first.center, last.center) / dt
 
 
 class MotionOfInterestGate:
-    def __init__(self, proximity_px: float = 120.0, velocity_threshold_px_s: float = 150.0):
+    def __init__(self, proximity_px: float = 120.0, velocity_threshold_px_s: float = 150.0,
+                 active_track_seconds: float = 1.0, duplicate_iou: float = 0.7):
         self.proximity_px = proximity_px
         self.velocity_threshold_px_s = velocity_threshold_px_s
+        self.active_track_seconds = active_track_seconds
+        self.duplicate_iou = duplicate_iou
 
     def find_candidate_pairs(self, buffer: TemporalBuffer) -> List[Tuple[int, int]]:
-        persons = buffer.tracks_by_class("person")
+        # Only people in view now, one track per person: a ghost track kept in
+        # the buffer after someone left (or after an ID switch) used to pair
+        # with the same person's new track and open the gate on one person.
+        persons = distinct_people(
+            buffer.active_tracks_by_class("person", self.active_track_seconds), self.duplicate_iou)
         pairs = []
         for a, b in combinations(persons, 2):
             if len(a.states) == 0 or len(b.states) == 0:

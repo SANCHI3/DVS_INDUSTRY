@@ -6,10 +6,10 @@ from collections import deque
 from typing import Deque, Dict, List, Optional
 
 import numpy as np
-from ultralytics import YOLO
 
 import os
 
+from temporal.fire_dynamics import RegionDynamics, union_box
 from temporal.fire_verifier import FireVerifier
 from temporal.rule_engine import EventCandidate
 
@@ -21,10 +21,13 @@ class FireSmokeDetector:
     used. The module emits one camera-level `fire_smoke` event family.
     """
 
-    def __init__(self, camera_id: str, cfg: dict):
+    def __init__(self, camera_id: str, cfg: dict, model=None):
         self.camera_id = camera_id
         self.cfg = cfg
-        self.model = YOLO(cfg["checkpoint"])
+        if model is None:
+            from ultralytics import YOLO  # imported lazily so tests can inject a model
+            model = YOLO(cfg["checkpoint"])
+        self.model = model
         self.imgsz = int(cfg.get("imgsz", 640))
         self.evaluation_stride = max(1, int(cfg.get("evaluation_stride_frames", 2)))
         self.window = max(1, int(cfg.get("persistence_window", 5)))
@@ -41,6 +44,17 @@ class FireSmokeDetector:
         self.scores: Dict[str, Deque[float]] = {
             name: deque(maxlen=self.window) for name in self.thresholds
         }
+        # Box of the best positive detection per evaluation (None when negative),
+        # used for the static-region check below.
+        self.boxes: Dict[str, Deque[Optional[tuple]]] = {
+            name: deque(maxlen=self.window) for name in self.thresholds
+        }
+        # Static look-alike rejection (orange poster, lamp, grey wall, window):
+        # a persistent detection must flicker or grow relative to the rest of
+        # the scene. See temporal/fire_dynamics.py.
+        self.dynamics = RegionDynamics(cfg.get("dynamics"))
+        self._was_persistent = {name: False for name in self.thresholds}
+        self._last_rejection_log: Dict[str, float] = {}
         verifier_cfg = cfg.get("verifier", {}) or {}
         # Second stage that rejects fire/smoke look-alikes. Modes:
         #   learned - gradient-boosting verifier on flicker/colour/texture/motion
@@ -72,6 +86,7 @@ class FireSmokeDetector:
             "max_fire_score": 0.0, "max_smoke_score": 0.0,
             "fire_boxes_verified": 0, "fire_boxes_suppressed": 0,
             "alarms_rejected_by_learned_verifier": 0,
+            "alarms_rejected_static_region": 0,
         }
         print(
             f"[{camera_id}] fire/smoke model loaded: {cfg['checkpoint']} "
@@ -79,11 +94,18 @@ class FireSmokeDetector:
             f"persistence={self.required}/{self.window} stride={self.evaluation_stride}"
         )
 
-    def evaluate(self, frame: np.ndarray) -> List[EventCandidate]:
+    def _log_rejection(self, name: str, message: str, now: float, every_s: float = 10.0) -> None:
+        if now - self._last_rejection_log.get(name, -1e18) >= every_s:
+            self._last_rejection_log[name] = now
+            print(f"[{self.camera_id}] fire/smoke {name} rejected: {message}")
+
+    def evaluate(self, frame: np.ndarray, now: Optional[float] = None) -> List[EventCandidate]:
         self.cycles += 1
         self._stats["cycles"] += 1
         if (self.cycles - 1) % self.evaluation_stride != 0:
             return []
+        now = time.time() if now is None else now
+        self.dynamics.observe(frame, now)
 
         result = self.model.predict(
             source=frame, conf=0.01, imgsz=self.imgsz,
@@ -125,6 +147,8 @@ class FireSmokeDetector:
             positive = score >= self.thresholds[name]
             self.scores[name].append(score)
             self.hits[name].append(positive)
+            box = best_boxes[name][0] if positive and best_boxes[name] else None
+            self.boxes[name].append(box)
             if positive:
                 self._stats[f"{name}_positive_windows"] += 1
             self._stats[f"max_{name}_score"] = max(self._stats[f"max_{name}_score"], score)
@@ -133,12 +157,32 @@ class FireSmokeDetector:
             name: len(self.hits[name]) >= self.required and sum(self.hits[name]) >= self.required
             for name in ("fire", "smoke")
         }
+        for name in ("fire", "smoke"):
+            # When YOLO persistence for a class ends, earlier verifier approvals
+            # must not carry over to an unrelated later burst of detections.
+            if self._was_persistent[name] and not persistent[name] and self.learned_verifier is not None:
+                self.learned_verifier.reset(name)
+            self._was_persistent[name] = persistent[name]
         active_classes = [name for name in ("fire", "smoke") if persistent[name]]
+        dynamics = {}
+        for name in list(active_classes):
+            region = union_box(self.boxes[name])
+            check = self.dynamics.assess(region) if region is not None else {"dynamic": False, "reason": "no box"}
+            dynamics[name] = check
+            if not check["dynamic"]:
+                active_classes.remove(name)
+                self._stats["alarms_rejected_static_region"] += 1
+                self._log_rejection(name, f"{check['reason']} {check}", now)
         if self.learned_verifier is not None and active_classes:
-            verified = [name for name in active_classes if self.learned_verifier.confirm(name)]
+            verified = []
+            for name in active_classes:
+                if self.learned_verifier.confirm(name):
+                    verified.append(name)
+                else:
+                    self._log_rejection(name, "learned verifier has not confirmed it "
+                                        f"(p={self.learned_verifier.last_probability[name]:.2f})", now)
             self._stats["alarms_rejected_by_learned_verifier"] += len(active_classes) - len(verified)
             active_classes = verified
-        now = time.time()
         if not active_classes:
             if self._alarm_last is not None and now - self._alarm_last > self.alarm_gap_seconds:
                 self._alarm_since = self._alarm_last = None
@@ -159,7 +203,15 @@ class FireSmokeDetector:
             name: round(max(self.scores[name], default=0.0), 3)
             for name in ("fire", "smoke")
         }
-        confidence = max(recent_max[name] for name in active_classes)
+        # Confidence is the mean detector score over the positive frames of the
+        # persistence window -- not the single best frame.
+        mean_positive = {}
+        for name in ("fire", "smoke"):
+            positives = [s for s, h in zip(self.scores[name], self.hits[name]) if h]
+            mean_positive[name] = round(float(np.mean(positives)), 3) if positives else 0.0
+        confidence = max(mean_positive[name] for name in active_classes)
+        print(f"[{self.camera_id}] fire/smoke {requested_tier} {active_classes} "
+              f"conf={confidence:.2f} sustained={sustained_s:.1f}s dynamics={dynamics}")
         return [EventCandidate(
             event_type="fire_smoke",
             track_ids=[],
@@ -168,8 +220,12 @@ class FireSmokeDetector:
                 "requested_tier": requested_tier,
                 "detected_classes": active_classes,
                 "sustained_seconds": round(sustained_s, 1),
-                "fire_score": recent_max["fire"],
-                "smoke_score": recent_max["smoke"],
+                "fire_score": mean_positive["fire"],
+                "smoke_score": mean_positive["smoke"],
+                "fire_peak_score": recent_max["fire"],
+                "smoke_peak_score": recent_max["smoke"],
+                "confidence_basis": "mean YOLO score over positive frames in the persistence window",
+                "dynamics": {name: dynamics[name] for name in active_classes},
                 "fire_hits": int(sum(self.hits["fire"])),
                 "smoke_hits": int(sum(self.hits["smoke"])),
                 "persistence_window": self.window,

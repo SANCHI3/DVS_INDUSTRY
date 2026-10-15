@@ -1,0 +1,2456 @@
+From d37227be638ac25bc14973fb88a11b88080caf6a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 15 Oct 2026 06:35:58 +0000
+Subject: [PATCH] Stop false incidents during normal CCTV activity
+
+Root causes and fixes (details in perception-service/docs/FALSE_POSITIVE_FIXES.md):
+
+- Lingering/intrusion: rules counted buffered "ghost" tracks of people who
+  had left, timed dwell from a single first sighting, and reported a
+  fabricated confidence (0.5 + dwell/40). Now: active tracks only,
+  timestamp-based dwell with exit grace, min inside fraction, per-zone
+  dwell/active hours, measured detector confidence, warning for oversized
+  placeholder zones.
+- Fight: gate paired ghost/duplicate tracks and opened on box jitter; an
+  incident came from the clip score alone. Now: active distinct tracks,
+  smoothed speed, and a track-level interaction check (close for >= 1 s,
+  agitated motion) before any fight incident.
+- Fire/smoke: static look-alikes passed frame persistence and the learned
+  verifier never forgot old approvals. Now: in-box flicker/growth vs scene
+  check, verifier reset per episode, mean (not peak) confidence.
+- Unusual activity: threshold from training footage fired on this camera's
+  normal motion. Now: per-camera calibration (p99 of 5 min normal) saved
+  per checkpoint; honest anomaly score.
+- Reports carry confidence_basis and validation_version; read-only audit
+  scripts for the dashboard DB and incidents.jsonl (no deletions).
+- test_false_positives.py: 26 normal-vs-genuine scenarios.
+
+No model weights changed.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_018GjLCeJAMZch8Mz5HnJkiK
+---
+ backend/package.json                          |   1 +
+ backend/scripts/audit-incidents.ts            | 130 +++++
+ perception-service/config/cameras.yaml        |  12 +
+ perception-service/config/thresholds.yaml     |  49 +-
+ .../docs/FALSE_POSITIVE_FIXES.md              | 156 ++++++
+ perception-service/fire_verifier/runtime.py   |   6 +
+ perception-service/main.py                    |   4 +
+ .../reporting/description_generator.py        |  12 +-
+ .../reporting/incident_report.py              |  22 +
+ .../scripts/audit_incident_log.py             |  93 ++++
+ .../temporal/action_recognition.py            |  11 +-
+ perception-service/temporal/fire_dynamics.py  | 134 +++++
+ .../temporal/fire_smoke_recognition.py        |  74 ++-
+ perception-service/temporal/interaction.py    | 174 ++++++
+ perception-service/temporal/motion_gate.py    |  29 +-
+ .../temporal/rgb_action_recognition.py        |  36 +-
+ perception-service/temporal/rule_engine.py    | 212 +++++--
+ perception-service/temporal/scene_anomaly.py  | 112 +++-
+ .../temporal/temporal_buffer.py               |  24 +
+ perception-service/temporal/zones.py          |  93 ++++
+ perception-service/test_false_positives.py    | 515 ++++++++++++++++++
+ 21 files changed, 1818 insertions(+), 81 deletions(-)
+ create mode 100644 backend/scripts/audit-incidents.ts
+ create mode 100644 perception-service/docs/FALSE_POSITIVE_FIXES.md
+ create mode 100644 perception-service/scripts/audit_incident_log.py
+ create mode 100644 perception-service/temporal/fire_dynamics.py
+ create mode 100644 perception-service/temporal/interaction.py
+ create mode 100644 perception-service/temporal/zones.py
+ create mode 100644 perception-service/test_false_positives.py
+
+diff --git a/backend/package.json b/backend/package.json
+index 2b9e1b9..c79bb7f 100644
+--- a/backend/package.json
++++ b/backend/package.json
+@@ -22,6 +22,7 @@
+     "db:studio": "prisma studio",
+     "db:reset": "prisma migrate reset",
+     "db:seed": "tsx prisma/seed.ts",
++    "audit:incidents": "tsx scripts/audit-incidents.ts",
+     "prepare": "husky"
+   },
+   "keywords": [],
+diff --git a/backend/scripts/audit-incidents.ts b/backend/scripts/audit-incidents.ts
+new file mode 100644
+index 0000000..de103d4
+--- /dev/null
++++ b/backend/scripts/audit-incidents.ts
+@@ -0,0 +1,130 @@
++/**
++ * READ-ONLY audit of incidents created by the perception service.
++ *
++ * Answers "are these false incidents new, or old records?" without changing
++ * anything: it only runs SELECT queries (prisma.securityIncident.findMany) and
++ * never updates or deletes rows. Review and close records from the dashboard.
++ *
++ * Usage (from backend/):
++ *   npx tsx scripts/audit-incidents.ts                       # last 30 days
++ *   npx tsx scripts/audit-incidents.ts --since 2026-10-01
++ *   npx tsx scripts/audit-incidents.ts --cutoff 2026-10-15T14:00:00+05:30
++ *
++ * --cutoff is when the false-positive fixes were deployed (perception service
++ * restarted). Records before it were produced by the old validation logic.
++ * The script also flags confidence values that match the old, fabricated
++ * formulas (see perception-service/docs/FALSE_POSITIVE_FIXES.md).
++ */
++import 'dotenv/config';
++import { PrismaClient } from '@prisma/client';
++
++function argument(name: string): string | undefined {
++  const index = process.argv.indexOf(`--${name}`);
++  return index >= 0 ? process.argv[index + 1] : undefined;
++}
++
++function parseDate(value: string | undefined, fallback: Date): Date {
++  if (!value) return fallback;
++  const parsed = new Date(value);
++  if (Number.isNaN(parsed.getTime())) throw new Error(`Invalid date: ${value}`);
++  return parsed;
++}
++
++/** Signatures of the confidence formulas used before validation version 2. */
++function legacySignature(type: string, title: string, confidence: number | null): string | null {
++  if (confidence === null) return null;
++  const event = title.toLowerCase();
++  // loitering: 0.5 + dwell/40 -> 0.75 at the 10 s threshold, rising slowly
++  if ((type === 'LOITERING' || event === 'loitering') && confidence >= 0.75 && confidence <= 0.85) {
++    return 'loitering confidence matches old formula 0.5 + dwell/40';
++  }
++  // crowd: 0.62 + overflow * 0.07
++  if ((type === 'CROWD' || event === 'crowd') && confidence >= 0.62 && confidence <= 0.95) {
++    const steps = (confidence - 0.62) / 0.07;
++    if (Math.abs(steps - Math.round(steps)) < 0.03) return 'crowd confidence matches old formula 0.62 + n*0.07';
++  }
++  // anomaly: 1 - exp(-ratio) against the training-scene threshold (>= 0.63 always)
++  if (event === 'anomaly' && confidence >= 0.63) {
++    return 'anomaly confidence from uncalibrated 1 - exp(-ratio)';
++  }
++  return null;
++}
++
++async function main(): Promise<void> {
++  const now = new Date();
++  const since = parseDate(argument('since'), new Date(now.getTime() - 30 * 24 * 3600 * 1000));
++  const cutoffText = argument('cutoff');
++  const cutoff = cutoffText ? parseDate(cutoffText, now) : null;
++
++  const prisma = new PrismaClient();
++  try {
++    const rows = await prisma.securityIncident.findMany({
++      where: {
++        occurredAt: { gte: since },
++        deletedAt: null,
++        reportedByName: { contains: 'Perception', mode: 'insensitive' },
++      },
++      select: {
++        incidentNumber: true,
++        title: true,
++        type: true,
++        severity: true,
++        status: true,
++        confidenceScore: true,
++        location: true,
++        occurredAt: true,
++        createdAt: true,
++      },
++      orderBy: { occurredAt: 'asc' },
++    });
++
++    console.log(`Perception-service incidents since ${since.toISOString()}: ${rows.length}`);
++    if (cutoff) console.log(`Fix deployed (cutoff): ${cutoff.toISOString()}`);
++    console.log('This script is read-only; nothing is modified or deleted.\n');
++
++    const groups = new Map<string, { count: number; minConf: number; maxConf: number; legacy: number }>();
++    const flagged: string[] = [];
++    for (const row of rows) {
++      const day = row.occurredAt.toISOString().slice(0, 10);
++      const period = cutoff ? (row.occurredAt < cutoff ? 'before-fix' : 'after-fix') : '-';
++      const key = `${day}\t${period}\t${row.title}\t${row.type}\t${row.location ?? '-'}`;
++      const confidence = row.confidenceScore ?? 0;
++      const group = groups.get(key) ?? { count: 0, minConf: 1, maxConf: 0, legacy: 0 };
++      group.count += 1;
++      group.minConf = Math.min(group.minConf, confidence);
++      group.maxConf = Math.max(group.maxConf, confidence);
++      const signature = legacySignature(row.type, row.title, row.confidenceScore);
++      if (signature) {
++        group.legacy += 1;
++        flagged.push(
++          `${row.incidentNumber}\t${row.occurredAt.toISOString()}\t${row.title}\t` +
++            `${row.confidenceScore}\t${row.status}\t${signature}`,
++        );
++      }
++      groups.set(key, group);
++    }
++
++    console.log('day\tperiod\tevent\ttype\tlocation\tcount\tconfidence range\told-formula matches');
++    for (const [key, group] of groups) {
++      console.log(
++        `${key}\t${group.count}\t${group.minConf.toFixed(2)}-${group.maxConf.toFixed(2)}\t${group.legacy}`,
++      );
++    }
++    if (flagged.length) {
++      console.log(`\nRecords whose confidence matches a pre-fix formula (${flagged.length}):`);
++      console.log('incident\toccurredAt\tevent\tconfidence\tstatus\tsignature');
++      flagged.forEach((line) => console.log(line));
++    }
++    if (cutoff) {
++      const after = rows.filter((row) => row.occurredAt >= cutoff).length;
++      console.log(`\nBefore fix: ${rows.length - after}   After fix: ${after}`);
++    }
++  } finally {
++    await prisma.$disconnect();
++  }
++}
++
++main().catch((error: unknown) => {
++  console.error(error);
++  process.exit(1);
++});
+diff --git a/perception-service/config/cameras.yaml b/perception-service/config/cameras.yaml
+index 223432c..e833f84 100644
+--- a/perception-service/config/cameras.yaml
++++ b/perception-service/config/cameras.yaml
+@@ -8,6 +8,18 @@
+ # resolution (see thresholds.yaml -> perception.process_width/height).
+ # Draw these by eye against a saved snapshot from the camera, or build a
+ # small helper script later to click points on a frame.
++#
++# Optional per-zone keys:
++#   name: "Loading bay"         shown to staff in incident descriptions
++#   loitering_seconds: 30       dwell before a lingering alert (default rules.loitering.dwell_seconds)
++#   loitering: true/false       force lingering checks on/off for this zone
++#   active_hours: "08:00-20:00" zone only raises alerts inside these hours (overnight ranges allowed)
++#
++# IMPORTANT: the z1/z2 polygons below are EXAMPLES covering whole thirds of
++# the frame. Anyone sitting in the left third of a webcam view counts as
++# "inside a restricted area" and will raise lingering alerts. Redraw them
++# around the real restricted area before relying on lingering/intrusion alerts.
++# main.py prints a warning at start-up for zones covering >= 25% of the view.
+ 
+ cameras:
+   - id: CAM-01
+diff --git a/perception-service/config/thresholds.yaml b/perception-service/config/thresholds.yaml
+index 797413c..5e616b9 100644
+--- a/perception-service/config/thresholds.yaml
++++ b/perception-service/config/thresholds.yaml
+@@ -16,7 +16,12 @@ temporal_buffer:
+ 
+ rules:
+   loitering:
+-    dwell_seconds: 10             # time in a zone before "loitering" candidate fires
++    # Applies to zones of type restricted/loitering (or `loitering: true`).
++    # A zone can override the dwell with `loitering_seconds` in cameras.yaml.
++    dwell_seconds: 10             # time inside a zone before "loitering" candidate fires
++    exit_grace_seconds: 2.0       # brief detector flicker/occlusion shorter than this does not end a visit
++    min_inside_fraction: 0.8      # share of sightings during the visit that must be inside the zone
++    active_track_seconds: 1.0     # a track not seen for longer is ignored (person left / ID switched)
+   crowd:
+     person_count_threshold: 4
+     sustained_seconds: 5
+@@ -25,6 +30,7 @@ rules:
+     stillness_seconds: 5                # time lying still before PROBABLE
+     confirm_stillness_seconds: 8        # time lying still before CONFIRMED
+   intrusion:
++    active_track_seconds: 1.0
+     enabled: false                # restricted zones still feed loitering; true = also raise intrusion incidents
+     min_frames_inside: 3         # frames of continuous presence before confirming (filters flicker)
+ 
+@@ -128,6 +134,20 @@ fight_detection:
+     confirmed_threshold: 0.55       # alert threshold chosen on validation
+     persistence_window: 3
+     required_confirmed: 2
++  interaction:
++    # Track evidence required before a fight incident (temporal/interaction.py).
++    # The R3D model scores whole clips and can fire on normal activity; a fight
++    # also needs two distinct people, close together, moving in an agitated way.
++    enabled: true
++    active_track_seconds: 1.0       # ignore tracks not seen this recently (left / old IDs)
++    duplicate_iou: 0.7              # two boxes this overlapped = one person tracked twice
++    proximity_heights: 1.2          # centre distance <= 1.2 x mean body height counts as close
++    min_interaction_seconds: 1.0    # close for at least this long ...
++    lookback_seconds: 3.0           # ... within this window
++    min_agitation_heights: 0.1      # erratic box motion + shape change / body height.
++                                    # standing (detector jitter) ~0.02-0.05, walking ~0.01-0.04,
++                                    # punching / shoving / grappling well above 0.1
++    merged_hold_seconds: 2.0        # grappling people are often merged into one box
+ 
+ fire_smoke_detection:
+   enabled: true
+@@ -156,6 +176,19 @@ fire_smoke_detection:
+     mode: learned
+     checkpoint: "models/fire_smoke_verifier_v1.pkl"
+     alpha: 0.6               # rules mode only
++  dynamics:
++    # Static look-alike rejection (temporal/fire_dynamics.py). A persistent
++    # fire/smoke box must change more than the rest of the scene: flames
++    # flicker frame to frame, smoke drifts/grows over seconds. An orange
++    # poster, a lamp, a grey wall or a window scores ~1 and is rejected.
++    # Uses the frames already evaluated, so it adds no alarm delay.
++    enabled: true
++    min_ratio: 2.0                  # in-box change must be >= 2x the scene's median change
++    noise_floor_gray: 1.0           # grey levels; stops a perfectly still scene dividing by ~0
++    recent_frames: 5                # frames compared for flicker (= persistence_window)
++    reference_min_age_seconds: 8    # smoke growth is measured against the scene this long ago
++    reference_max_age_seconds: 30
++    reference_interval_seconds: 1
+ 
+ fall_detection:
+   # Pose-based fall detection. mode:
+@@ -210,6 +243,20 @@ scene_anomaly:
+   required_hits: 2
+   confirmed_ratio: 2.0              # error >= 2x threshold -> CONFIRMED
+   cooldown_seconds: 30
++  calibration:
++    # The model's threshold comes from its TRAINING footage; on this camera
++    # normal activity can exceed it all the time ("Unusual activity" every few
++    # minutes). Observe this camera first, without alerting, and use the 99th
++    # percentile of its normal windows as the camera threshold (never below the
++    # model's). Saved to output/calibration/scene_anomaly_<camera>.json and
++    # reused on restart. Run it while the scene is NORMAL; recalibrate after
++    # moving the camera (delete the file or set recalibrate: true).
++    enabled: true
++    seconds: 300
++    percentile: 99
++    min_windows: 50
++    dir: "output/calibration"
++    recalibrate: false
+ 
+ incident_dedup:
+   # One ongoing event = one incident. While an event keeps being detected for
+diff --git a/perception-service/docs/FALSE_POSITIVE_FIXES.md b/perception-service/docs/FALSE_POSITIVE_FIXES.md
+new file mode 100644
+index 0000000..8595447
+--- /dev/null
++++ b/perception-service/docs/FALSE_POSITIVE_FIXES.md
+@@ -0,0 +1,156 @@
++# False-positive fixes (validation version 2)
++
++The Incident Center was filling with incidents during normal activity in the
++test room: "Lingering" at 76–77 %, "Unusual activity" at 94 %, "Smoke has been
++seen" at 80 %, and fights. All of them were created on 15 Oct 2026 between
++11:27 and 11:37, so they were **new detections, not old database records**.
++This document traces each one through the pipeline, gives the root cause, and
++describes the fix.
++
++```
++StreamReader → YOLOv8 → ByteTrack → TemporalBuffer
++   → RuleEngine (intrusion, loitering, crowd, fall)
++   → RgbFightDetector · FireSmokeDetector · GruFallDetector · SceneAnomalyDetector
++   → EventConfirmation (N-of-M tiers) → severity → IncidentDeduper
++   → IncidentReporter (incidents.jsonl; CONFIRMED only → backend → SSE → dashboard)
++   → LLM summary (text only, validated, template fallback)
++```
++
++The LLM was **not** the cause. It only rewrites the plain description, it is
++rejected if it adds numbers, jargon or drops the location, and it can't
++set the event type, severity or confidence (`IncidentAnalysis` has no such
++fields; this is covered by a test now).
++
++## Root causes and fixes
++
++### Lingering (loitering) and intrusion
++
++| Root cause | Fix |
++|---|---|
++| `TemporalBuffer` keeps a track for 15 s after the person leaves view (or after a ByteTrack ID switch). The rule used `tracks_by_class`, so these "ghost" tracks kept timing a person who had already gone. | Rules use `active_tracks_by_class` (seen in the last `active_track_seconds`, default 1 s). |
++| Dwell time = wall clock minus a single first sighting stored in `zone_entry_times`, never cleared. A person who stepped into the zone once and was seen there again later counted the whole interval. | Dwell is measured from observation timestamps inside the zone, with `exit_grace_seconds` (2 s) for detector flicker. State is dropped when the person leaves view. |
++| Boundary jitter (foot point flipping across the polygon edge) counted as being inside. | `min_inside_fraction` (0.8): the person must be inside for most of the visit. |
++| Confidence = `0.5 + dwell/40`: a made-up number (76 % at 10 s) that rose with time. | Confidence = mean person-detector confidence inside the zone × inside fraction (`confidence_basis` stored). |
++| Example zone `z1` (restricted) covers the left third of the frame (31 %). Anyone sitting there for 10 s produced "Lingering". | Start-up warning for loitering zones that cover ≥ 25 % of the view. Zones support `name`, `loitering_seconds`, `loitering: true/false` and `active_hours` (see `config/cameras.yaml`). **Redraw the polygons for the real restricted areas.** |
++| Description claimed "stayed in the same spot". | "Someone has stayed in the restricted area "<name>" in <location> for N seconds." |
++
++### Fight
++
++| Root cause | Fix |
++|---|---|
++| The motion gate paired ghost tracks too: after an ID switch, one person's old and new IDs became a "pair". | Gate uses active tracks only and treats near-identical boxes (IoU ≥ 0.7) as one person. |
++| Gate speed came from the last two samples, so box jitter alone (≥ 30 px/s at 10 fps) opened it. | Speed is measured over ~0.5 s. |
++| A fight incident was created from the R3D-18 clip score alone. On this camera the model (trained on other footage) scores ordinary activity high. | `InteractionValidator` (`temporal/interaction.py`) must also pass. It needs two distinct people, close together (centre distance ≤ 1.2 × body height) for ≥ 1 s of the last 3 s, with agitated motion (≥ 0.1 body heights of erratic box movement and shape change). Walking past, standing and talking don't qualify. Grappling people merged into one box stay valid for 2 s. Rejections are logged with the evidence. Same check in the pose-LSTM fallback. |
++| Confidence = the latest single clip score. | Mean score of the high-scoring clips in the persistence window. Interaction evidence is stored in the incident. |
++
++### Fire / smoke
++
++| Root cause | Fix |
++|---|---|
++| A static look-alike (orange object, lamp, grey wall, window) is detected the same way frame after frame. Frame persistence alone turned that into an alarm. | `RegionDynamics` (`temporal/fire_dynamics.py`) compares change inside the detected box with the median change in the rest of the frame. Flames must flicker, or smoke must have grown compared with the scene 8–30 s earlier, by ≥ 2× the background. Global changes (auto-exposure, lights dimming) affect inside and outside equally and are rejected. The check uses the frames already evaluated, so it adds no delay. |
++| The learned verifier kept its last 10 verdicts forever. Two approvals from an earlier episode let any later burst of YOLO detections straight through. | `LearnedFireVerifier.reset(class)` is called when YOLO persistence for that class ends. |
++| Confidence = peak single-frame score in the window. | Mean YOLO score over the positive frames (the peak is kept as `fire_peak_score` / `smoke_peak_score`). |
++
++Responsiveness is unchanged. A flickering flame still raises an alarm after
++3 of 5 evaluations (about 1 s) and is CONFIRMED after 3 s, or at once with
++smoke. Smoke that appears in a scene the camera has already watched passes
++through the growth check without waiting.
++
++### Unusual activity (scene anomaly)
++
++| Root cause | Fix |
++|---|---|
++| The autoencoder's threshold came from its training footage (a different site and viewpoint). Normal movement in the test room was permanently above it, which gave an "Unusual activity" incident after every cooldown. | Per-camera calibration: for the first `calibration.seconds` (300 s) the detector records error ratios **without alerting**. The camera threshold is then the 99th percentile (never below the model's own). It is saved to `output/calibration/scene_anomaly_<camera>.json`, keyed to the checkpoint, and reused on restart. |
++| Confidence = `1 − e^(−ratio)` (≥ 63 % for anything over threshold, 94 % at 2.8×). | Anomaly score `ratio/(ratio+1)` relative to the camera's threshold: 0.5 = edge of normal, 0.67 = 2×, 0.75 = 3×. It's stored as a score, not a probability (`confidence_basis`). |
++
++## Integrity of what is reported
++
++- Every incident's `detail` now has `confidence_basis` (how the number was
++  obtained) and `validation_version: 2`. The bbox fall rule's fixed 0.7 is
++  replaced by measured detector confidence.
++- Event types map as before (`anomaly` → `OTHER`, title `anomaly`).
++- Duplicates: one ongoing event is one incident (`IncidentDeduper`; loitering
++  and intrusion per zone). Fixing ghost tracks also removed the repeated
++  lingering incidents for one person.
++
++## Old vs new records (nothing is deleted)
++
++- Dashboard database: from `backend/`, run
++  `npm run audit:incidents -- --cutoff <time the fixed service was started>`.
++  This is read-only (SELECT only). It groups perception-service incidents by
++  day, type and location, splits them before/after the cutoff, and flags
++  confidence values that match the old formulas.
++- Local log: from `perception-service/`, run
++  `python scripts/audit_incident_log.py`. Records without `validation_version`
++  are from before this fix.
++
++Review or close the old records from the dashboard. They are kept as history.
++
++## Logs
++
++Rejected candidates are logged (rate-limited, every 10 s per source) with the
++measured evidence. For example:
++
++```
++[CAM-01] loitering rejected: track 4 in zone Panel room only 55% of 12s (needs 80%)
++[CAM-01] fight rejected despite model score 0.91: motion is not agitated (agitation 0.03 < 0.1 body heights) ...
++[CAM-01] fire/smoke smoke rejected: region is static (changes no more than the rest of the scene) {...}
++[CAM-01] scene-anomaly calibrated on 148 windows: p99 ratio 3.41 -> camera threshold 3.41x model threshold
++```
++
++Diagnostics at shutdown now include `alarms_rejected_static_region`,
++`rejected_no_interaction`, `calibration_windows` and `camera_scale`.
++
++## Tests
++
++`python test_false_positives.py` runs 26 scenarios without a camera, GPU, torch
++or ultralytics:
++
++- **Normal activity:**
++  - a person who left the zone
++  - standing outside the zone or walking through it
++  - boundary flicker
++  - people standing or talking close together
++  - walking past each other
++  - one person with two IDs
++  - a ghost track
++  - agitated people far apart
++  - a static orange object
++  - auto-exposure change
++  - someone walking elsewhere in the scene
++  - an uncalibrated busy camera
++  - a high fight-model score without interaction
++- **Genuine events:**
++  - lingering in a zone, with measured confidence
++  - intrusion
++  - an agitated close pair, including through `RgbFightDetector`
++  - a flickering flame (confirmed, mean confidence)
++  - slowly growing smoke
++  - abnormal motion after calibration
++- **Reporting:**
++  - LLM output can't change the type or confidence, or add facts
++  - the description no longer says "same spot"
++
++## Remaining limitations
++
++- **Zones must be redrawn.** `z1`/`z2` are placeholders. With the real
++  restricted area outlined, lingering only fires there.
++- **Anomaly detection is silent for the first 5 minutes** on each camera (or
++  after `recalibrate: true`). Calibrate while the scene is normal. If an
++  incident happens during calibration it raises the threshold.
++- **The fight model still has a domain gap.** The interaction check removes
++  the cases where the tracks show no fight, but the R3D-18 clip classifier
++  itself was not retrained (no weights changed). The thresholds in
++  `fight_detection.interaction` come from synthetic box tracks. Tune them from
++  the logged `agitation` values on real footage if needed.
++- **The fire region check** can't reject a static look-alike that something
++  moves in front of, such as a person walking across an orange object. The
++  learned verifier remains the second stage for that.
++- **Not verified on the live database.** The audit scripts were written but not
++  run against the database, because this work was done without access to the
++  machine running the backend. The screenshot timestamps show the false
++  incidents were newly generated.
++- **Tests that need torch, ultralytics, supervision or fastapi** were not run in
++  this environment (`test_learned_models`, `test_rgb_sampling`,
++  `test_fight_model_checkpoint`, `test_cctv_input`, `test_incident_api`).
++  Run them locally.
+diff --git a/perception-service/fire_verifier/runtime.py b/perception-service/fire_verifier/runtime.py
+index 4167e30..c96468d 100644
+--- a/perception-service/fire_verifier/runtime.py
++++ b/perception-service/fire_verifier/runtime.py
+@@ -42,6 +42,12 @@ class LearnedFireVerifier:
+             best = {k: (tuple(c * scale for c in v[0]), v[1]) if v else None for k, v in best.items()}
+         self.history.append({"frame": frame, **best})
+ 
++    def reset(self, name: str) -> None:
++        """Forget verdicts for a class once its YOLO persistence has ended, so
++        approvals from an earlier episode cannot pass a later, unrelated one."""
++        self.verdicts[name].clear()
++        self.last_probability[name] = 0.0
++
+     def confirm(self, name: str) -> bool:
+         """Score the current window for a class YOLO considers persistent."""
+         if len(self.history) < self.history.maxlen:
+diff --git a/perception-service/main.py b/perception-service/main.py
+index a46e3ee..59f969d 100644
+--- a/perception-service/main.py
++++ b/perception-service/main.py
+@@ -48,6 +48,7 @@ from temporal.fire_smoke_recognition import FireSmokeDetector
+ from temporal.rgb_action_recognition import RgbFightDetector
+ from temporal.rule_engine import RuleEngine
+ from temporal.temporal_buffer import TemporalBuffer
++from temporal.zones import zone_warnings
+ from tracking.byte_tracker import ByteTracker
+ 
+ TIER_COLOR = {
+@@ -163,6 +164,9 @@ def run(
+     )
+     buffer = TemporalBuffer(window_seconds=thresholds_cfg["temporal_buffer"]["window_seconds"])
+     rule_engine = RuleEngine(cam_cfg, thresholds_cfg)
++    for warning in zone_warnings(cam_cfg.get("zones", []), perception_cfg["process_width"],
++                                 perception_cfg["process_height"]):
++        print(f"[{camera_id}] WARNING {warning}")
+     fight_cfg = thresholds_cfg["fight_detection"]
+     run_fight = fight_cfg.get("enabled", True) and (
+         only_events is None or "fight" in only_events
+diff --git a/perception-service/reporting/description_generator.py b/perception-service/reporting/description_generator.py
+index c881e9d..632f693 100644
+--- a/perception-service/reporting/description_generator.py
++++ b/perception-service/reporting/description_generator.py
+@@ -31,6 +31,14 @@ def _seconds(value) -> str:
+         return "a while"
+ 
+ 
++def _area(d: dict) -> str:
++    """'the restricted area "Loading bay"' when the zone has a configured
++    `name`, else a generic phrase (zone IDs such as 'z1' mean nothing to staff)."""
++    kind = "restricted area" if d.get("zone_type") in (None, "restricted") else "watched area"
++    name = d.get("zone_name")
++    return f'the {kind} "{name}"' if name else f"a {kind}"
++
++
+ def _fall(location: str, d: dict) -> str:
+     if d.get("serious"):
+         return (f"Someone fell in {location} and has not got up for "
+@@ -62,9 +70,9 @@ WHAT_HAPPENED: Dict[str, Callable[[str, dict], str]] = {
+     "fire_smoke": _fire_smoke,
+     "crowd": _crowd,
+     "fight": lambda loc, d: f"Two or more people in {loc} seem to be fighting or pushing each other.",
+-    "loitering": lambda loc, d: (f"Someone has been standing around in the same spot in {loc} "
++    "loitering": lambda loc, d: (f"Someone has stayed in {_area(d)} in {loc} "
+                                  f"for {_seconds(d.get('dwell_seconds'))}."),
+-    "intrusion": lambda loc, d: f"Someone has entered an area of {loc} where people are not allowed.",
++    "intrusion": lambda loc, d: f"Someone has entered {_area(d)} in {loc} where people are not allowed.",
+     "anomaly": lambda loc, d: (f"The camera in {loc} picked up sudden, unusual movement that does "
+                                "not look like normal activity, for example someone running, falling "
+                                "or something being thrown. The system cannot tell exactly what it is."),
+diff --git a/perception-service/reporting/incident_report.py b/perception-service/reporting/incident_report.py
+index 83940da..18effdb 100644
+--- a/perception-service/reporting/incident_report.py
++++ b/perception-service/reporting/incident_report.py
+@@ -21,6 +21,23 @@ from reporting.description_generator import (
+ from schemas.incident_schema import IncidentRecord
+ from severity.severity_rules import SEVERITY_ORDER
+ 
++# Bumped when event validation changes, so records produced before and after
++# a change can be told apart (scripts/audit_incident_log.py groups by it).
++# 2: active-track dwell/intrusion, fight interaction check, fire/smoke
++#    static-region check + verifier reset, per-camera anomaly calibration,
++#    evidence-based confidence scores.
++VALIDATION_VERSION = 2
++
++# How the confidence score was obtained, for events whose detector does not
++# record it itself. Confidence always comes from a detector/model output and
++# is never produced or altered by the LLM summary.
++DEFAULT_CONFIDENCE_BASIS = {
++    "fall": "fall model probability",
++    "intrusion": "mean person-detector confidence",
++    "loitering": "mean person-detector confidence x share of time inside the zone",
++    "crowd": "mean person-detector confidence of the group",
++}
++
+ 
+ class IncidentReporter:
+     """Builds, validates, persists, and enriches incident reports."""
+@@ -157,6 +174,11 @@ class IncidentReporter:
+         )
+ 
+         detail = dict(confirmed_event.candidate.detail or {})
++        detail.setdefault(
++            "confidence_basis",
++            DEFAULT_CONFIDENCE_BASIS.get(confirmed_event.event_type, "detector score"),
++        )
++        detail["validation_version"] = VALIDATION_VERSION
+         track_ids = confirmed_event.candidate.track_ids or []
+ 
+         report = {
+diff --git a/perception-service/scripts/audit_incident_log.py b/perception-service/scripts/audit_incident_log.py
+new file mode 100644
+index 0000000..a467014
+--- /dev/null
++++ b/perception-service/scripts/audit_incident_log.py
+@@ -0,0 +1,93 @@
++"""READ-ONLY audit of the local incident log (output/incidents.jsonl).
++
++Shows whether incidents were produced by the old or the new validation logic,
++grouped by day, event type and camera. It never modifies or deletes anything.
++
++    python scripts/audit_incident_log.py
++    python scripts/audit_incident_log.py --log output/incidents.jsonl --since 2026-10-01
++
++Records written before validation version 2 have no `detail.validation_version`
++and are reported as "v1 (pre-fix)". Confidence values matching the old
++fabricated formulas are flagged.
++"""
++from __future__ import annotations
++
++import argparse
++import json
++import math
++from collections import defaultdict
++from pathlib import Path
++
++
++def legacy_signature(event: str, confidence: float, detail: dict) -> str | None:
++    if event == "loitering" and "dwell_seconds" in detail and "confidence_basis" not in detail:
++        expected = min(0.5 + float(detail["dwell_seconds"]) / 40.0, 0.95)
++        if abs(expected - confidence) < 0.02:
++            return "old loitering formula 0.5 + dwell/40"
++    if event == "anomaly" and "confidence_basis" not in detail and "anomaly_ratio" in detail:
++        expected = 1.0 - math.exp(-float(detail["anomaly_ratio"]))
++        if abs(expected - confidence) < 0.02:
++            return "old anomaly formula 1 - exp(-ratio), uncalibrated threshold"
++    if event == "crowd" and "confidence_basis" not in detail:
++        return "old crowd formula 0.62 + overflow*0.07"
++    return None
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
++    parser.add_argument("--log", default="output/incidents.jsonl")
++    parser.add_argument("--since", default=None, help="YYYY-MM-DD; only records on/after this day")
++    args = parser.parse_args()
++
++    path = Path(args.log)
++    if not path.exists():
++        print(f"{path} not found (no incidents recorded on this machine yet)")
++        return
++
++    groups = defaultdict(lambda: {"count": 0, "confidences": [], "legacy": 0, "tiers": defaultdict(int)})
++    flagged, bad_lines = [], 0
++    with path.open(encoding="utf-8") as handle:
++        for line in handle:
++            line = line.strip()
++            if not line:
++                continue
++            try:
++                record = json.loads(line)
++            except ValueError:
++                bad_lines += 1
++                continue
++            day = str(record.get("detected_at", ""))[:10]
++            if args.since and day < args.since:
++                continue
++            detail = record.get("detail") or {}
++            version = detail.get("validation_version")
++            version_label = f"v{version}" if version else "v1 (pre-fix)"
++            event = record.get("event_type", "?")
++            confidence = float(record.get("confidence_score") or 0.0)
++            key = (day, version_label, event, record.get("camera_id", "?"))
++            group = groups[key]
++            group["count"] += 1
++            group["confidences"].append(confidence)
++            group["tiers"][record.get("confidence_tier", "?")] += 1
++            signature = None if version else legacy_signature(event, confidence, detail)
++            if signature:
++                group["legacy"] += 1
++                flagged.append((record.get("incident_id"), record.get("detected_at"), event, confidence, signature))
++
++    print("Read-only audit; nothing is modified.\n")
++    print(f"{'day':<11} {'validation':<14} {'event':<12} {'camera':<10} {'n':>4}  {'conf range':<11} tiers")
++    for (day, version, event, camera), group in sorted(groups.items()):
++        confs = group["confidences"]
++        tiers = ", ".join(f"{k}:{v}" for k, v in sorted(group["tiers"].items()))
++        print(f"{day:<11} {version:<14} {event:<12} {camera:<10} {group['count']:>4}  "
++              f"{min(confs):.2f}-{max(confs):.2f}   {tiers}")
++    if flagged:
++        print(f"\nRecords whose confidence matches a pre-fix formula ({len(flagged)}):")
++        for row in flagged:
++            print("  " + "  ".join(str(v) for v in row))
++    if bad_lines:
++        print(f"\n{bad_lines} unreadable line(s) skipped")
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/perception-service/temporal/action_recognition.py b/perception-service/temporal/action_recognition.py
+index 3bd58e0..522e628 100644
+--- a/perception-service/temporal/action_recognition.py
++++ b/perception-service/temporal/action_recognition.py
+@@ -15,6 +15,7 @@ import numpy as np
+ 
+ from detection.pose_estimator import PersonPose, PoseEstimator
+ from temporal.fight_features import FEATURE_DIM, match_pose_to_bbox, pair_feature_vector
++from temporal.interaction import InteractionValidator
+ from temporal.motion_gate import MotionOfInterestGate
+ from temporal.rule_engine import EventCandidate
+ from temporal.temporal_buffer import TemporalBuffer
+@@ -30,6 +31,7 @@ class FightDetector:
+         self.confidence_threshold = float(cfg.get("confidence_threshold", 0.6))
+         self.sequence_stale_after_s = float(cfg.get("pair_stale_after_s", 5.0))
+         self.gate_hold_seconds = float(cfg.get("gate_hold_seconds", 1.5))
++        self.interaction = InteractionValidator(cfg.get("interaction"))
+         self.gate = MotionOfInterestGate(
+             proximity_px=cfg["gate"]["proximity_px"],
+             velocity_threshold_px_s=cfg["gate"]["velocity_threshold_px_s"],
+@@ -135,13 +137,20 @@ class FightDetector:
+         self._stats["max_score"] = max(self._stats["max_score"], float(score))
+         if score < self.confidence_threshold:
+             return []
++        interacting, evidence = self.interaction.validate(buffer)
++        if not interacting:
++            self._stats["rejected_no_interaction"] = self._stats.get("rejected_no_interaction", 0) + 1
++            print(f"[{self.camera_id}] fight rejected despite score {score:.2f}: {evidence.get('reason')}")
++            return []
+         self._stats["candidates"] += 1
+         return [EventCandidate(
+             event_type="fight",
+             track_ids=list(pair),
+             camera_id=self.camera_id,
+             detail={"mode": self.mode, "score": round(float(score), 2),
+-                    "frames_evaluated": len(self._frames)},
++                    "frames_evaluated": len(self._frames),
++                    "interaction": evidence,
++                    "confidence_basis": "pose-sequence fight classifier score"},
+             raw_confidence=float(score),
+         )]
+ 
+diff --git a/perception-service/temporal/fire_dynamics.py b/perception-service/temporal/fire_dynamics.py
+new file mode 100644
+index 0000000..b60f4ac
+--- /dev/null
++++ b/perception-service/temporal/fire_dynamics.py
+@@ -0,0 +1,134 @@
++"""Physical-plausibility check for persistent fire/smoke detections.
++
++YOLO scores each frame independently, so a static object that happens to
++look like fire or smoke (an orange poster, a lamp, a grey wall, a white
++ceiling, a window) produces the SAME detection frame after frame -- and frame
++persistence alone turns that into an alarm.
++
++Real fire and smoke are never static:
++  * flames flicker: pixels inside the region change from frame to frame far
++    more than the rest of the scene;
++  * smoke drifts and grows: compared with how the scene looked several
++    seconds earlier, the region has changed far more than the rest of it.
++
++This check compares change INSIDE the detected box with change in the rest
++of the frame (median over pixels, so people walking elsewhere do not inflate
++it). Using the rest of the frame as the reference makes it independent of
++sensor noise and of camera auto-exposure, which shift every pixel together.
++A detection passes when either the flicker ratio or the growth ratio reaches
++`min_ratio`; a region that changes no more than the background is rejected.
++It adds no delay: it is computed on the frames already used for persistence.
++"""
++from __future__ import annotations
++
++from collections import deque
++from typing import Deque, Optional, Sequence, Tuple
++
++import cv2
++import numpy as np
++
++Box = Tuple[float, float, float, float]
++WORK_WIDTH = 160  # analysis resolution; enough for region statistics, cheap
++
++
++class RegionDynamics:
++    def __init__(self, cfg: Optional[dict] = None):
++        cfg = cfg or {}
++        self.enabled = bool(cfg.get("enabled", True))
++        self.min_ratio = float(cfg.get("min_ratio", 2.0))
++        self.noise_floor = float(cfg.get("noise_floor_gray", 1.0))
++        self.reference_min_age = float(cfg.get("reference_min_age_seconds", 8.0))
++        self.reference_max_age = float(cfg.get("reference_max_age_seconds", 30.0))
++        self.reference_interval = float(cfg.get("reference_interval_seconds", 1.0))
++        self.recent: Deque[Tuple[float, np.ndarray]] = deque(maxlen=int(cfg.get("recent_frames", 5)))
++        self.references: Deque[Tuple[float, np.ndarray]] = deque()
++        self._scale = 1.0
++
++    def _gray(self, frame: np.ndarray) -> np.ndarray:
++        h, w = frame.shape[:2]
++        self._scale = WORK_WIDTH / float(max(w, 1))
++        small = cv2.resize(frame, (WORK_WIDTH, max(1, int(round(h * self._scale)))),
++                           interpolation=cv2.INTER_AREA)
++        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY) if small.ndim == 3 else small
++        return cv2.GaussianBlur(gray, (3, 3), 0).astype(np.float32)
++
++    def observe(self, frame: np.ndarray, now: float) -> None:
++        """Call once per fire/smoke evaluation, with the same frame YOLO saw."""
++        gray = self._gray(frame)
++        self.recent.append((now, gray))
++        if not self.references or now - self.references[-1][0] >= self.reference_interval:
++            self.references.append((now, gray))
++        while self.references and now - self.references[0][0] > self.reference_max_age:
++            self.references.popleft()
++
++    def _mask(self, shape, box: Box) -> np.ndarray:
++        h, w = shape
++        x1, y1, x2, y2 = (int(round(v * self._scale)) for v in box)
++        x1, y1 = max(0, min(x1, w - 1)), max(0, min(y1, h - 1))
++        x2, y2 = max(x1 + 1, min(x2, w)), max(y1 + 1, min(y2, h))
++        mask = np.zeros((h, w), bool)
++        mask[y1:y2, x1:x2] = True
++        return mask
++
++    def _ratio(self, diff: np.ndarray, mask: np.ndarray) -> Tuple[float, float, float]:
++        inside = float(diff[mask].mean())
++        outside_pixels = diff[~mask]
++        background = float(np.median(outside_pixels)) if outside_pixels.size else 0.0
++        return inside / max(background, self.noise_floor), inside, background
++
++    def _reference(self, now: float) -> Optional[np.ndarray]:
++        """Newest snapshot at least `reference_min_age` seconds old."""
++        chosen = None
++        for stamp, gray in self.references:
++            if now - stamp >= self.reference_min_age:
++                chosen = gray
++            else:
++                break
++        return chosen
++
++    def assess(self, box: Box) -> dict:
++        """Evidence that the region inside `box` (process-frame pixels) is a
++        live, changing phenomenon rather than a static look-alike."""
++        if not self.enabled:
++            return {"dynamic": True, "reason": "check disabled"}
++        if len(self.recent) < 2:
++            return {"dynamic": False, "reason": "not enough frames yet"}
++        now, current = self.recent[-1]
++        mask = self._mask(current.shape, box)
++
++        flicker_values, inside_values, background_values = [], [], []
++        frames = [g for _, g in self.recent]
++        for previous, nxt in zip(frames[:-1], frames[1:]):
++            ratio, inside, background = self._ratio(np.abs(nxt - previous), mask)
++            flicker_values.append(ratio)
++            inside_values.append(inside)
++            background_values.append(background)
++        flicker = float(np.median(flicker_values))
++
++        growth = None
++        reference = self._reference(now)
++        if reference is not None:
++            growth, _, _ = self._ratio(np.abs(current - reference), mask)
++
++        dynamic = flicker >= self.min_ratio or (growth is not None and growth >= self.min_ratio)
++        if dynamic:
++            reason = "region flickers" if flicker >= self.min_ratio else "region changed since earlier"
++        else:
++            reason = "region is static (changes no more than the rest of the scene)"
++        return {
++            "dynamic": bool(dynamic),
++            "reason": reason,
++            "flicker_ratio": round(flicker, 2),
++            "growth_ratio": None if growth is None else round(float(growth), 2),
++            "inside_change": round(float(np.median(inside_values)), 2),
++            "background_change": round(float(np.median(background_values)), 2),
++            "min_ratio": self.min_ratio,
++        }
++
++
++def union_box(boxes: Sequence[Optional[Box]]) -> Optional[Box]:
++    present = [b for b in boxes if b is not None]
++    if not present:
++        return None
++    return (min(b[0] for b in present), min(b[1] for b in present),
++            max(b[2] for b in present), max(b[3] for b in present))
+diff --git a/perception-service/temporal/fire_smoke_recognition.py b/perception-service/temporal/fire_smoke_recognition.py
+index 5ef05a5..ab0820c 100644
+--- a/perception-service/temporal/fire_smoke_recognition.py
++++ b/perception-service/temporal/fire_smoke_recognition.py
+@@ -6,10 +6,10 @@ from collections import deque
+ from typing import Deque, Dict, List, Optional
+ 
+ import numpy as np
+-from ultralytics import YOLO
+ 
+ import os
+ 
++from temporal.fire_dynamics import RegionDynamics, union_box
+ from temporal.fire_verifier import FireVerifier
+ from temporal.rule_engine import EventCandidate
+ 
+@@ -21,10 +21,13 @@ class FireSmokeDetector:
+     used. The module emits one camera-level `fire_smoke` event family.
+     """
+ 
+-    def __init__(self, camera_id: str, cfg: dict):
++    def __init__(self, camera_id: str, cfg: dict, model=None):
+         self.camera_id = camera_id
+         self.cfg = cfg
+-        self.model = YOLO(cfg["checkpoint"])
++        if model is None:
++            from ultralytics import YOLO  # imported lazily so tests can inject a model
++            model = YOLO(cfg["checkpoint"])
++        self.model = model
+         self.imgsz = int(cfg.get("imgsz", 640))
+         self.evaluation_stride = max(1, int(cfg.get("evaluation_stride_frames", 2)))
+         self.window = max(1, int(cfg.get("persistence_window", 5)))
+@@ -41,6 +44,17 @@ class FireSmokeDetector:
+         self.scores: Dict[str, Deque[float]] = {
+             name: deque(maxlen=self.window) for name in self.thresholds
+         }
++        # Box of the best positive detection per evaluation (None when negative),
++        # used for the static-region check below.
++        self.boxes: Dict[str, Deque[Optional[tuple]]] = {
++            name: deque(maxlen=self.window) for name in self.thresholds
++        }
++        # Static look-alike rejection (orange poster, lamp, grey wall, window):
++        # a persistent detection must flicker or grow relative to the rest of
++        # the scene. See temporal/fire_dynamics.py.
++        self.dynamics = RegionDynamics(cfg.get("dynamics"))
++        self._was_persistent = {name: False for name in self.thresholds}
++        self._last_rejection_log: Dict[str, float] = {}
+         verifier_cfg = cfg.get("verifier", {}) or {}
+         # Second stage that rejects fire/smoke look-alikes. Modes:
+         #   learned - gradient-boosting verifier on flicker/colour/texture/motion
+@@ -72,6 +86,7 @@ class FireSmokeDetector:
+             "max_fire_score": 0.0, "max_smoke_score": 0.0,
+             "fire_boxes_verified": 0, "fire_boxes_suppressed": 0,
+             "alarms_rejected_by_learned_verifier": 0,
++            "alarms_rejected_static_region": 0,
+         }
+         print(
+             f"[{camera_id}] fire/smoke model loaded: {cfg['checkpoint']} "
+@@ -79,11 +94,18 @@ class FireSmokeDetector:
+             f"persistence={self.required}/{self.window} stride={self.evaluation_stride}"
+         )
+ 
+-    def evaluate(self, frame: np.ndarray) -> List[EventCandidate]:
++    def _log_rejection(self, name: str, message: str, now: float, every_s: float = 10.0) -> None:
++        if now - self._last_rejection_log.get(name, -1e18) >= every_s:
++            self._last_rejection_log[name] = now
++            print(f"[{self.camera_id}] fire/smoke {name} rejected: {message}")
++
++    def evaluate(self, frame: np.ndarray, now: Optional[float] = None) -> List[EventCandidate]:
+         self.cycles += 1
+         self._stats["cycles"] += 1
+         if (self.cycles - 1) % self.evaluation_stride != 0:
+             return []
++        now = time.time() if now is None else now
++        self.dynamics.observe(frame, now)
+ 
+         result = self.model.predict(
+             source=frame, conf=0.01, imgsz=self.imgsz,
+@@ -125,6 +147,8 @@ class FireSmokeDetector:
+             positive = score >= self.thresholds[name]
+             self.scores[name].append(score)
+             self.hits[name].append(positive)
++            box = best_boxes[name][0] if positive and best_boxes[name] else None
++            self.boxes[name].append(box)
+             if positive:
+                 self._stats[f"{name}_positive_windows"] += 1
+             self._stats[f"max_{name}_score"] = max(self._stats[f"max_{name}_score"], score)
+@@ -133,12 +157,32 @@ class FireSmokeDetector:
+             name: len(self.hits[name]) >= self.required and sum(self.hits[name]) >= self.required
+             for name in ("fire", "smoke")
+         }
++        for name in ("fire", "smoke"):
++            # When YOLO persistence for a class ends, earlier verifier approvals
++            # must not carry over to an unrelated later burst of detections.
++            if self._was_persistent[name] and not persistent[name] and self.learned_verifier is not None:
++                self.learned_verifier.reset(name)
++            self._was_persistent[name] = persistent[name]
+         active_classes = [name for name in ("fire", "smoke") if persistent[name]]
++        dynamics = {}
++        for name in list(active_classes):
++            region = union_box(self.boxes[name])
++            check = self.dynamics.assess(region) if region is not None else {"dynamic": False, "reason": "no box"}
++            dynamics[name] = check
++            if not check["dynamic"]:
++                active_classes.remove(name)
++                self._stats["alarms_rejected_static_region"] += 1
++                self._log_rejection(name, f"{check['reason']} {check}", now)
+         if self.learned_verifier is not None and active_classes:
+-            verified = [name for name in active_classes if self.learned_verifier.confirm(name)]
++            verified = []
++            for name in active_classes:
++                if self.learned_verifier.confirm(name):
++                    verified.append(name)
++                else:
++                    self._log_rejection(name, "learned verifier has not confirmed it "
++                                        f"(p={self.learned_verifier.last_probability[name]:.2f})", now)
+             self._stats["alarms_rejected_by_learned_verifier"] += len(active_classes) - len(verified)
+             active_classes = verified
+-        now = time.time()
+         if not active_classes:
+             if self._alarm_last is not None and now - self._alarm_last > self.alarm_gap_seconds:
+                 self._alarm_since = self._alarm_last = None
+@@ -159,7 +203,15 @@ class FireSmokeDetector:
+             name: round(max(self.scores[name], default=0.0), 3)
+             for name in ("fire", "smoke")
+         }
+-        confidence = max(recent_max[name] for name in active_classes)
++        # Confidence is the mean detector score over the positive frames of the
++        # persistence window -- not the single best frame.
++        mean_positive = {}
++        for name in ("fire", "smoke"):
++            positives = [s for s, h in zip(self.scores[name], self.hits[name]) if h]
++            mean_positive[name] = round(float(np.mean(positives)), 3) if positives else 0.0
++        confidence = max(mean_positive[name] for name in active_classes)
++        print(f"[{self.camera_id}] fire/smoke {requested_tier} {active_classes} "
++              f"conf={confidence:.2f} sustained={sustained_s:.1f}s dynamics={dynamics}")
+         return [EventCandidate(
+             event_type="fire_smoke",
+             track_ids=[],
+@@ -168,8 +220,12 @@ class FireSmokeDetector:
+                 "requested_tier": requested_tier,
+                 "detected_classes": active_classes,
+                 "sustained_seconds": round(sustained_s, 1),
+-                "fire_score": recent_max["fire"],
+-                "smoke_score": recent_max["smoke"],
++                "fire_score": mean_positive["fire"],
++                "smoke_score": mean_positive["smoke"],
++                "fire_peak_score": recent_max["fire"],
++                "smoke_peak_score": recent_max["smoke"],
++                "confidence_basis": "mean YOLO score over positive frames in the persistence window",
++                "dynamics": {name: dynamics[name] for name in active_classes},
+                 "fire_hits": int(sum(self.hits["fire"])),
+                 "smoke_hits": int(sum(self.hits["smoke"])),
+                 "persistence_window": self.window,
+diff --git a/perception-service/temporal/interaction.py b/perception-service/temporal/interaction.py
+new file mode 100644
+index 0000000..965b699
+--- /dev/null
++++ b/perception-service/temporal/interaction.py
+@@ -0,0 +1,174 @@
++"""Track-level evidence that two people are physically interacting.
++
++The R3D-18 fight classifier scores whole video clips. On a camera whose scene
++differs from its training data it can score ordinary activity (people
++walking, standing or talking near each other) above threshold, and the
++motion gate in front of it is deliberately permissive. Before a fight
++incident is created, this module therefore requires evidence a fight
++physically needs, measured from the ByteTrack tracks:
++
++  1. two DISTINCT people in view now -- tracks not seen for `active_track_seconds`
++     (people who left, or an old ID after an ID switch) are ignored, and two
++     boxes that overlap almost completely are one person tracked twice;
++  2. who stay close -- centre distance <= `proximity_heights` x their mean box
++     height (scale-independent, unlike a fixed pixel radius) -- for at least
++     `min_interaction_seconds` within the last `lookback_seconds`;
++  3. with agitated motion -- erratic movement that is NOT explained by walking
++     from A to B, of at least `min_agitation` body heights for the more active
++     person. Agitation = spread of the box centre around a smooth (quadratic)
++     path over the window + spread of box width and height, all divided by
++     body height. Walking, turning or stopping follows a smooth path and keeps
++     the box shape, standing still leaves only detector jitter (a few pixels);
++     punching, shoving and grappling make the box jump and change shape.
++
++People grappling are often merged into one box by the detector, so a pair
++that qualified within the last `merged_hold_seconds` stays valid even if one
++of the two tracks is momentarily lost.
++
++Everything here is pure Python over TemporalBuffer, so it is unit-tested
++without torch or a camera (test_false_positives.py).
++"""
++from __future__ import annotations
++
++import math
++from itertools import combinations
++from typing import List, Optional, Sequence, Tuple
++
++import numpy as np
++
++from temporal.temporal_buffer import TemporalBuffer, TrackHistory, TrackState
++
++SAMPLE_STEP_S = 0.2  # proximity is sampled at this step
++
++
++def box_iou(a: Sequence[float], b: Sequence[float]) -> float:
++    ix1, iy1 = max(a[0], b[0]), max(a[1], b[1])
++    ix2, iy2 = min(a[2], b[2]), min(a[3], b[3])
++    inter = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
++    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
++    return inter / union if union > 0 else 0.0
++
++
++def distinct_people(tracks: List[TrackHistory], duplicate_iou: float) -> List[TrackHistory]:
++    """Drop tracks whose current box nearly coincides with an older track's box
++    (ByteTrack occasionally keeps two IDs on one person)."""
++    kept: List[TrackHistory] = []
++    for track in sorted(tracks, key=lambda t: t.first_seen):
++        if all(box_iou(track.states[-1].bbox, other.states[-1].bbox) < duplicate_iou for other in kept):
++            kept.append(track)
++    return kept
++
++
++def _resample(states: Sequence[TrackState], start: float) -> List[TrackState]:
++    """States at least SAMPLE_STEP_S apart, from `start` on."""
++    out: List[TrackState] = []
++    for state in states:
++        if state.timestamp < start:
++            continue
++        if not out or state.timestamp - out[-1].timestamp >= SAMPLE_STEP_S:
++            out.append(state)
++    return out
++
++
++def agitation(states: Sequence[TrackState]) -> float:
++    """Erratic motion in body heights (see module doc). Uses standard
++    deviations, so per-frame detector jitter does not add up over time."""
++    if len(states) < 5:
++        return 0.0
++    t = np.array([s.timestamp for s in states], dtype=np.float64)
++    t -= t[0]
++    if t[-1] <= 0:
++        return 0.0
++    cx = np.array([s.center[0] for s in states])
++    cy = np.array([s.center[1] for s in states])
++    widths = np.array([s.width for s in states])
++    heights = np.array([s.height for s in states])
++    height = float(np.median(heights)) or 1.0
++
++    def residual(values: np.ndarray) -> np.ndarray:
++        return values - np.polyval(np.polyfit(t, values, 2), t)
++
++    centre_spread = math.hypot(float(np.std(residual(cx))), float(np.std(residual(cy))))
++    shape_spread = float(np.std(widths)) + float(np.std(heights))
++    return (centre_spread + shape_spread) / height
++
++
++def _nearest(states: Sequence[TrackState], when: float, tolerance: float) -> Optional[TrackState]:
++    best = min(states, key=lambda s: abs(s.timestamp - when), default=None)
++    if best is None or abs(best.timestamp - when) > tolerance:
++        return None
++    return best
++
++
++class InteractionValidator:
++    def __init__(self, cfg: Optional[dict] = None):
++        cfg = cfg or {}
++        self.enabled = bool(cfg.get("enabled", True))
++        self.active_track_seconds = float(cfg.get("active_track_seconds", 1.0))
++        self.duplicate_iou = float(cfg.get("duplicate_iou", 0.7))
++        self.proximity_heights = float(cfg.get("proximity_heights", 1.2))
++        self.min_interaction_seconds = float(cfg.get("min_interaction_seconds", 1.0))
++        self.lookback_seconds = float(cfg.get("lookback_seconds", 3.0))
++        self.min_agitation = float(cfg.get("min_agitation_heights", 0.1))
++        self.merged_hold_seconds = float(cfg.get("merged_hold_seconds", 2.0))
++        self._last_valid: Optional[Tuple[float, dict]] = None
++
++    def pair_evidence(self, a: TrackHistory, b: TrackHistory, now: float) -> dict:
++        start = now - self.lookback_seconds
++        sa = _resample(a.states, start)
++        sb = [s for s in b.states if s.timestamp >= start - SAMPLE_STEP_S]
++        close_samples, distances = 0, []
++        for state in sa:
++            other = _nearest(sb, state.timestamp, SAMPLE_STEP_S)
++            if other is None:
++                continue
++            mean_height = max((state.height + other.height) / 2.0, 1.0)
++            distance = math.dist(state.center, other.center) / mean_height
++            distances.append(distance)
++            if distance <= self.proximity_heights:
++                close_samples += 1
++        agitation_a = agitation([s for s in a.states if s.timestamp >= start])
++        agitation_b = agitation([s for s in b.states if s.timestamp >= start])
++        return {
++            "track_ids": [a.track_id, b.track_id],
++            "close_seconds": round(close_samples * SAMPLE_STEP_S, 2),
++            "min_distance_heights": round(float(min(distances)), 2) if distances else None,
++            "agitation": round(float(max(agitation_a, agitation_b)), 3),
++        }
++
++    def validate(self, buffer: TemporalBuffer, now: Optional[float] = None) -> Tuple[bool, dict]:
++        """(is_interaction, evidence). Evidence is logged and stored in the incident."""
++        if not self.enabled:
++            return True, {"reason": "interaction check disabled"}
++        if now is None:
++            now = buffer.latest_timestamp()
++        if now is None:
++            return False, {"reason": "no people tracked"}
++        people = distinct_people(
++            buffer.active_tracks_by_class("person", self.active_track_seconds, now), self.duplicate_iou)
++        best = None
++        for a, b in combinations(people, 2):
++            evidence = self.pair_evidence(a, b, now)
++            evidence["close_enough"] = evidence["close_seconds"] >= self.min_interaction_seconds
++            evidence["agitated"] = evidence["agitation"] >= self.min_agitation
++            if evidence["close_enough"] and evidence["agitated"]:
++                evidence["reason"] = "two people close together with agitated motion"
++                self._last_valid = (now, evidence)
++                return True, evidence
++            rank = (evidence["close_enough"], evidence["close_seconds"], evidence["agitation"])
++            if best is None or rank > best[0]:
++                best = (rank, evidence)
++        if self._last_valid is not None and now - self._last_valid[0] <= self.merged_hold_seconds:
++            evidence = dict(self._last_valid[1], reason="pair qualified moments ago (people may be merged into one box)")
++            return True, evidence
++        if len(people) < 2:
++            return False, {"reason": f"{len(people)} distinct person(s) in view; a fight needs two",
++                           "people_in_view": len(people)}
++        evidence = best[1]
++        if not evidence["close_enough"]:
++            evidence["reason"] = (f"people were close for {evidence['close_seconds']}s "
++                                  f"(< {self.min_interaction_seconds}s within {self.lookback_seconds}s)")
++        else:
++            evidence["reason"] = (f"motion is not agitated (agitation {evidence['agitation']} "
++                                  f"< {self.min_agitation} body heights): normal walking/standing")
++        return False, evidence
+diff --git a/perception-service/temporal/motion_gate.py b/perception-service/temporal/motion_gate.py
+index d329013..62e5f77 100644
+--- a/perception-service/temporal/motion_gate.py
++++ b/perception-service/temporal/motion_gate.py
+@@ -19,27 +19,46 @@ import math
+ from itertools import combinations
+ from typing import List, Tuple
+ 
++from temporal.interaction import distinct_people
+ from temporal.temporal_buffer import TemporalBuffer, TrackHistory
+ 
++SPEED_SPAN_S = 0.5  # speed measured over ~0.5 s so per-frame box jitter is not "motion"
++
+ 
+ def _distance(a: Tuple[float, float], b: Tuple[float, float]) -> float:
+     return math.hypot(a[0] - b[0], a[1] - b[1])
+ 
+ 
+ def _speed(history: TrackHistory) -> float:
+-    v = history.velocity()
+-    if v is None:
++    """Centre speed (px/s) over the last ~SPEED_SPAN_S seconds."""
++    if len(history.states) < 2:
++        return 0.0
++    last = history.states[-1]
++    first = last
++    for state in reversed(history.states):
++        first = state
++        if last.timestamp - state.timestamp >= SPEED_SPAN_S:
++            break
++    dt = last.timestamp - first.timestamp
++    if dt <= 0:
+         return 0.0
+-    return math.hypot(*v)
++    return _distance(first.center, last.center) / dt
+ 
+ 
+ class MotionOfInterestGate:
+-    def __init__(self, proximity_px: float = 120.0, velocity_threshold_px_s: float = 150.0):
++    def __init__(self, proximity_px: float = 120.0, velocity_threshold_px_s: float = 150.0,
++                 active_track_seconds: float = 1.0, duplicate_iou: float = 0.7):
+         self.proximity_px = proximity_px
+         self.velocity_threshold_px_s = velocity_threshold_px_s
++        self.active_track_seconds = active_track_seconds
++        self.duplicate_iou = duplicate_iou
+ 
+     def find_candidate_pairs(self, buffer: TemporalBuffer) -> List[Tuple[int, int]]:
+-        persons = buffer.tracks_by_class("person")
++        # Only people in view now, one track per person: a ghost track kept in
++        # the buffer after someone left (or after an ID switch) used to pair
++        # with the same person's new track and open the gate on one person.
++        persons = distinct_people(
++            buffer.active_tracks_by_class("person", self.active_track_seconds), self.duplicate_iou)
+         pairs = []
+         for a, b in combinations(persons, 2):
+             if len(a.states) == 0 or len(b.states) == 0:
+diff --git a/perception-service/temporal/rgb_action_recognition.py b/perception-service/temporal/rgb_action_recognition.py
+index 6beca1b..e6224e0 100644
+--- a/perception-service/temporal/rgb_action_recognition.py
++++ b/perception-service/temporal/rgb_action_recognition.py
+@@ -8,6 +8,7 @@ from collections import deque
+ import cv2
+ 
+ from rgb_fight_model.infer import RgbFightClassifier
++from temporal.interaction import InteractionValidator
+ from temporal.motion_gate import MotionOfInterestGate
+ from temporal.rule_engine import EventCandidate
+ from temporal.temporal_buffer import TemporalBuffer
+@@ -38,6 +39,11 @@ class RgbFightDetector:
+         self.persistence_window = int(rgb_cfg.get("persistence_window", 3))
+         self.required_confirmed = int(rgb_cfg.get("required_confirmed", 2))
+         self.confirmed_history = deque(maxlen=self.persistence_window)
++        self.score_history = deque(maxlen=self.persistence_window)
++        # Track-level evidence required before a fight incident is created
++        # (temporal/interaction.py): two distinct people, close, agitated.
++        self.interaction = InteractionValidator(cfg.get("interaction"))
++        self._last_rejection_log = -1e18
+         # Grad-CAM heatmaps saved with each confirmed fight (explain/gradcam.py)
+         self.explain = bool(rgb_cfg.get("explain", True))
+         self.explain_dir = rgb_cfg.get("explain_dir", "output/evidence/gradcam")
+@@ -45,6 +51,8 @@ class RgbFightDetector:
+         self.gate = MotionOfInterestGate(
+             proximity_px=cfg["gate"]["proximity_px"],
+             velocity_threshold_px_s=cfg["gate"]["velocity_threshold_px_s"],
++            active_track_seconds=self.interaction.active_track_seconds,
++            duplicate_iou=self.interaction.duplicate_iou,
+         )
+         # Checkpoints trained with real-time sampling (clip_fps) get clips
+         # rebuilt from timestamps, so a live clip spans the same duration the
+@@ -61,7 +69,8 @@ class RgbFightDetector:
+         self.last_evaluated_cycle = -10**9
+         self._stats = {"cycles": 0, "gate_open": 0, "scored": 0,
+                        "review_signals": 0, "high_score_windows": 0,
+-                       "confirmed_candidates": 0, "max_score": 0.0}
++                       "confirmed_candidates": 0, "max_score": 0.0,
++                       "rejected_no_interaction": 0}
+         print(
+             f"[{camera_id}] RGB fight model loaded: {rgb_cfg['checkpoint']} "
+             f"probable={self.probable_threshold:.2f} confirmed={self.confirmed_threshold:.2f}"
+@@ -94,6 +103,7 @@ class RgbFightDetector:
+         self._stats["max_score"] = max(self._stats["max_score"], score)
+         high_score = score >= self.confirmed_threshold
+         self.confirmed_history.append(high_score)
++        self.score_history.append(score)
+         if score < self.probable_threshold:
+             return []
+         if not high_score:
+@@ -111,16 +121,36 @@ class RgbFightDetector:
+                 f"awaiting persistence ({confirmed_hits}/{self.required_confirmed})"
+             )
+             return []
++        # The clip classifier alone is not enough: people walking, standing or
++        # talking near each other must not become a fight incident.
++        interacting, evidence = self.interaction.validate(buffer)
++        if not interacting:
++            self._stats["rejected_no_interaction"] += 1
++            if now - self._last_rejection_log >= 10.0:
++                self._last_rejection_log = now
++                print(f"[{self.camera_id}] fight rejected despite model score {score:.2f}: "
++                      f"{evidence.get('reason')} {evidence}")
++            return []
+         self._stats["confirmed_candidates"] += 1
++        # Confidence = mean model score of the high-scoring clips in the
++        # persistence window (not the single latest clip).
++        high_scores = [s for s, h in zip(self.score_history, self.confirmed_history) if h]
++        confidence = sum(high_scores) / len(high_scores)
++        track_ids = evidence.get("track_ids") or self.last_track_ids
++        print(f"[{self.camera_id}] fight candidate conf={confidence:.2f} tracks={track_ids} {evidence}")
+         heatmaps = self._explain(clip)
+         return [EventCandidate(
+             event_type="fight",
+-            track_ids=self.last_track_ids,
++            track_ids=list(track_ids),
+             camera_id=self.camera_id,
+             detail={"mode": "rgb_r3d18", "score": round(score, 3),
+                     "clip_frames": self.clip_frames,
++                    "interaction": evidence,
++                    "confidence_basis": "mean R3D-18 fight probability over high-scoring clips "
++                                        "in the persistence window; emitted only with track-level "
++                                        "interaction evidence",
+                     **({"gradcam_heatmaps": heatmaps} if heatmaps else {})},
+-            raw_confidence=score,
++            raw_confidence=confidence,
+         )]
+ 
+     def _explain(self, clip) -> list:
+diff --git a/perception-service/temporal/rule_engine.py b/perception-service/temporal/rule_engine.py
+index 083488b..c3b2783 100644
+--- a/perception-service/temporal/rule_engine.py
++++ b/perception-service/temporal/rule_engine.py
+@@ -13,9 +13,10 @@ from __future__ import annotations
+ import math
+ import time
+ from dataclasses import dataclass, field
+-from typing import Any, Dict, List, Optional
++from typing import Any, Dict, List, Optional, Tuple
+ 
+ from temporal.geometry import point_in_polygon
++from temporal.zones import loitering_zones, zone_is_active, zone_label
+ from temporal.temporal_buffer import TemporalBuffer, TrackHistory
+ 
+ 
+@@ -29,6 +30,16 @@ class EventCandidate:
+     raw_confidence: float = 0.6  # rule-based signals get a fixed/derived confidence, not a learned score
+ 
+ 
++@dataclass
++class _DwellState:
++    entered_at: float          # timestamp of the first sighting inside the zone
++    last_inside: float         # timestamp of the latest sighting inside
++    last_processed: float      # newest observation already counted
++    observations: int = 0      # sightings during this visit (inside or briefly outside)
++    inside: int = 0            # sightings inside the zone
++    confidence_sum: float = 0.0
++
++
+ class RuleEngine:
+     def __init__(self, camera_config: dict, thresholds: dict):
+         self.camera_id = camera_config["id"]
+@@ -37,6 +48,9 @@ class RuleEngine:
+         # Per-camera, scene-level state used by the crowd rule.  Keeping this
+         # here makes sustained_seconds a real duration instead of a frame count.
+         self._crowd_state: Dict[str, Any] = {}
++        # (track_id, zone_id) -> dwell bookkeeping for the loitering rule
++        self._dwell: Dict[Tuple[int, str], _DwellState] = {}
++        self._rejection_logged: Dict[str, float] = {}
+ 
+     def evaluate(self, buffer: TemporalBuffer) -> List[EventCandidate]:
+         candidates: List[EventCandidate] = []
+@@ -46,68 +60,151 @@ class RuleEngine:
+         candidates += self._check_fall(buffer)
+         return candidates
+ 
++    def _active_people(self, buffer: TemporalBuffer, key: str) -> List[TrackHistory]:
++        max_age = float(self.rules_cfg.get(key, {}).get("active_track_seconds", 1.0))
++        return buffer.active_tracks_by_class("person", max_age_s=max_age)
++
+     # ---- Intrusion -----------------------------------------------------
+     def _check_intrusion(self, buffer: TemporalBuffer) -> List[EventCandidate]:
+-        """Also maintains per-person zone entry times, which loitering reads --
+-        so it always runs, and `rules.intrusion.enabled: false` only stops it
+-        from raising intrusion candidates."""
+-        out = []
+-        restricted_zones = [z for z in self.zones if z["type"] == "restricted"]
+-        if not restricted_zones:
+-            return out
+-
++        """A person whose foot point has been inside an active restricted zone
++        for the last `min_frames_inside` observations. Only people in view now
++        count (not tracks kept in the buffer after they left)."""
+         intrusion_cfg = self.rules_cfg["intrusion"]
+-        report_intrusion = intrusion_cfg.get("enabled", True)
+-        min_frames = intrusion_cfg["min_frames_inside"]
+-
+-        for person in buffer.tracks_by_class("person"):
+-            for zone in restricted_zones:
+-                foot = person.states[-1].foot_point
+-                inside_now = point_in_polygon(foot, zone["polygon"])
+-                if not inside_now:
+-                    person.zone_entry_times.pop(zone["zone_id"], None)
+-                    continue
+-
+-                if zone["zone_id"] not in person.zone_entry_times:
+-                    person.zone_entry_times[zone["zone_id"]] = time.time()
+-                if not report_intrusion:
++        if not intrusion_cfg.get("enabled", True):
++            return []
++        min_frames = int(intrusion_cfg["min_frames_inside"])
++        out = []
++        for person in self._active_people(buffer, "intrusion"):
++            now = person.last_seen
++            for zone in self.zones:
++                if zone.get("type") != "restricted" or not zone_is_active(zone, now):
+                     continue
+-
+-                # count how many of the last few states were also inside -- filters
+-                # single-frame detection flicker right at the zone boundary
+                 recent = list(person.states)[-min_frames:]
+-                inside_count = sum(1 for s in recent if point_in_polygon(s.foot_point, zone["polygon"]))
+-                if inside_count >= min_frames:
+-                    out.append(EventCandidate(
+-                        event_type="intrusion",
+-                        track_ids=[person.track_id],
+-                        camera_id=self.camera_id,
+-                        zone_id=zone["zone_id"],
+-                        detail={"zone_type": zone["type"]},
+-                        raw_confidence=0.85,
+-                    ))
++                if len(recent) < min_frames or not all(
++                        point_in_polygon(s.foot_point, zone["polygon"]) for s in recent):
++                    continue
++                detector_conf = sum(s.confidence for s in recent) / len(recent)
++                out.append(EventCandidate(
++                    event_type="intrusion",
++                    track_ids=[person.track_id],
++                    camera_id=self.camera_id,
++                    zone_id=zone["zone_id"],
++                    detail={"zone_type": zone["type"], "zone_name": zone.get("name"),
++                            "frames_inside": len(recent),
++                            "confidence_basis": "mean person-detector confidence while inside the zone"},
++                    raw_confidence=round(detector_conf, 3),
++                ))
+         return out
+ 
+     # ---- Loitering -------------------------------------------------------
++    def _update_dwell(self, person: TrackHistory, zone: dict, exit_grace: float) -> Optional[_DwellState]:
++        """Advance the per-(track, zone) dwell state with the observations made
++        since the last call. Dwell is measured from observation timestamps, so
++        it only grows while the person is actually seen inside the zone."""
++        key = (person.track_id, zone["zone_id"])
++        state = self._dwell.get(key)
++        for obs in person.states:
++            if state is not None and obs.timestamp <= state.last_processed:
++                continue
++            inside = point_in_polygon(obs.foot_point, zone["polygon"])
++            if state is None:
++                if not inside:
++                    continue
++                state = _DwellState(entered_at=obs.timestamp, last_inside=obs.timestamp,
++                                    last_processed=obs.timestamp)
++            # A gap in observations (person hidden / track lost) or time spent
++            # outside the zone longer than the grace period ends the visit.
++            if obs.timestamp - state.last_inside > exit_grace:
++                if not inside:
++                    state = None
++                    continue
++                state = _DwellState(entered_at=obs.timestamp, last_inside=obs.timestamp,
++                                    last_processed=obs.timestamp)
++            state.last_processed = obs.timestamp
++            state.observations += 1
++            if inside:
++                state.inside += 1
++                state.last_inside = obs.timestamp
++                state.confidence_sum += obs.confidence
++        if state is None:
++            self._dwell.pop(key, None)
++        else:
++            self._dwell[key] = state
++        return state
++
+     def _check_loitering(self, buffer: TemporalBuffer) -> List[EventCandidate]:
++        """Lingering = one tracked person staying inside an active
++        restricted/loitering zone for at least the zone's dwell threshold.
++
++        Fixed false positives (see docs/FALSE_POSITIVE_FIXES.md):
++        - only people in view now count; buffered "ghost" tracks of people who
++          already left never accumulate dwell time;
++        - dwell is the time between observed sightings inside the zone, with
++          a short exit grace for detector flicker -- not wall-clock time since
++          a single first sighting;
++        - the person must have been inside for most of the visit
++          (`min_inside_fraction`), so boundary flicker does not count;
++        - per-zone `loitering_seconds` and `active_hours` are honoured;
++        - confidence is the measured person-detector confidence, not a
++          number that grows with the dwell time."""
++        cfg = self.rules_cfg["loitering"]
++        default_dwell = float(cfg["dwell_seconds"])
++        exit_grace = float(cfg.get("exit_grace_seconds", 2.0))
++        min_fraction = float(cfg.get("min_inside_fraction", 0.8))
++        zones = loitering_zones(self.zones)
++        people = self._active_people(buffer, "loitering")
++        live_keys = set()
+         out = []
+-        dwell_threshold = self.rules_cfg["loitering"]["dwell_seconds"]
+-        now = time.time()
+-
+-        for person in buffer.tracks_by_class("person"):
+-            for zone_id, entry_time in person.zone_entry_times.items():
+-                dwell = now - entry_time
+-                if dwell >= dwell_threshold:
+-                    out.append(EventCandidate(
+-                        event_type="loitering",
+-                        track_ids=[person.track_id],
+-                        camera_id=self.camera_id,
+-                        zone_id=zone_id,
+-                        detail={"dwell_seconds": round(dwell, 1)},
+-                        raw_confidence=min(0.5 + dwell / (dwell_threshold * 4), 0.95),
+-                    ))
++        for person in people:
++            now = person.last_seen
++            for zone in zones:
++                live_keys.add((person.track_id, zone["zone_id"]))
++                state = self._update_dwell(person, zone, exit_grace)
++                if state is None or not zone_is_active(zone, now):
++                    continue
++                # Still inside right now (allowing the short exit grace)?
++                if now - state.last_inside > exit_grace:
++                    continue
++                dwell = state.last_inside - state.entered_at
++                threshold = float(zone.get("loitering_seconds", default_dwell))
++                inside_fraction = state.inside / max(state.observations, 1)
++                if dwell < threshold:
++                    continue
++                if inside_fraction < min_fraction:
++                    self._log_rejection(
++                        f"loitering:{person.track_id}:{zone['zone_id']}",
++                        f"loitering rejected: track {person.track_id} in zone {zone_label(zone)} only "
++                        f"{inside_fraction:.0%} of {dwell:.0f}s (needs {min_fraction:.0%})")
++                    continue
++                detector_conf = state.confidence_sum / max(state.inside, 1)
++                out.append(EventCandidate(
++                    event_type="loitering",
++                    track_ids=[person.track_id],
++                    camera_id=self.camera_id,
++                    zone_id=zone["zone_id"],
++                    detail={
++                        "dwell_seconds": round(dwell, 1),
++                        "dwell_threshold_seconds": threshold,
++                        "zone_type": zone.get("type"),
++                        "zone_name": zone.get("name"),
++                        "inside_fraction": round(inside_fraction, 2),
++                        "observations": state.observations,
++                        "confidence_basis": "mean person-detector confidence while inside the zone "
++                                            "x share of the visit spent inside",
++                    },
++                    raw_confidence=round(detector_conf * inside_fraction, 3),
++                ))
++        # Forget dwell state of people no longer in view.
++        for key in [k for k in self._dwell if k not in live_keys]:
++            del self._dwell[key]
+         return out
+ 
++    def _log_rejection(self, key: str, message: str, every_s: float = 10.0) -> None:
++        now = time.time()
++        if now - self._rejection_logged.get(key, 0.0) >= every_s:
++            self._rejection_logged[key] = now
++            print(f"[{self.camera_id}] {message}")
++
+     # ---- Crowd gathering ---------------------------------------------
+     @staticmethod
+     def _largest_person_cluster(persons: List[TrackHistory], cfg: dict) -> List[TrackHistory]:
+@@ -229,9 +326,11 @@ class RuleEngine:
+             best_region = state.get("region_id", "full-frame")
+ 
+         reported_count = int(state.get("last_count", count))
+-        overflow = max(0, reported_count - threshold)
+-        duration_bonus = min(max(0.0, sustained - sustained_needed) * 0.015, 0.12)
+-        confidence = min(0.62 + overflow * 0.07 + duration_bonus, 0.95)
++        # Measured evidence, not a formula: mean person-detector confidence of
++        # the people forming the group (kept from the last positive cycle).
++        if count >= threshold:
++            state["detector_confidence"] = sum(p.states[-1].confidence for p in best_group) / len(best_group)
++        confidence = round(float(state.get("detector_confidence", 0.0)), 3)
+         return [EventCandidate(
+             event_type="crowd",
+             track_ids=ids,
+@@ -245,6 +344,7 @@ class RuleEngine:
+                 "region_id": best_region,
+                 "clustered": True,
+                 "within_exit_grace": count < threshold,
++                "confidence_basis": "mean person-detector confidence of the group",
+             },
+             raw_confidence=confidence,
+         )]
+@@ -309,7 +409,9 @@ class RuleEngine:
+                         "aspect_ratio_before": round(pre_onset[-1].aspect_ratio, 2) if pre_onset else None,
+                         "aspect_ratio_after": round(last.aspect_ratio, 2),
+                         "still_seconds": round(duration_fallen, 1),
++                        "confidence_basis": "mean person-detector confidence while down "
++                                            "(box-shape rule has no probability of its own)",
+                     },
+-                    raw_confidence=0.7,
++                    raw_confidence=round(sum(st.confidence for st in fallen_run) / len(fallen_run), 3),
+                 ))
+         return out
+diff --git a/perception-service/temporal/scene_anomaly.py b/perception-service/temporal/scene_anomaly.py
+index 288f42a..8891285 100644
+--- a/perception-service/temporal/scene_anomaly.py
++++ b/perception-service/temporal/scene_anomaly.py
+@@ -10,9 +10,29 @@ candidate is emitted.
+ The candidate carries an explanation: the feature groups (e.g. "downward
+ motion", "motion burst followed by stillness") that contributed most to the
+ reconstruction error, so an operator can see *why* the scene looked unusual.
++
++Per-camera calibration
++----------------------
++The autoencoder's threshold was learned on its training footage. On a new
++camera (different viewpoint, lighting, amount of normal movement) ordinary
++activity can sit above that threshold permanently, so every few minutes an
++"Unusual activity" incident appears although nothing is happening. With
++`calibration.enabled`, the detector first observes the camera for
++`calibration.seconds` WITHOUT alerting, records the error ratio of every
++window, and sets the camera's threshold to the `percentile` of what it saw
++(never lower than the model's own threshold). The result is saved per camera
++and per checkpoint and reused on restart; delete the file or set
++`calibration.recalibrate: true` to redo it (e.g. after moving the camera).
++Calibrate while the scene shows normal activity only.
++
++Confidence is an anomaly *score*, not a probability: ratio/(ratio+1) of the
++error relative to this camera's calibrated threshold, so 0.5 means "at the
++edge of what is normal here", 0.67 means twice that, 0.75 three times.
+ """
+ from __future__ import annotations
+ 
++import json
++import os
+ import time
+ from collections import deque
+ from typing import Deque, List, Optional
+@@ -53,10 +73,76 @@ class SceneAnomalyDetector:
+         self.ratios: Deque[float] = deque(maxlen=self.window)
+         self.cycles = 0
+         self._stats = {"cycles": 0, "evaluations": 0, "positive_windows": 0,
+-                       "candidates": 0, "max_ratio": 0.0}
++                       "candidates": 0, "max_ratio": 0.0, "calibration_windows": 0}
++        cal = cfg.get("calibration") or {}
++        self.calibration_enabled = bool(cal.get("enabled", False))
++        self.calibration_seconds = float(cal.get("seconds", 300))
++        self.calibration_percentile = float(cal.get("percentile", 99))
++        self.calibration_min_windows = int(cal.get("min_windows", 50))
++        self.calibration_path = os.path.join(
++            cal.get("dir", "output/calibration"), f"scene_anomaly_{camera_id}.json")
++        self.camera_scale = 1.0          # camera threshold / model threshold
++        self.calibrated = not self.calibration_enabled
++        self._calibration_ratios: List[float] = []
++        self._calibration_started: Optional[float] = None
++        if self.calibration_enabled and not cal.get("recalibrate", False):
++            self._load_calibration()
+         print(f"[{camera_id}] scene-anomaly model loaded: {cfg['checkpoint']} "
+               f"threshold={self.model.threshold:.3f}x{self.threshold_scale:g} "
+               f"persistence={self.required}/{self.window}")
++        if self.calibration_enabled:
++            print(f"[{camera_id}] scene-anomaly camera calibration: " + (
++                f"loaded from {self.calibration_path} (camera threshold = {self.camera_scale:.2f}x model)"
++                if self.calibrated else
++                f"observing {self.calibration_seconds:.0f}s of normal activity before alerting"))
++
++    # ------------------------------------------------------------ calibration
++    def _checkpoint_key(self) -> dict:
++        return {"checkpoint": os.path.basename(str(self.cfg["checkpoint"])),
++                "model_threshold": round(float(self.model.threshold), 6)}
++
++    def _load_calibration(self) -> None:
++        try:
++            with open(self.calibration_path, encoding="utf-8") as handle:
++                data = json.load(handle)
++        except (OSError, ValueError):
++            return
++        if {k: data.get(k) for k in ("checkpoint", "model_threshold")} != self._checkpoint_key():
++            print(f"[{self.camera_id}] scene-anomaly calibration in {self.calibration_path} is for "
++                  f"another checkpoint; recalibrating")
++            return
++        self.camera_scale = max(1.0, float(data["camera_scale"]))
++        self.calibrated = True
++
++    def _finish_calibration(self) -> None:
++        ratios = np.asarray(self._calibration_ratios, dtype=np.float64)
++        observed = float(np.percentile(ratios, self.calibration_percentile))
++        # Never more sensitive than the trained model; only raise the bar when
++        # this camera's NORMAL activity already exceeds the training threshold.
++        self.camera_scale = max(1.0, observed)
++        self.calibrated = True
++        data = {**self._checkpoint_key(), "camera_id": self.camera_id,
++                "camera_scale": round(self.camera_scale, 4),
++                "percentile": self.calibration_percentile,
++                "observed_percentile_ratio": round(observed, 4),
++                "windows": int(ratios.size),
++                "median_ratio": round(float(np.median(ratios)), 4),
++                "created_at": time.strftime("%Y-%m-%dT%H:%M:%S")}
++        try:
++            os.makedirs(os.path.dirname(self.calibration_path) or ".", exist_ok=True)
++            with open(self.calibration_path, "w", encoding="utf-8") as handle:
++                json.dump(data, handle, indent=2)
++        except OSError as exc:
++            print(f"[{self.camera_id}] could not save anomaly calibration: {exc}")
++        print(f"[{self.camera_id}] scene-anomaly calibrated on {ratios.size} windows: "
++              f"p{self.calibration_percentile:g} ratio {observed:.2f} -> camera threshold "
++              f"{self.camera_scale:.2f}x model threshold; alerts enabled")
++
++    @staticmethod
++    def score_to_confidence(ratio: float) -> float:
++        """Anomaly score in 0..1 (not a probability): 1x camera threshold -> 0.5."""
++        ratio = max(float(ratio), 0.0)
++        return ratio / (ratio + 1.0)
+ 
+     def _explain(self, vector: np.ndarray, top_k: int = 3) -> List[dict]:
+         per_feature = self.model.feature_errors(vector)[0]
+@@ -65,7 +151,7 @@ class SceneAnomalyDetector:
+         ranked = sorted(shares.items(), key=lambda kv: kv[1], reverse=True)[:top_k]
+         return [{"factor": g, "share": round(s, 2)} for g, s in ranked]
+ 
+-    def evaluate(self, frame: np.ndarray) -> List[EventCandidate]:
++    def evaluate(self, frame: np.ndarray, now: Optional[float] = None) -> List[EventCandidate]:
+         self.cycles += 1
+         self._stats["cycles"] += 1
+         evaluated = False
+@@ -81,14 +167,25 @@ class SceneAnomalyDetector:
+             # (which would split one episode into several incidents).
+             return [self._active] if self._active is not None else []
+ 
+-        ratio = float(self.model.anomaly_ratio(vector)[0]) / self.threshold_scale
++        now = time.time() if now is None else now
++        model_ratio = float(self.model.anomaly_ratio(vector)[0])
++        if not self.calibrated:
++            # Learn what NORMAL looks like on this camera; never alert meanwhile.
++            if self._calibration_started is None:
++                self._calibration_started = now
++            self._calibration_ratios.append(model_ratio)
++            self._stats["calibration_windows"] += 1
++            if (now - self._calibration_started >= self.calibration_seconds
++                    and len(self._calibration_ratios) >= self.calibration_min_windows):
++                self._finish_calibration()
++            return []
++        ratio = model_ratio / self.threshold_scale / self.camera_scale
+         self.ratios.append(ratio)
+         self._stats["evaluations"] += 1
+         self._stats["max_ratio"] = max(self._stats["max_ratio"], ratio)
+         if ratio > 1.0:
+             self._stats["positive_windows"] += 1
+ 
+-        now = time.time()
+         hits = sum(1 for r in self.ratios if r > 1.0)
+         if hits < self.required:
+             if self._active is not None:
+@@ -116,11 +213,16 @@ class SceneAnomalyDetector:
+                 "top_factors": factors,
+                 "factors": ", ".join(f["factor"] for f in factors),
+                 "model": "scene_anomaly_autoencoder",
++                "camera_calibrated": self.calibration_enabled,
++                "camera_threshold_scale": round(self.camera_scale, 3),
++                "confidence_basis": "anomaly score ratio/(ratio+1) of reconstruction error vs this "
++                                    "camera's calibrated threshold (0.5 = edge of normal); not a probability",
+             },
+-            raw_confidence=NumpyAutoencoder.ratio_to_confidence(sustained),
++            raw_confidence=self.score_to_confidence(sustained),
+         )
+         return [self._active]
+ 
+     def diagnostics(self) -> dict:
+         return dict(self._stats, threshold=round(self.model.threshold, 4),
++                    calibrated=self.calibrated, camera_scale=round(self.camera_scale, 3),
+                     recent_ratios=[round(r, 2) for r in self.ratios])
+diff --git a/perception-service/temporal/temporal_buffer.py b/perception-service/temporal/temporal_buffer.py
+index 0974aff..f0e71d4 100644
+--- a/perception-service/temporal/temporal_buffer.py
++++ b/perception-service/temporal/temporal_buffer.py
+@@ -108,4 +108,28 @@ class TemporalBuffer:
+         return self.tracks.values()
+ 
+     def tracks_by_class(self, class_name: str):
++        """Every buffered track of a class, INCLUDING ones not seen for up to
++        `stale_after_seconds`. Use active_tracks_by_class() for decisions about
++        what is in view right now."""
+         return [h for h in self.tracks.values() if h.class_name == class_name]
++
++    def latest_timestamp(self) -> Optional[float]:
++        """Timestamp of the newest observation in the buffer (the pipeline's
++        current frame time); None when the buffer is empty."""
++        return max((h.last_seen for h in self.tracks.values()), default=None)
++
++    def active_tracks_by_class(self, class_name: str, max_age_s: float = 1.0,
++                               now: Optional[float] = None):
++        """Tracks of a class observed within the last `max_age_s` seconds.
++
++        A track stays buffered for `stale_after_seconds` (15 s) after the
++        person leaves view or ByteTrack switches their ID. Rules that count
++        people, time a dwell or pair people up must ignore those "ghost"
++        tracks, otherwise someone who already left keeps accumulating dwell
++        time and one person's old and new IDs look like two people."""
++        if now is None:
++            now = self.latest_timestamp()
++            if now is None:
++                return []
++        return [h for h in self.tracks.values()
++                if h.class_name == class_name and h.states and now - h.last_seen <= max_age_s]
+diff --git a/perception-service/temporal/zones.py b/perception-service/temporal/zones.py
+new file mode 100644
+index 0000000..cb876ca
+--- /dev/null
++++ b/perception-service/temporal/zones.py
+@@ -0,0 +1,93 @@
++"""Zone helpers shared by the intrusion and loitering rules.
++
++A zone in config/cameras.yaml can carry:
++  type: restricted | loitering | ppe_required | crowd
++  active_hours: "HH:MM-HH:MM"      (overnight ranges such as "22:00-06:00" work)
++  loitering: true/false            (override whether loitering is checked here)
++  loitering_seconds: <float>       (per-zone dwell threshold, else rules.loitering.dwell_seconds)
++  name: <text>                     (shown in incident descriptions)
++"""
++from __future__ import annotations
++
++from datetime import datetime
++from typing import Iterable, List, Optional, Sequence, Tuple
++
++LOITERING_ZONE_TYPES = {"restricted", "loitering"}
++
++
++def _minutes(text: str) -> int:
++    hours, minutes = text.strip().split(":")
++    return int(hours) * 60 + int(minutes)
++
++
++def zone_is_active(zone: dict, when: Optional[float] = None) -> bool:
++    """True when `when` (epoch seconds, local time) falls inside the zone's
++    active_hours. Zones without active_hours are always active; an
++    unparseable value is treated as always active (and reported at start-up)."""
++    window = zone.get("active_hours")
++    if not window:
++        return True
++    try:
++        start_text, end_text = str(window).split("-")
++        start, end = _minutes(start_text), _minutes(end_text)
++    except ValueError:
++        return True
++    moment = datetime.fromtimestamp(when) if when is not None else datetime.now()
++    now = moment.hour * 60 + moment.minute
++    if start <= end:
++        return start <= now <= end
++    return now >= start or now <= end  # overnight range
++
++
++def loitering_zones(zones: Iterable[dict]) -> List[dict]:
++    """Zones where staying too long is an incident: restricted/loitering zones,
++    plus any zone that opts in with `loitering: true`; `loitering: false` opts out."""
++    out = []
++    for zone in zones:
++        flag = zone.get("loitering")
++        if flag is False:
++            continue
++        if flag is True or zone.get("type") in LOITERING_ZONE_TYPES:
++            out.append(zone)
++    return out
++
++
++def zone_label(zone: dict) -> str:
++    return str(zone.get("name") or zone.get("zone_id") or "zone")
++
++
++def polygon_area(polygon: Sequence[Tuple[float, float]]) -> float:
++    area = 0.0
++    for i, (x1, y1) in enumerate(polygon):
++        x2, y2 = polygon[(i + 1) % len(polygon)]
++        area += x1 * y2 - x2 * y1
++    return abs(area) / 2.0
++
++
++def zone_warnings(zones: Iterable[dict], frame_w: int, frame_h: int,
++                  large_fraction: float = 0.25) -> List[str]:
++    """Start-up sanity checks. A restricted zone covering a large share of the
++    view is usually a placeholder polygon (the example config marks the whole
++    left third of the frame), and anyone who sits there produces alerts."""
++    warnings = []
++    frame_area = float(max(frame_w * frame_h, 1))
++    for zone in zones:
++        label = zone_label(zone)
++        polygon = zone.get("polygon") or []
++        if len(polygon) < 3:
++            warnings.append(f"zone {label}: polygon has fewer than 3 points; it can never match")
++            continue
++        share = polygon_area(polygon) / frame_area
++        if zone in loitering_zones([zone]) and share >= large_fraction:
++            warnings.append(
++                f"zone {label} ({zone.get('type')}) covers {share:.0%} of the camera view -- check that "
++                f"the polygon outlines only the real restricted area, otherwise people working "
++                f"normally inside it will raise lingering alerts")
++        window = zone.get("active_hours")
++        if window:
++            try:
++                start_text, end_text = str(window).split("-")
++                _minutes(start_text), _minutes(end_text)
++            except ValueError:
++                warnings.append(f"zone {label}: active_hours '{window}' is not HH:MM-HH:MM; treated as always active")
++    return warnings
+diff --git a/perception-service/test_false_positives.py b/perception-service/test_false_positives.py
+new file mode 100644
+index 0000000..e45746b
+--- /dev/null
++++ b/perception-service/test_false_positives.py
+@@ -0,0 +1,515 @@
++"""Normal CCTV activity must NOT become an incident; genuine events still must.
++
++Every check runs without a camera, GPU, torch or ultralytics: tracks are
++written into TemporalBuffer with explicit timestamps, the fire/smoke YOLO is
++replaced by a scripted fake, and frames are synthetic.
++
++Run:  python test_false_positives.py      (or: pytest test_false_positives.py)
++"""
++from __future__ import annotations
++
++import copy
++import json
++import os
++import sys
++import tempfile
++import types
++
++import cv2
++import numpy as np
++import yaml
++
++if "ultralytics" not in sys.modules:  # only the type is imported; tests inject a fake model
++    sys.modules["ultralytics"] = types.SimpleNamespace(YOLO=None)
++
++from temporal.fire_dynamics import RegionDynamics
++from temporal.fire_smoke_recognition import FireSmokeDetector
++from temporal.interaction import InteractionValidator, agitation
++from temporal.motion_gate import MotionOfInterestGate
++from temporal.rule_engine import RuleEngine
++from temporal.temporal_buffer import TemporalBuffer
++from temporal.zones import zone_is_active, zone_warnings
++
++with open("config/thresholds.yaml", encoding="utf-8") as _f:
++    THRESHOLDS = yaml.safe_load(_f)
++
++FPS = 10.0
++DT = 1.0 / FPS
++T0 = 1_000_000.0
++ZONE = {"zone_id": "z1", "type": "restricted", "name": "Panel room",
++        "polygon": [[0, 0], [200, 0], [200, 480], [0, 480]]}
++
++
++def _engine(intrusion=False, zones=None):
++    cfg = copy.deepcopy(THRESHOLDS)
++    cfg["rules"]["intrusion"]["enabled"] = intrusion
++    return RuleEngine({"id": "CAM-T", "zones": zones or [ZONE]}, cfg)
++
++
++def _person_box(x, y_top=100, w=40, h=200):
++    return (x, y_top, x + w, y_top + h)
++
++
++def _run(engine, steps):
++    """steps: list of (t, [(track_id, bbox, conf), ...]); returns all candidates."""
++    buffer = TemporalBuffer()
++    out = []
++    for t, people in steps:
++        for track_id, bbox, conf in people:
++            buffer.update(track_id, "person", bbox, conf, timestamp=t)
++        buffer.evict_stale(now=t)
++        out += engine.evaluate(buffer)
++    return out
++
++
++def _of(cands, event):
++    return [c for c in cands if c.event_type == event]
++
++
++# --------------------------------------------------------------- lingering
++def test_ghost_track_does_not_accumulate_dwell():
++    """Person stands in the zone 4 s and leaves; another person stays in view
++    elsewhere. The old rule kept timing the departed (buffered) track."""
++    steps = []
++    for i in range(int(25 * FPS)):
++        t = T0 + i * DT
++        people = [(2, _person_box(400), 0.9)]           # someone outside the zone
++        if i < 4 * FPS:
++            people.append((1, _person_box(80), 0.9))   # visitor inside, then leaves
++        steps.append((t, people))
++    assert not _of(_run(_engine(), steps), "loitering")
++
++
++def test_standing_outside_zone_and_walking_through_are_normal():
++    steps = []
++    for i in range(int(30 * FPS)):
++        t = T0 + i * DT
++        x = 20 + i * 6  # walks left -> right across the zone at ~1.5 body-heights/s ... leaves after ~3 s
++        steps.append((t, [(1, _person_box(400), 0.88), (2, _person_box(min(x, 600)), 0.9)]))
++    assert not _of(_run(_engine(), steps), "loitering")
++
++
++def test_boundary_flicker_is_not_lingering():
++    """Foot point jitters across the zone edge: inside only half the time."""
++    steps = []
++    for i in range(int(20 * FPS)):
++        x = 150 if i % 2 == 0 else 190  # centre 170 (inside) / 210 (outside)
++        steps.append((T0 + i * DT, [(1, _person_box(x), 0.9)]))
++    assert not _of(_run(_engine(), steps), "loitering")
++
++
++def test_genuine_lingering_detected_with_measured_confidence():
++    steps = [(T0 + i * DT, [(1, _person_box(80), 0.82)]) for i in range(int(12 * FPS))]
++    found = _of(_run(_engine(), steps), "loitering")
++    assert found, "a person staying 12 s in a restricted zone must be reported"
++    c = found[-1]
++    assert c.zone_id == "z1" and c.detail["dwell_seconds"] >= 10
++    # confidence is the measured detector confidence, not 0.5 + dwell/40 (= 0.80 at 12 s)
++    assert abs(c.raw_confidence - 0.82) < 1e-6, c.raw_confidence
++    assert "confidence_basis" in c.detail
++
++
++def test_per_zone_dwell_and_active_hours():
++    zone = dict(ZONE, loitering_seconds=30)
++    steps = [(T0 + i * DT, [(1, _person_box(80), 0.9)]) for i in range(int(15 * FPS))]
++    assert not _of(_run(_engine(zones=[zone]), steps), "loitering")
++    assert zone_is_active({"active_hours": "22:00-06:00"}, when=_local(23, 30))
++    assert not zone_is_active({"active_hours": "22:00-06:00"}, when=_local(12, 0))
++    assert zone_is_active({}, when=_local(12, 0))
++
++
++def _local(hour, minute):
++    import datetime as dt
++    return dt.datetime(2026, 10, 15, hour, minute).timestamp()
++
++
++def test_placeholder_zone_warning():
++    warnings = zone_warnings([ZONE], 640, 480)
++    assert warnings and "covers 31%" in warnings[0]
++
++
++def test_intrusion_ignores_person_who_left():
++    steps = []
++    for i in range(int(6 * FPS)):
++        people = [(9, _person_box(400), 0.9)]
++        if i < 2:  # one brief sighting in the zone, then gone
++            people.append((1, _person_box(80), 0.9))
++        steps.append((T0 + i * DT, people))
++    cands = _of(_run(_engine(intrusion=True), steps), "intrusion")
++    # min_frames_inside not met by 2 frames; and later the ghost is ignored
++    assert not cands
++    genuine = [(T0 + i * DT, [(1, _person_box(80), 0.9)]) for i in range(10)]
++    assert _of(_run(_engine(intrusion=True), genuine), "intrusion")
++
++
++# ------------------------------------------------------------------- fight
++def _pair_buffer(positions, seconds=3.0, jitter=0.0, size_jitter=0.0, seed=0, gait=0.0):
++    """positions(t) -> list of (track_id, x) ; boxes 40x200 with optional noise.
++    `gait` adds the box-width swing of walking legs (px, 2 Hz)."""
++    rng = np.random.default_rng(seed)
++    buffer = TemporalBuffer()
++    for i in range(int(seconds * FPS)):
++        t = T0 + i * DT
++        swing = gait * np.sin(2 * np.pi * 2.0 * i * DT)
++        for track_id, x in positions(i * DT):
++            dx, dy = rng.normal(0, jitter, 2) if jitter else (0, 0)
++            dw, dh = rng.normal(0, size_jitter, 2) if size_jitter else (0, 0)
++            buffer.update(track_id, "person", (x + dx, 100 + dy, x + 40 + dx + dw + swing, 300 + dy + dh),
++                          0.9, timestamp=t)
++    return buffer
++
++
++def test_people_standing_or_talking_close_is_not_a_fight():
++    buffer = _pair_buffer(lambda t: [(1, 300), (2, 380)], jitter=2.0, size_jitter=2.0)
++    ok, evidence = InteractionValidator(THRESHOLDS["fight_detection"]["interaction"]).validate(buffer)
++    assert not ok and "not agitated" in evidence["reason"], evidence
++
++
++def test_walking_past_each_other_is_not_a_fight():
++    # two people walking in opposite directions at ~0.8 body-heights/s, passing closely
++    buffer = _pair_buffer(lambda t: [(1, 200 + 160 * t), (2, 680 - 160 * t)], seconds=3.0,
++                          jitter=2.0, size_jitter=2.0, gait=8.0)
++    ok, evidence = InteractionValidator(THRESHOLDS["fight_detection"]["interaction"]).validate(buffer)
++    assert not ok, evidence
++
++
++def test_one_person_with_two_ids_is_not_a_pair():
++    """ByteTrack keeps two IDs on one moving person: near-identical boxes."""
++    buffer = TemporalBuffer()
++    rng = np.random.default_rng(7)
++    for i in range(30):
++        x = 300 + rng.normal(0, 10)
++        w = 40 + rng.normal(0, 15)
++        for track_id, offset in ((1, 0.0), (2, 2.0)):
++            buffer.update(track_id, "person", (x + offset, 100, x + w + offset, 300), 0.9, timestamp=T0 + i * DT)
++    ok, evidence = InteractionValidator().validate(buffer)
++    assert not ok and evidence.get("people_in_view") == 1, evidence
++    assert MotionOfInterestGate(300, 30).find_candidate_pairs(buffer) == []
++
++
++def test_ghost_track_does_not_open_fight_gate():
++    """ID switch: old ID 1 stays buffered (not seen for 3 s) next to new ID 2."""
++    buffer = TemporalBuffer()
++    for i in range(10):
++        buffer.update(1, "person", _person_box(300 + 8 * i), 0.9, timestamp=T0 + i * DT)
++    for i in range(30, 45):
++        buffer.update(2, "person", _person_box(340 + 8 * (i - 30)), 0.9, timestamp=T0 + i * DT)
++    assert MotionOfInterestGate(300, 30).find_candidate_pairs(buffer) == []
++    ok, _ = InteractionValidator().validate(buffer)
++    assert not ok
++
++
++def test_agitated_close_pair_is_accepted():
++    """Grappling/punching: close together, boxes jerk and change shape."""
++    buffer = _pair_buffer(lambda t: [(1, 300), (2, 350)], jitter=12.0, size_jitter=25.0, seed=3)
++    ok, evidence = InteractionValidator(THRESHOLDS["fight_detection"]["interaction"]).validate(buffer)
++    assert ok, evidence
++    assert sorted(evidence["track_ids"]) == [1, 2]
++
++
++def test_agitated_people_far_apart_are_not_a_fight():
++    buffer = _pair_buffer(lambda t: [(1, 50), (2, 560)], jitter=12.0, size_jitter=25.0, seed=4)
++    ok, evidence = InteractionValidator().validate(buffer)
++    assert not ok and "close" in evidence["reason"], evidence
++
++
++def test_agitation_scale():
++    limit = THRESHOLDS["fight_detection"]["interaction"]["min_agitation_heights"]
++    standing = _pair_buffer(lambda t: [(1, 300)], jitter=3.0, size_jitter=3.0).get(1).states
++    walking = _pair_buffer(lambda t: [(1, 100 + 160 * t)], jitter=2.0, size_jitter=2.0, gait=8.0).get(1).states
++    # walk, then stop (and turn): a smooth path
++    stop = _pair_buffer(lambda t: [(1, 100 + 160 * min(t, 1.5))], jitter=2.0, gait=4.0).get(1).states
++    fighting = _pair_buffer(lambda t: [(1, 300)], jitter=12.0, size_jitter=25.0).get(1).states
++    values = [agitation(list(s)) for s in (standing, walking, stop, fighting)]
++    assert max(values[:3]) < limit < values[3], values
++
++
++def _rgb_detector(score):
++    """RgbFightDetector with a fake clip classifier that always returns `score`."""
++    fake = types.ModuleType("rgb_fight_model.infer")
++
++    class FakeClassifier:
++        clip_frames, clip_fps = 4, None
++
++        def __init__(self, _checkpoint):
++            pass
++
++        def score_clip(self, clip, input_bgr=True):
++            return score
++
++    fake.RgbFightClassifier = FakeClassifier
++    sys.modules["rgb_fight_model.infer"] = fake
++    sys.modules.pop("temporal.rgb_action_recognition", None)
++    from temporal.rgb_action_recognition import RgbFightDetector
++    cfg = copy.deepcopy(THRESHOLDS["fight_detection"])
++    cfg["gate"]["velocity_threshold_px_s"] = 0       # open the gate; test the final decision
++    cfg["rgb"].update({"evaluation_stride_frames": 1, "explain": False})
++    return RgbFightDetector("CAM-T", cfg)
++
++
++def _feed_rgb(detector, buffer_fn, steps=30):
++    frame = np.zeros((240, 320, 3), np.uint8)
++    out = []
++    for n in range(10, steps + 1):
++        out += detector.evaluate(buffer_fn(n), frame)
++    return out
++
++
++def test_high_model_score_without_interaction_is_rejected():
++    """R3D-18 scores ordinary activity high (domain shift): no incident when
++    the tracks show two people just standing/talking."""
++    detector = _rgb_detector(0.97)
++    calm = lambda n: _pair_buffer(lambda t: [(1, 300), (2, 380)], seconds=n * DT, jitter=2.0, size_jitter=2.0)
++    assert not _feed_rgb(detector, calm)
++    assert detector.diagnostics()["rejected_no_interaction"] > 0
++
++
++def test_high_model_score_with_interaction_is_reported():
++    detector = _rgb_detector(0.9)
++    fight = lambda n: _pair_buffer(lambda t: [(1, 300), (2, 350)], seconds=n * DT, jitter=12.0,
++                                   size_jitter=25.0, seed=3)
++    out = _feed_rgb(detector, fight)
++    assert out and out[0].event_type == "fight"
++    assert abs(out[0].raw_confidence - 0.9) < 1e-9 and out[0].detail["interaction"]["agitated"]
++
++
++# --------------------------------------------------------------- fire/smoke
++class _Boxes:
++    def __init__(self, dets):
++        self.cls = _L([d[0] for d in dets])
++        self.conf = _L([d[1] for d in dets])
++        self.xyxy = _L([list(d[2]) for d in dets])
++
++
++class _L(list):
++    def tolist(self):
++        return list(self)
++
++
++class _FakeYolo:
++    """Returns scripted detections: script(i) -> [(cls_id, conf, box)]."""
++    names = {0: "fire", 1: "smoke"}
++
++    def __init__(self, script):
++        self.script, self.calls = script, 0
++
++    def predict(self, **_):
++        dets = self.script(self.calls)
++        self.calls += 1
++        return [types.SimpleNamespace(boxes=_Boxes(dets) if dets else None)]
++
++
++def _fire_cfg():
++    cfg = copy.deepcopy(THRESHOLDS["fire_smoke_detection"])
++    cfg["verifier"] = {"enabled": False}
++    cfg["evaluation_stride_frames"] = 1
++    return cfg
++
++
++def _run_fire(frames, script, fps=FPS):
++    det = FireSmokeDetector("CAM-T", _fire_cfg(), model=_FakeYolo(script))
++    out = []
++    for i, frame in enumerate(frames):
++        out += det.evaluate(frame, now=T0 + i / fps)
++    return det, out
++
++
++BOX = (120, 60, 200, 160)
++
++
++def _room(rng, brightness=90):
++    frame = np.full((240, 320, 3), brightness, np.uint8)
++    cv2.rectangle(frame, (20, 170), (300, 230), (60, 80, 60), -1)
++    frame = cv2.add(frame, rng.integers(0, 4, frame.shape, dtype=np.uint8))
++    return frame
++
++
++def _poster(frame):
++    cv2.rectangle(frame, BOX[:2], BOX[2:], (0, 120, 255), -1)  # static orange object
++    return frame
++
++
++def test_static_orange_object_is_not_fire():
++    rng = np.random.default_rng(0)
++    frames = [_poster(_room(rng)) for _ in range(150)]
++    det, out = _run_fire(frames, lambda i: [(0, 0.78, BOX)])
++    assert not out, out
++    assert det.diagnostics()["alarms_rejected_static_region"] > 0
++
++
++def test_auto_exposure_change_is_not_fire():
++    """Camera auto-exposure / lights dimming: every pixel scales together."""
++    rng = np.random.default_rng(1)
++    base = [_poster(_room(rng)) for _ in range(120)]
++    frames = [np.clip(f.astype(np.float32) * (0.7 + 0.005 * i), 0, 255).astype(np.uint8)
++              for i, f in enumerate(base)]
++    _, out = _run_fire(frames, lambda i: [(0, 0.7, BOX), (1, 0.6, (0, 0, 320, 120))])
++    assert not out, out
++
++
++def test_person_walking_elsewhere_does_not_make_static_object_dynamic():
++    rng = np.random.default_rng(2)
++    frames = []
++    for i in range(120):
++        frame = _poster(_room(rng))
++        x = (i * 7) % 280
++        cv2.rectangle(frame, (x, 170), (x + 30, 235), (200, 200, 230), -1)  # below the object
++        frames.append(frame)
++    _, out = _run_fire(frames, lambda i: [(0, 0.75, BOX)])
++    assert not out
++
++
++def test_flickering_flame_is_detected_and_confirmed():
++    rng = np.random.default_rng(3)
++    frames = []
++    for _ in range(80):
++        frame = _room(rng)
++        region = frame[BOX[1]:BOX[3], BOX[0]:BOX[2]]
++        region[:] = np.stack([rng.integers(0, 60, region.shape[:2]),
++                              rng.integers(60, 200, region.shape[:2]),
++                              rng.integers(180, 256, region.shape[:2])], axis=-1)
++        frames.append(frame)
++    scores = [0.6, 0.7, 0.8]
++    _, out = _run_fire(frames, lambda i: [(0, scores[i % 3], BOX)])
++    assert out, "a flickering flame must still raise fire_smoke"
++    first = out[0]
++    assert first.detail["dynamics"]["fire"]["dynamic"]
++    # requires 3 hits -> first alarm within the first second of detections
++    tiers = [c.detail["requested_tier"] for c in out]
++    assert "CONFIRMED" in tiers, tiers
++    # confidence = mean of positive scores (0.7), not the peak (0.8)
++    assert abs(out[-1].raw_confidence - 0.7) < 0.02, out[-1].raw_confidence
++    assert out[-1].detail["fire_peak_score"] == 0.8
++
++
++def test_slowly_growing_smoke_is_detected():
++    """Smoke that drifts slowly (weak frame-to-frame flicker) appearing in a
++    scene the detector has already watched: passes through the growth check."""
++    rng = np.random.default_rng(4)
++    frames, boxes = [], []
++    for i in range(200):
++        frame = _room(rng)
++        if i >= 100:
++            r = 10 + (i - 100) // 2
++            cv2.circle(frame, (160, 90), r, (170, 170, 170), -1)
++            boxes.append((160 - r, 90 - r, 160 + r, 90 + r))
++        else:
++            boxes.append(None)
++        frames.append(frame)
++    _, out = _run_fire(frames, lambda i: [(1, 0.65, boxes[i])] if boxes[i] else [])
++    assert out, "growing smoke must be reported"
++    assert out[0].detail["detected_classes"] == ["smoke"]
++
++
++def test_learned_verifier_forgets_old_approvals():
++    from fire_verifier.runtime import LearnedFireVerifier
++    v = LearnedFireVerifier.__new__(LearnedFireVerifier)
++    from collections import deque
++    v.verdicts = {"fire": deque([True, True], maxlen=10), "smoke": deque(maxlen=10)}
++    v.last_probability = {"fire": 0.9, "smoke": 0.0}
++    v.reset("fire")
++    assert not v.verdicts["fire"] and v.last_probability["fire"] == 0.0
++
++
++def test_region_dynamics_static_vs_flicker():
++    rng = np.random.default_rng(5)
++    dyn = RegionDynamics({"min_ratio": 2.0})
++    for i in range(6):
++        dyn.observe(_poster(_room(rng)), T0 + i * 0.2)
++    assert not dyn.assess(BOX)["dynamic"]
++
++
++# ------------------------------------------------------------------ anomaly
++def test_anomaly_needs_camera_calibration_before_alerting():
++    import test_scene_anomaly as tsa
++    from anomaly.autoencoder import NumpyAutoencoder
++    from anomaly.scene_features import FEATURE_DIM, SceneFeatureExtractor
++    from temporal.scene_anomaly import SceneAnomalyDetector
++
++    def walk(i, amplitude, period, seed):  # a person moving up and down the frame
++        return tsa._scene(blob_y=60 - amplitude + 2 * amplitude * abs((i % period) / (period / 2) - 1),
++                          seed=seed + i)
++
++    # model trained on another site with little movement ...
++    ext = SceneFeatureExtractor(fps=5, window_frames=10)
++    normal = np.stack([v for v in (ext.push(walk(i, 10, 40, 0)) for i in range(300)) if v is not None])
++    model = NumpyAutoencoder.create(FEATURE_DIM, 16, 4)
++    model.fit(normal, normal[-15:], epochs=60, verbose=False)
++    model.calibrate(model.errors(normal), percentile=99)
++    model.metadata = {"sample_fps": 5.0, "window_frames": 10}
++
++    def busy_normal(i):  # ... deployed on a camera whose NORMAL activity is busier
++        return walk(i, 30, 24, 500)
++
++    with tempfile.TemporaryDirectory() as d:
++        path = os.path.join(d, "ae.npz")
++        model.save(path)
++        cfg = {"checkpoint": path, "evaluation_stride_frames": 1, "persistence_window": 3,
++               "required_hits": 2, "cooldown_seconds": 0,
++               "calibration": {"enabled": True, "seconds": 30, "min_windows": 20, "dir": d}}
++        det = SceneAnomalyDetector("CAM-T", cfg, fps=10)
++        during = [det.evaluate(busy_normal(i), now=T0 + i * DT) for i in range(400)]
++        assert not any(during[:250]), "no alerts while the camera is being calibrated"
++        assert det.calibrated
++        saved = json.load(open(os.path.join(d, "scene_anomaly_CAM-T.json")))
++        assert saved["camera_scale"] >= 1.0 and saved["windows"] >= 20
++        after = [det.evaluate(busy_normal(400 + i), now=T0 + (400 + i) * DT) for i in range(150)]
++        assert not any(after), "calibrated camera: normal activity stays quiet"
++        uncalibrated = SceneAnomalyDetector("CAM-U", dict(cfg, calibration={"enabled": False}), fps=10)
++        old = [uncalibrated.evaluate(busy_normal(i), now=T0 + i * DT) for i in range(550)]
++        assert sum(1 for a in old[400:] if a) > 100, "the old behaviour: alert on normal activity"
++
++        chaos = []
++        for i in range(40):
++            frame = tsa._scene(seed=900 + i)
++            y = int(20 + (i * 37) % 150)
++            x = int((i * 53) % 260)
++            cv2.rectangle(frame, (x, y), (x + 60, y + 80), (255, 255, 255), -1)
++            chaos.append(det.evaluate(frame, now=T0 + (550 + i) * DT))
++        flagged = [c for c in chaos if c]
++        assert flagged, "abnormal motion must still be flagged after calibration"
++        cand = flagged[-1][0]
++        assert 0.5 <= cand.raw_confidence < 1.0 and "confidence_basis" in cand.detail
++
++        # reloaded on restart, no second calibration
++        det2 = SceneAnomalyDetector("CAM-T", cfg, fps=10)
++        assert det2.calibrated and abs(det2.camera_scale - det.camera_scale) < 1e-3
++
++
++# --------------------------------------------------------------- reporting
++def test_llm_cannot_change_type_confidence_or_add_facts():
++    from llm import summarizer
++    from schemas.incident_schema import IncidentRecord
++
++    assert set(summarizer.IncidentAnalysis.model_fields) == {
++        "incident_id", "camera_id", "camera_location", "summary"}
++    record = IncidentRecord.model_validate({
++        "incident_id": "INC-T", "camera_id": "CAM-T", "location": "Test Room",
++        "event_type": "fire_smoke", "confidence_tier": "PROBABLE", "confidence_score": 0.62,
++        "severity": "HIGH", "detected_at": "2026-10-15T00:00:00+00:00", "duration_s": 1.0,
++        "description": "x", "detected_objects": [], "zone_id": None,
++        "detail": {"detected_classes": ["smoke"]},
++        "evidence": {"clip_before": None, "clip_after": None, "keyframes": []},
++        "recommended_action": "x", "review_status": "pending"})
++    invented = "Confirmed fire in Test Room with 99% certainty. Evacuate now."
++    assert not summarizer._summary_preserves_required_facts(invented, record)
++
++
++def test_loitering_description_does_not_claim_same_spot():
++    from reporting.description_generator import generate_description
++    text = generate_description("loitering", "Test Room",
++                                {"dwell_seconds": 12, "zone_type": "restricted", "zone_name": "Panel room"})
++    assert "same spot" not in text and "Panel room" in text
++
++
++if __name__ == "__main__":
++    failures = 0
++    for name, fn in list(globals().items()):
++        if name.startswith("test_") and callable(fn):
++            try:
++                fn()
++                print(f"PASS {name}")
++            except AssertionError as exc:
++                failures += 1
++                print(f"FAIL {name}: {exc}")
++    sys.exit(1 if failures else 0)
+-- 
+2.43.0
+

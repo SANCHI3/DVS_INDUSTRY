@@ -21,6 +21,23 @@ from reporting.description_generator import (
 from schemas.incident_schema import IncidentRecord
 from severity.severity_rules import SEVERITY_ORDER
 
+# Bumped when event validation changes, so records produced before and after
+# a change can be told apart (scripts/audit_incident_log.py groups by it).
+# 2: active-track dwell/intrusion, fight interaction check, fire/smoke
+#    static-region check + verifier reset, per-camera anomaly calibration,
+#    evidence-based confidence scores.
+VALIDATION_VERSION = 2
+
+# How the confidence score was obtained, for events whose detector does not
+# record it itself. Confidence always comes from a detector/model output and
+# is never produced or altered by the LLM summary.
+DEFAULT_CONFIDENCE_BASIS = {
+    "fall": "fall model probability",
+    "intrusion": "mean person-detector confidence",
+    "loitering": "mean person-detector confidence x share of time inside the zone",
+    "crowd": "mean person-detector confidence of the group",
+}
+
 
 class IncidentReporter:
     """Builds, validates, persists, and enriches incident reports."""
@@ -157,6 +174,11 @@ class IncidentReporter:
         )
 
         detail = dict(confirmed_event.candidate.detail or {})
+        detail.setdefault(
+            "confidence_basis",
+            DEFAULT_CONFIDENCE_BASIS.get(confirmed_event.event_type, "detector score"),
+        )
+        detail["validation_version"] = VALIDATION_VERSION
         track_ids = confirmed_event.candidate.track_ids or []
 
         report = {
