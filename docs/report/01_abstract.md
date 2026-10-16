@@ -41,4 +41,5 @@ its first version (F1 0.85), the fall model on the box rule it replaced (F1
 2 false alarms). On a laptop RTX 3050 GPU the full pipeline sustains 9.2 of the
 10 target frames per second, with capacity for 19.3. False alarms seen on a
 real test camera were traced to five root causes and fixed. A false-alarms-per-hour
-measurement on normal footage is prepared but not yet run.
+measurement on the deployment camera is still outstanding; an ablation on held-out
+and public clips is reported in chapter 6.8.
