@@ -49,22 +49,33 @@ def is_upright(row: np.ndarray, max_torso_tilt: float, max_box_aspect: float) ->
     return float(row[0]) <= max_box_aspect
 
 
-def fall_plausibility(row: np.ndarray, bottom_edge: float, require_down: bool,
-                     max_torso_tilt: float, max_box_aspect: float) -> Optional[str]:
-    """Why a high fall score cannot be a real fall right now, or None if it can.
+def is_truncated(row: np.ndarray, bottom_edge: float) -> bool:
+    """Box reaches the bottom edge of the frame and no torso (shoulders + hips) was found."""
+    return float(row[3]) >= bottom_edge and row[9] == 0
 
-    * truncated: the box reaches the bottom edge of the frame and no torso
-      (shoulders + hips) was found -- the person is only partly in view, e.g.
-      sitting close to a desk webcam. A head-and-shoulders box is wide and
-      short, which looks like a lying person to the model.
+
+def fall_plausibility(rows: list, bottom_edge: float, max_truncated_share: float, require_down: bool,
+                      max_torso_tilt: float, max_box_aspect: float) -> Optional[str]:
+    """Why a high fall score cannot be a real fall right now, or None if it can.
+    `rows`: this person's recent feature rows (the model window), latest last.
+
+    * truncated: the person is cut off at the bottom of the frame without a
+      visible torso now AND for most of the window -- they were never fully
+      in view, e.g. sitting close to a desk webcam. A head-and-shoulders box
+      is wide and short, which looks like a lying person to the model. A real
+      fall that ends at the bottom edge passes: the person was fully visible
+      before falling.
     * upright: the person is standing or sitting upright at this moment.
 
     Not rejected for good: the next evaluation checks again, so a real fall
-    that is still in progress passes once the person is down and in view.
-    On the 160 labelled fall-dataset videos, the truncation rule leaves a
-    passing frame in 79/79 falls, and with require_down in 77/79.
+    that is still in progress passes once the person is down.
     """
-    if float(row[3]) >= bottom_edge and row[9] == 0:
+    seen = [r for r in rows if r is not None]
+    if not seen:
+        return None
+    row = seen[-1]
+    if is_truncated(row, bottom_edge) and \
+            float(np.mean([is_truncated(r, bottom_edge) for r in seen])) >= max_truncated_share:
         return "truncated"
     if require_down and is_upright(row, max_torso_tilt, max_box_aspect):
         return "upright"
@@ -93,6 +104,7 @@ class GruFallDetector:
         verify_cfg = cfg.get("verification") or {}
         self.verify = bool(verify_cfg.get("enabled", False))
         self.bottom_edge = float(verify_cfg.get("bottom_edge", 0.99))
+        self.max_truncated_share = float(verify_cfg.get("max_truncated_share", 0.8))
         self.require_down = bool(verify_cfg.get("require_down", True))
 
         self.rows: Dict[int, Deque[Optional[np.ndarray]]] = {}
@@ -156,8 +168,8 @@ class GruFallDetector:
                 continue
             latest = rows[-1]
             if self.verify and latest is not None:
-                reason = fall_plausibility(latest, self.bottom_edge, self.require_down,
-                                           self.upright_tilt, self.upright_aspect)
+                reason = fall_plausibility(list(rows), self.bottom_edge, self.max_truncated_share,
+                                           self.require_down, self.upright_tilt, self.upright_aspect)
                 if reason:
                     self._stats[f"rejected_{reason}"] += 1
                     continue  # no cooldown: checked again at the next evaluation

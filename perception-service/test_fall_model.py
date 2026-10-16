@@ -145,12 +145,17 @@ def _skeleton(points):
     return kps
 
 
-def _plausibility(bbox, keypoints=None):
+def _plausibility(bbox, keypoints=None, before=None):
+    """Check a 40-row window: `before` = (bbox, keypoints, count) rows first, then `bbox` to the end."""
     from fall_gru.features import frame_features
     from temporal.fall_gru_recognition import fall_plausibility
 
-    row = frame_features(bbox, 480, keypoints)
-    return fall_plausibility(row, bottom_edge=0.99, require_down=True, max_torso_tilt=0.35, max_box_aspect=0.8)
+    rows = []
+    if before:
+        rows += [frame_features(before[0], 480, before[1])] * before[2]
+    rows += [frame_features(bbox, 480, keypoints)] * (40 - len(rows))
+    return fall_plausibility(rows, bottom_edge=0.99, max_truncated_share=0.8, require_down=True,
+                             max_torso_tilt=0.35, max_box_aspect=0.8)
 
 
 def test_close_desk_webcam_view_is_not_judged_as_a_fall():
@@ -175,3 +180,9 @@ def test_person_lying_on_the_floor_is_plausible():
 def test_fallen_person_at_the_frame_edge_with_torso_visible_still_counts():
     lying = _skeleton({5: (150, 440), 6: (150, 465), 11: (330, 445), 12: (330, 470)})
     assert _plausibility((100, 400, 450, 480), lying) is None
+
+
+def test_real_fall_ending_at_the_bottom_edge_still_counts():
+    # fully visible and standing for 30 rows, then lying cut off at the bottom without a torso
+    standing = _skeleton({5: (300, 150), 6: (340, 150), 11: (305, 300), 12: (335, 300)})
+    assert _plausibility((80, 330, 560, 480), before=((280, 100, 360, 420), standing, 30)) is None

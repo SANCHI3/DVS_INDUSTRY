@@ -195,10 +195,11 @@ fall_detection:
       # plausible at that moment. Rejected checks are retried at the next
       # evaluation, so a fall still in progress passes once the person is down.
       enabled: true
-      bottom_edge: 0.99             # box reaching the bottom edge with no torso found = person
-                                    # only partly in view (close desk webcam): not judged
+      bottom_edge: 0.99             # box reaching the bottom edge with no torso found = cut off
+      max_truncated_share: 0.8      # ... for >= 80% of the 4-s window = never fully in view
+                                    # (close desk webcam): not judged. A real fall that ends at
+                                    # the bottom edge passes, because the person was visible before.
       require_down: true            # torso tilted (or wide box without a skeleton) right now
-      # Measured on the 160 labelled fall videos: a passing frame remains in 77/79 falls.
     serious:                        # fallen person who does not get back up
       after_seconds: 20             # still down this long -> escalate the fall to CRITICAL
       recovered_after_seconds: 2    # upright (standing or sitting up) this long = got up
