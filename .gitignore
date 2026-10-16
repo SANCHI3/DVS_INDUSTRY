@@ -90,3 +90,6 @@ perception-service/fight_model/demo_data/
 
 # Zones drawn with scripts/draw_zones.py (copy into cameras.yaml)
 perception-service/config/zones_*.yaml
+
+# Research paper: kept locally, not published in this repository
+docs/paper/
