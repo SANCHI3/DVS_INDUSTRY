@@ -17,6 +17,14 @@ const EVENT_LABELS: Record<string, string> = {
   OTHER: 'Unusual activity',
 };
 
+/** Detections removed from the system (no zone data). Old records keep their
+ *  labels above, but these types are left out of current breakdowns. */
+const RETIRED_TYPES = new Set(['LOITERING', 'INTRUSION']);
+
+export function isRetiredIncidentType(type: string): boolean {
+  return RETIRED_TYPES.has(type);
+}
+
 export function eventTypeLabel(type: string): string {
   return EVENT_LABELS[type] ?? type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }

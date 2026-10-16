@@ -27,7 +27,7 @@ import {
 } from "../../../lib/services/security.service";
 import { getEligibleEmployees, type UserDto } from "../../../lib/services/users.service";
 import { subscribeSecurityStream, subscribeStreamStatus, type StreamStatus } from "../../../lib/securityStream";
-import { eventTypeLabel } from "../../../lib/incidentLabels";
+import { eventTypeLabel, isRetiredIncidentType } from "../../../lib/incidentLabels";
 import { IncidentEvidenceDialog } from "./IncidentEvidenceDialog";
 
 const tabs = [
@@ -421,7 +421,7 @@ export function SecurityPage() {
               <Card style={{ borderRadius: "0.75rem" }}>
                 <CardHeader title="Incidents by Type" subtitle="Aggregate breakdown returned by the security KPI API" />
                 <div className="p-5">
-                  {kpisLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading report data...</p> : kpisError || !kpis ? <EmptyState icon={FileWarning} title="Report data unavailable" detail="The security KPI data could not be loaded." /> : kpis.incidentsByType.length === 0 ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>No data returned.</p> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{kpis.incidentsByType.map((item) => <div key={item.type} className="flex items-center justify-between rounded-lg border px-3 py-2.5" style={{ borderColor: "#EEE4E0", background: "#FCFAF9" }}><span style={{ color: "#665956", fontSize: "0.76rem" }}>{formatEventType(item.type)}</span><strong style={{ color: "#A52A2A", fontSize: "0.85rem" }}>{item.count}</strong></div>)}</div>}
+                  {kpisLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading report data...</p> : kpisError || !kpis ? <EmptyState icon={FileWarning} title="Report data unavailable" detail="The security KPI data could not be loaded." /> : kpis.incidentsByType.filter((item) => !isRetiredIncidentType(item.type)).length === 0 ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>No data returned.</p> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{kpis.incidentsByType.filter((item) => !isRetiredIncidentType(item.type)).map((item) => <div key={item.type} className="flex items-center justify-between rounded-lg border px-3 py-2.5" style={{ borderColor: "#EEE4E0", background: "#FCFAF9" }}><span style={{ color: "#665956", fontSize: "0.76rem" }}>{formatEventType(item.type)}</span><strong style={{ color: "#A52A2A", fontSize: "0.85rem" }}>{item.count}</strong></div>)}</div>}
                 </div>
               </Card>
             </section>
