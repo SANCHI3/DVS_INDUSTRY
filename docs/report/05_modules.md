@@ -10,7 +10,6 @@
 | Orders | `/orders` | Suppliers, clients, client orders, purchase orders |
 | Production | `/production` | Work orders, recorded output, KPIs and trends |
 | Security | `/security` | Incidents, incident history, alerts, KPIs, live SSE stream, AI summary, escalation, **evidence** |
-| AI | `/ai` | Evaluation results of the CCTV models (AI Models page) |
 | Reports, Audit | `/reports`, `/audit` | Module reports; audit trail of every successful write |
 | Smart Analytics | `/analytics` | Demand forecasting (Holt / Croston–SBA), dynamic reorder point, ABC-XYZ, stock anomalies, OEE-style index + SPC, supplier scorecard, Plant Health Index |
 

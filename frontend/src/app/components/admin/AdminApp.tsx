@@ -11,20 +11,17 @@ import { SmartAnalyticsPage } from "./SmartAnalyticsPage";
 import { UserManagementPage } from "./UserManagementPage";
 import { ERPProvider } from "./ERPContext";
 import { PriorityIncidentAlert } from "../shared/PriorityIncidentAlert";
-import { AiModelsPage } from "./AiModelsPage";
 import { Btn, Card, CardHeader } from "../shared/UI";
 import api from "../../../lib/api";
-import { getModelResults } from "../../../lib/services/ai.service";
 
 type SystemStatus = {
   health: { status: string; database?: string } | null;
   metrics: { uptimeSeconds: number; nodeVersion: string } | null;
-  models: boolean | null;
 };
 
 /** Live system status only; values come from the running backend. */
 function SettingsPage() {
-  const [status, setStatus] = useState<SystemStatus>({ health: null, metrics: null, models: null });
+  const [status, setStatus] = useState<SystemStatus>({ health: null, metrics: null });
   const [loading, setLoading] = useState(true);
 
   const load = () => {
@@ -32,12 +29,10 @@ function SettingsPage() {
     Promise.allSettled([
       api.get("/health"),
       api.get("/metrics"),
-      getModelResults(),
-    ]).then(([health, metrics, models]) => {
+    ]).then(([health, metrics]) => {
       setStatus({
         health: health.status === "fulfilled" ? health.value.data : null,
         metrics: metrics.status === "fulfilled" ? metrics.value.data : null,
-        models: models.status === "fulfilled" ? Boolean(models.value.models) : null,
       });
       setLoading(false);
     });
@@ -50,7 +45,6 @@ function SettingsPage() {
     ["Database", status.health?.database ? (status.health.database === "ok" ? "Connected" : status.health.database) : "Not reported", status.health?.database === "ok"],
     ["Server uptime", uptime, null],
     ["Node.js", status.metrics?.nodeVersion ?? "Couldn't load", null],
-    ["AI model results", status.models === null ? "Couldn't load" : status.models ? "Available (AI Models page)" : "Not generated", status.models],
   ];
 
   return (
@@ -107,7 +101,6 @@ export function AdminApp({ onLogout, userRole }: AdminAppProps) {
       if (orderSections.has(section)) return <OrdersPage onNavigate={setSection} />;
       if (section === "reports") return <ReportsPage />;
       if (section === "analytics") return <SmartAnalyticsPage />;
-      if (section === "ai-models") return <AiModelsPage />;
       if (section === "users") return <UserManagementPage />;
       if (section === "settings") return <SettingsPage />;
       return <AdminDashboard onNavigate={setSection} />;

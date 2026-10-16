@@ -50,9 +50,8 @@ const envSchema = z.object({
   MAIL_FROM: z.string().default('DVS Industries <no-reply@dvsindustry.com>'),
 
   // Perception service files read by the dashboard (relative to backend/):
-  // incident evidence/explanations and the model evaluation results.
+  // incident evidence and explanations.
   PERCEPTION_OUTPUT_DIR: z.string().default('../perception-service/output'),
-  MODEL_RESULTS_DIR: z.string().default('../docs/results'),
 
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'debug']).default('info'),

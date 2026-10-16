@@ -38,8 +38,6 @@ live on every open dashboard.
 - **AI summaries:** an optional LLM rewrites the alert in plain language. It
   is validated so that it cannot add facts, and a built-in description is
   used without a key.
-- **AI Models page:** results table, charts, pipeline diagram and speed,
-  served from the evaluation output.
 - **Demo mode:** one command runs the whole chain on recorded clips, without
   a camera.
 
@@ -66,8 +64,8 @@ Detailed diagrams (perception pipeline, ER diagram, incident sequence):
 |---|---|
 | ![Security page with live AI detections](docs/screenshots/security.png) | ![Incident evidence with Grad-CAM](docs/screenshots/evidence.png) |
 | *AI Security: live detections* | *Incident evidence: snapshots, Grad-CAM, explanation* |
-| ![AI Models page](docs/screenshots/ai-models.png) | ![Dashboard](docs/screenshots/dashboard.png) |
-| *AI Models: results and pipeline* | *Operations dashboard* |
+| ![Dashboard](docs/screenshots/dashboard.png) | |
+| *Operations dashboard* | |
 
 ## Setup (Windows, macOS or Linux)
 

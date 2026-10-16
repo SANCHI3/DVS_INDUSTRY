@@ -9,7 +9,6 @@ import { env } from '../config/env';
  *   <PERCEPTION_OUTPUT_DIR>/incidents.jsonl          one record per incident (full detail)
  *   <PERCEPTION_OUTPUT_DIR>/incident_updates.jsonl   escalations (tier / detail changes)
  *   <PERCEPTION_OUTPUT_DIR>/evidence_updates.jsonl   keyframe and clip paths
- *   <MODEL_RESULTS_DIR>/*.json                       evaluation results (evaluation/run_all.py)
  *
  * The database keeps the incident itself; the AI explanation and evidence
  * stay with the perception service, joined on incidentNumber = incident_id.
@@ -43,10 +42,6 @@ export type EvidenceResult = IncidentEvidence | { available: false; reason: stri
 
 export function outputDir(): string {
   return path.resolve(env.PERCEPTION_OUTPUT_DIR);
-}
-
-function resultsDir(): string {
-  return path.resolve(env.MODEL_RESULTS_DIR);
 }
 
 async function* jsonLines(file: string): AsyncGenerator<Json> {
@@ -218,22 +213,4 @@ export async function resolveEvidenceFile(
   const evidence = await getIncidentEvidence(incidentNumber, false);
   if (!evidence.available || !evidence.files.some((f) => f.file === file)) return null;
   return path.join(outputDir(), file);
-}
-
-/** Evaluation results written by perception-service/evaluation/*.py. */
-export function getModelResults(): Json {
-  const read = (name: string): unknown => {
-    const file = path.join(resultsDir(), name);
-    if (!fs.existsSync(file)) return null;
-    try {
-      return JSON.parse(fs.readFileSync(file, 'utf8'));
-    } catch {
-      return null;
-    }
-  };
-  return {
-    models: read('model_results.json'),
-    benchmark: read('benchmark.json'),
-    falseAlarms: read('false_alarms.json'),
-  };
 }

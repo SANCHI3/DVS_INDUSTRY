@@ -302,7 +302,7 @@ The local project is not the same thing as a production deployment. DNS, certifi
 - Frontend unit tests (Vitest) for the alert rules and stream parser
 - Frontend dependency audit: 0 vulnerabilities
 - Demo mode and one-command start (`start-demo.ps1` / `start-demo.sh`), evaluation
-  scripts and `docs/RESULTS.md`, AI Models page, incident evidence view;
+  scripts and `docs/RESULTS.md`, incident evidence view;
   placeholder "Unavailable" cards replaced with live data or removed
 
 ### Important remaining work
