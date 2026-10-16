@@ -1,0 +1,1399 @@
+{
+  "generated_at": "2026-10-16T04:24:25+00:00",
+  "generated_by": "perception-service/evaluation/ablation.py",
+  "footage": "proxy clip sets (held-out/public clips in perception-service/data; field recordings unavailable)",
+  "set_descriptions": {
+    "normal": "fight-dataset test split, not-fight clips (held out from every model)",
+    "lookalikes": "FIRESENSE fire/neg + smoke/neg clips (fire/smoke look-alike scenes)",
+    "fight": "fight-dataset test split, fight clips (held out)",
+    "fall": "fall dataset, fall clips (IN-SAMPLE: the deployed fall GRU was trained on them)",
+    "fire": "FIRESENSE fire/pos clips (verifier trained on FIRESENSE)",
+    "smoke": "FIRESENSE smoke/pos clips (verifier trained on FIRESENSE)",
+    "fire_smoke": "field recordings: staged fire/smoke"
+  },
+  "bootstrap": {
+    "resamples": 1000,
+    "unit": "clip",
+    "interval": "percentile 95%"
+  },
+  "configs": {
+    "a_prefix": {
+      "label": "(a) pre-fix code",
+      "ref": "85315cc~1",
+      "overrides": {},
+      "calibrated": false,
+      "run": {
+        "run_at": "2026-10-15T20:13:23+00:00",
+        "finished_at": "2026-10-15T21:36:17+00:00",
+        "code": "85315cc~1",
+        "overrides": {},
+        "limit_per_set": null
+      },
+      "sets": {
+        "normal": {
+          "kind": "normal",
+          "clips": 172,
+          "minutes": 15.96,
+          "false_alarms": {
+            "anomaly": {
+              "count": 2,
+              "per_hour": 7.52,
+              "per_hour_ci95": [
+                0.0,
+                16.6679
+              ]
+            },
+            "crowd": {
+              "count": 3,
+              "per_hour": 11.28,
+              "per_hour_ci95": [
+                0.0,
+                26.8462
+              ]
+            },
+            "fall": {
+              "count": 23,
+              "per_hour": 86.45,
+              "per_hour_ci95": [
+                50.3804,
+                141.5564
+              ]
+            },
+            "fight": {
+              "count": 14,
+              "per_hour": 52.62,
+              "per_hour_ci95": [
+                26.0817,
+                89.3116
+              ]
+            },
+            "total": {
+              "count": 42,
+              "per_hour": 157.87,
+              "per_hour_ci95": [
+                105.2997,
+                226.9149
+              ]
+            }
+          },
+          "all_records": 49
+        },
+        "lookalikes": {
+          "kind": "lookalike",
+          "clips": 25,
+          "minutes": 14.8,
+          "false_alarms": {
+            "anomaly": {
+              "count": 14,
+              "per_hour": 56.75,
+              "per_hour_ci95": [
+                35.2897,
+                96.3222
+              ]
+            },
+            "crowd": {
+              "count": 2,
+              "per_hour": 8.11,
+              "per_hour_ci95": [
+                0.0,
+                21.0684
+              ]
+            },
+            "fall": {
+              "count": 7,
+              "per_hour": 28.38,
+              "per_hour_ci95": [
+                12.0079,
+                48.4173
+              ]
+            },
+            "fight": {
+              "count": 4,
+              "per_hour": 16.22,
+              "per_hour_ci95": [
+                3.1627,
+                34.7276
+              ]
+            },
+            "total": {
+              "count": 27,
+              "per_hour": 109.46,
+              "per_hour_ci95": [
+                72.7313,
+                166.2698
+              ]
+            }
+          },
+          "all_records": 33
+        },
+        "fight": {
+          "kind": "event",
+          "event_type": "fight",
+          "clips": 172,
+          "minutes": 15.22,
+          "detected": 134,
+          "dashboard_alarms_by_type": {
+            "anomaly": 3,
+            "crowd": 3,
+            "fall": 29,
+            "fight": 134
+          },
+          "recall": 0.7791,
+          "recall_ci95": [
+            0.7209,
+            0.8372
+          ]
+        },
+        "fall": {
+          "kind": "event",
+          "event_type": "fall",
+          "clips": 79,
+          "minutes": 9.01,
+          "detected": 59,
+          "dashboard_alarms_by_type": {
+            "fall": 59
+          },
+          "recall": 0.7468,
+          "recall_ci95": [
+            0.6456,
+            0.8354
+          ]
+        },
+        "fire": {
+          "kind": "event",
+          "event_type": "fire_smoke",
+          "clips": 11,
+          "minutes": 5.57,
+          "detected": 8,
+          "dashboard_alarms_by_type": {
+            "anomaly": 7,
+            "fall": 2,
+            "fire_smoke": 8
+          },
+          "recall": 0.7273,
+          "recall_ci95": [
+            0.4545,
+            1.0
+          ]
+        },
+        "smoke": {
+          "kind": "event",
+          "event_type": "fire_smoke",
+          "clips": 13,
+          "minutes": 8.83,
+          "detected": 8,
+          "dashboard_alarms_by_type": {
+            "anomaly": 11,
+            "fall": 1,
+            "fire_smoke": 8
+          },
+          "recall": 0.6154,
+          "recall_ci95": [
+            0.3077,
+            0.8462
+          ]
+        }
+      }
+    },
+    "b_full": {
+      "label": "(b) full system",
+      "ref": "HEAD",
+      "overrides": {},
+      "calibrated": true,
+      "run": {
+        "run_at": "2026-10-15T18:49:55+00:00",
+        "finished_at": "2026-10-15T20:13:23+00:00",
+        "code": "4bd2c06",
+        "overrides": {},
+        "limit_per_set": null
+      },
+      "sets": {
+        "normal": {
+          "kind": "normal",
+          "clips": 172,
+          "minutes": 15.96,
+          "false_alarms": {
+            "crowd": {
+              "count": 3,
+              "per_hour": 11.28,
+              "per_hour_ci95": [
+                0.0,
+                26.8462
+              ]
+            },
+            "fall": {
+              "count": 22,
+              "per_hour": 82.69,
+              "per_hour_ci95": [
+                48.144,
+                136.5426
+              ]
+            },
+            "fight": {
+              "count": 10,
+              "per_hour": 37.59,
+              "per_hour_ci95": [
+                15.4725,
+                67.9359
+              ]
+            },
+            "fire_smoke": {
+              "count": 1,
+              "per_hour": 3.76,
+              "per_hour_ci95": [
+                0.0,
+                13.8887
+              ]
+            },
+            "total": {
+              "count": 36,
+              "per_hour": 135.32,
+              "per_hour_ci95": [
+                80.9653,
+                210.7733
+              ]
+            }
+          },
+          "all_records": 41
+        },
+        "lookalikes": {
+          "kind": "lookalike",
+          "clips": 25,
+          "minutes": 14.8,
+          "false_alarms": {
+            "crowd": {
+              "count": 2,
+              "per_hour": 8.11,
+              "per_hour_ci95": [
+                0.0,
+                21.0684
+              ]
+            },
+            "fall": {
+              "count": 7,
+              "per_hour": 28.38,
+              "per_hour_ci95": [
+                12.0079,
+                48.4173
+              ]
+            },
+            "fight": {
+              "count": 2,
+              "per_hour": 8.11,
+              "per_hour_ci95": [
+                0.0,
+                24.0919
+              ]
+            },
+            "total": {
+              "count": 11,
+              "per_hour": 44.59,
+              "per_hour_ci95": [
+                25.3899,
+                69.764
+              ]
+            }
+          },
+          "all_records": 22
+        },
+        "fight": {
+          "kind": "event",
+          "event_type": "fight",
+          "clips": 172,
+          "minutes": 15.22,
+          "detected": 81,
+          "dashboard_alarms_by_type": {
+            "crowd": 4,
+            "fall": 30,
+            "fight": 81
+          },
+          "recall": 0.4709,
+          "recall_ci95": [
+            0.3953,
+            0.5523
+          ]
+        },
+        "fall": {
+          "kind": "event",
+          "event_type": "fall",
+          "clips": 79,
+          "minutes": 9.01,
+          "detected": 59,
+          "dashboard_alarms_by_type": {
+            "fall": 59
+          },
+          "recall": 0.7468,
+          "recall_ci95": [
+            0.6456,
+            0.8354
+          ]
+        },
+        "fire": {
+          "kind": "event",
+          "event_type": "fire_smoke",
+          "clips": 11,
+          "minutes": 5.57,
+          "detected": 8,
+          "dashboard_alarms_by_type": {
+            "fall": 2,
+            "fire_smoke": 8
+          },
+          "recall": 0.7273,
+          "recall_ci95": [
+            0.4545,
+            1.0
+          ]
+        },
+        "smoke": {
+          "kind": "event",
+          "event_type": "fire_smoke",
+          "clips": 13,
+          "minutes": 8.83,
+          "detected": 8,
+          "dashboard_alarms_by_type": {
+            "fall": 1,
+            "fire_smoke": 8
+          },
+          "recall": 0.6154,
+          "recall_ci95": [
+            0.3077,
+            0.8462
+          ]
+        }
+      }
+    },
+    "c_no_interaction": {
+      "label": "(c) full \u2212 interaction check",
+      "ref": "HEAD",
+      "overrides": {
+        "fight_detection.interaction.enabled": false
+      },
+      "calibrated": true,
+      "run": {
+        "run_at": "2026-10-15T23:54:45+00:00",
+        "finished_at": "2026-10-16T00:14:13+00:00",
+        "code": "4bd2c06",
+        "overrides": {
+          "fight_detection.interaction.enabled": false
+        },
+        "limit_per_set": null
+      },
+      "sets": {
+        "normal": {
+          "kind": "normal",
+          "clips": 172,
+          "minutes": 15.96,
+          "false_alarms": {
+            "crowd": {
+              "count": 3,
+              "per_hour": 11.28,
+              "per_hour_ci95": [
+                0.0,
+                26.8462
+              ]
+            },
+            "fall": {
+              "count": 21,
+              "per_hour": 78.94,
+              "per_hour_ci95": [
+                46.4532,
+                130.7761
+              ]
+            },
+            "fight": {
+              "count": 13,
+              "per_hour": 48.86,
+              "per_hour_ci95": [
+                24.8679,
+                82.8181
+              ]
+            },
+            "total": {
+              "count": 37,
+              "per_hour": 139.08,
+              "per_hour_ci95": [
+                85.1831,
+                214.4195
+              ]
+            }
+          },
+          "all_records": 43
+        },
+        "lookalikes": {
+          "kind": "lookalike",
+          "clips": 25,
+          "minutes": 14.8,
+          "false_alarms": {
+            "crowd": {
+              "count": 2,
+              "per_hour": 8.11,
+              "per_hour_ci95": [
+                0.0,
+                21.0684
+              ]
+            },
+            "fall": {
+              "count": 7,
+              "per_hour": 28.38,
+              "per_hour_ci95": [
+                12.0079,
+                48.4173
+              ]
+            },
+            "fight": {
+              "count": 5,
+              "per_hour": 20.27,
+              "per_hour_ci95": [
+                5.2956,
+                40.9226
+              ]
+            },
+            "total": {
+              "count": 14,
+              "per_hour": 56.75,
+              "per_hour_ci95": [
+                33.5831,
+                86.7229
+              ]
+            }
+          },
+          "all_records": 25
+        },
+        "fight": {
+          "kind": "event",
+          "event_type": "fight",
+          "clips": 172,
+          "minutes": 15.22,
+          "detected": 129,
+          "dashboard_alarms_by_type": {
+            "crowd": 4,
+            "fall": 28,
+            "fight": 129
+          },
+          "recall": 0.75,
+          "recall_ci95": [
+            0.686,
+            0.814
+          ]
+        },
+        "fall": {
+          "kind": "event",
+          "event_type": "fall",
+          "clips": 79,
+          "minutes": 9.01,
+          "detected": 59,
+          "dashboard_alarms_by_type": {
+            "fall": 59
+          },
+          "recall": 0.7468,
+          "recall_ci95": [
+            0.6456,
+            0.8354
+          ]
+        },
+        "fire": {
+          "kind": "event",
+          "event_type": "fire_smoke",
+          "clips": 11,
+          "minutes": 5.57,
+          "detected": 8,
+          "dashboard_alarms_by_type": {
+            "fall": 2,
+            "fire_smoke": 8
+          },
+          "recall": 0.7273,
+          "recall_ci95": [
+            0.4545,
+            1.0
+          ]
+        },
+        "smoke": {
+          "kind": "event",
+          "event_type": "fire_smoke",
+          "clips": 13,
+          "minutes": 8.83,
+          "detected": 8,
+          "dashboard_alarms_by_type": {
+            "fall": 1,
+            "fire_smoke": 8
+          },
+          "recall": 0.6154,
+          "recall_ci95": [
+            0.3077,
+            0.8462
+          ]
+        }
+      }
+    },
+    "d_no_dynamics": {
+      "label": "(d) full \u2212 region dynamics",
+      "ref": "HEAD",
+      "overrides": {
+        "fire_smoke_detection.dynamics.enabled": false
+      },
+      "calibrated": true,
+      "run": {
+        "run_at": "2026-10-16T00:14:13+00:00",
+        "finished_at": "2026-10-16T01:36:41+00:00",
+        "code": "4bd2c06",
+        "overrides": {
+          "fire_smoke_detection.dynamics.enabled": false
+        },
+        "limit_per_set": null
+      },
+      "sets": {
+        "normal": {
+          "kind": "normal",
+          "clips": 172,
+          "minutes": 15.96,
+          "false_alarms": {
+            "crowd": {
+              "count": 3,
+              "per_hour": 11.28,
+              "per_hour_ci95": [
+                0.0,
+                26.8462
+              ]
+            },
+            "fall": {
+              "count": 22,
+              "per_hour": 82.69,
+              "per_hour_ci95": [
+                48.144,
+                136.5426
+              ]
+            },
+            "fight": {
+              "count": 11,
+              "per_hour": 41.35,
+              "per_hour_ci95": [
+                18.7047,
+                72.4643
+              ]
+            },
+            "total": {
+              "count": 36,
+              "per_hour": 135.32,
+              "per_hour_ci95": [
+                82.2506,
+                209.8233
+              ]
+            }
+          },
+          "all_records": 42
+        },
+        "lookalikes": {
+          "kind": "lookalike",
+          "clips": 25,
+          "minutes": 14.8,
+          "false_alarms": {
+            "crowd": {
+              "count": 2,
+              "per_hour": 8.11,
+              "per_hour_ci95": [
+                0.0,
+                21.0684
+              ]
+            },
+            "fall": {
+              "count": 7,
+              "per_hour": 28.38,
+              "per_hour_ci95": [
+                12.0079,
+                48.4173
+              ]
+            },
+            "fight": {
+              "count": 2,
+              "per_hour": 8.11,
+              "per_hour_ci95": [
+                0.0,
+                24.0919
+              ]
+            },
+            "total": {
+              "count": 11,
+              "per_hour": 44.59,
+              "per_hour_ci95": [
+                25.3899,
+                69.764
+              ]
+            }
+          },
+          "all_records": 22
+        },
+        "fight": {
+          "kind": "event",
+          "event_type": "fight",
+          "clips": 172,
+          "minutes": 15.22,
+          "detected": 80,
+          "dashboard_alarms_by_type": {
+            "crowd": 3,
+            "fall": 30,
+            "fight": 80
+          },
+          "recall": 0.4651,
+          "recall_ci95": [
+            0.3895,
+            0.5465
+          ]
+        },
+        "fall": {
+          "kind": "event",
+          "event_type": "fall",
+          "clips": 79,
+          "minutes": 9.01,
+          "detected": 59,
+          "dashboard_alarms_by_type": {
+            "fall": 59
+          },
+          "recall": 0.7468,
+          "recall_ci95": [
+            0.6456,
+            0.8354
+          ]
+        },
+        "fire": {
+          "kind": "event",
+          "event_type": "fire_smoke",
+          "clips": 11,
+          "minutes": 5.57,
+          "detected": 8,
+          "dashboard_alarms_by_type": {
+            "fall": 2,
+            "fire_smoke": 8
+          },
+          "recall": 0.7273,
+          "recall_ci95": [
+            0.4545,
+            1.0
+          ]
+        },
+        "smoke": {
+          "kind": "event",
+          "event_type": "fire_smoke",
+          "clips": 13,
+          "minutes": 8.83,
+          "detected": 8,
+          "dashboard_alarms_by_type": {
+            "fall": 1,
+            "fire_smoke": 8
+          },
+          "recall": 0.6154,
+          "recall_ci95": [
+            0.3077,
+            0.8462
+          ]
+        }
+      }
+    },
+    "e_no_calibration": {
+      "label": "(e) full \u2212 anomaly calibration",
+      "ref": "HEAD",
+      "overrides": {
+        "scene_anomaly.calibration.enabled": false
+      },
+      "calibrated": false,
+      "run": {
+        "run_at": "2026-10-16T01:36:41+00:00",
+        "finished_at": "2026-10-16T02:59:57+00:00",
+        "code": "4bd2c06",
+        "overrides": {
+          "scene_anomaly.calibration.enabled": false
+        },
+        "limit_per_set": null
+      },
+      "sets": {
+        "normal": {
+          "kind": "normal",
+          "clips": 172,
+          "minutes": 15.96,
+          "false_alarms": {
+            "anomaly": {
+              "count": 2,
+              "per_hour": 7.52,
+              "per_hour_ci95": [
+                0.0,
+                16.6679
+              ]
+            },
+            "crowd": {
+              "count": 3,
+              "per_hour": 11.28,
+              "per_hour_ci95": [
+                0.0,
+                26.8462
+              ]
+            },
+            "fall": {
+              "count": 22,
+              "per_hour": 82.69,
+              "per_hour_ci95": [
+                48.144,
+                136.5426
+              ]
+            },
+            "fight": {
+              "count": 11,
+              "per_hour": 41.35,
+              "per_hour_ci95": [
+                18.8208,
+                73.6212
+              ]
+            },
+            "fire_smoke": {
+              "count": 1,
+              "per_hour": 3.76,
+              "per_hour_ci95": [
+                0.0,
+                13.6676
+              ]
+            },
+            "total": {
+              "count": 39,
+              "per_hour": 146.59,
+              "per_hour_ci95": [
+                97.2339,
+                213.4538
+              ]
+            }
+          },
+          "all_records": 45
+        },
+        "lookalikes": {
+          "kind": "lookalike",
+          "clips": 25,
+          "minutes": 14.8,
+          "false_alarms": {
+            "anomaly": {
+              "count": 14,
+              "per_hour": 56.75,
+              "per_hour_ci95": [
+                35.2897,
+                96.3222
+              ]
+            },
+            "crowd": {
+              "count": 2,
+              "per_hour": 8.11,
+              "per_hour_ci95": [
+                0.0,
+                21.0684
+              ]
+            },
+            "fall": {
+              "count": 7,
+              "per_hour": 28.38,
+              "per_hour_ci95": [
+                12.0079,
+                48.4173
+              ]
+            },
+            "fight": {
+              "count": 2,
+              "per_hour": 8.11,
+              "per_hour_ci95": [
+                0.0,
+                24.0919
+              ]
+            },
+            "total": {
+              "count": 25,
+              "per_hour": 101.35,
+              "per_hour_ci95": [
+                69.1544,
+                155.6117
+              ]
+            }
+          },
+          "all_records": 31
+        },
+        "fight": {
+          "kind": "event",
+          "event_type": "fight",
+          "clips": 172,
+          "minutes": 15.22,
+          "detected": 80,
+          "dashboard_alarms_by_type": {
+            "anomaly": 3,
+            "crowd": 3,
+            "fall": 29,
+            "fight": 80
+          },
+          "recall": 0.4651,
+          "recall_ci95": [
+            0.3894,
+            0.5465
+          ]
+        },
+        "fall": {
+          "kind": "event",
+          "event_type": "fall",
+          "clips": 79,
+          "minutes": 9.01,
+          "detected": 59,
+          "dashboard_alarms_by_type": {
+            "fall": 59
+          },
+          "recall": 0.7468,
+          "recall_ci95": [
+            0.6456,
+            0.8354
+          ]
+        },
+        "fire": {
+          "kind": "event",
+          "event_type": "fire_smoke",
+          "clips": 11,
+          "minutes": 5.57,
+          "detected": 8,
+          "dashboard_alarms_by_type": {
+            "anomaly": 7,
+            "fall": 2,
+            "fire_smoke": 8
+          },
+          "recall": 0.7273,
+          "recall_ci95": [
+            0.4545,
+            1.0
+          ]
+        },
+        "smoke": {
+          "kind": "event",
+          "event_type": "fire_smoke",
+          "clips": 13,
+          "minutes": 8.83,
+          "detected": 7,
+          "dashboard_alarms_by_type": {
+            "anomaly": 11,
+            "fall": 1,
+            "fire_smoke": 7
+          },
+          "recall": 0.5385,
+          "recall_ci95": [
+            0.2308,
+            0.8462
+          ]
+        }
+      }
+    },
+    "f_single_frame": {
+      "label": "(f) full, single-frame (1/1)",
+      "ref": "HEAD",
+      "overrides": {
+        "fight_detection.rgb.persistence_window": 1,
+        "fight_detection.rgb.required_confirmed": 1,
+        "fire_smoke_detection.persistence_window": 1,
+        "fire_smoke_detection.required_hits": 1,
+        "fire_smoke_detection.single_class_confirm_seconds": 0,
+        "fall_detection.gru.persistence_window": 1,
+        "fall_detection.gru.required_hits": 1,
+        "scene_anomaly.persistence_window": 1,
+        "scene_anomaly.required_hits": 1,
+        "confirmation.default.probable_hits": 1,
+        "confirmation.default.probable_window": 1,
+        "confirmation.default.confirmed_hits": 1,
+        "confirmation.default.confirmed_window": 1
+      },
+      "calibrated": true,
+      "run": {
+        "run_at": "2026-10-16T02:59:57+00:00",
+        "finished_at": "2026-10-16T04:22:36+00:00",
+        "code": "4bd2c06",
+        "overrides": {
+          "fight_detection.rgb.persistence_window": 1,
+          "fight_detection.rgb.required_confirmed": 1,
+          "fire_smoke_detection.persistence_window": 1,
+          "fire_smoke_detection.required_hits": 1,
+          "fire_smoke_detection.single_class_confirm_seconds": 0,
+          "fall_detection.gru.persistence_window": 1,
+          "fall_detection.gru.required_hits": 1,
+          "scene_anomaly.persistence_window": 1,
+          "scene_anomaly.required_hits": 1,
+          "confirmation.default.probable_hits": 1,
+          "confirmation.default.probable_window": 1,
+          "confirmation.default.confirmed_hits": 1,
+          "confirmation.default.confirmed_window": 1
+        },
+        "limit_per_set": null
+      },
+      "sets": {
+        "normal": {
+          "kind": "normal",
+          "clips": 172,
+          "minutes": 15.96,
+          "false_alarms": {
+            "crowd": {
+              "count": 6,
+              "per_hour": 22.55,
+              "per_hour_ci95": [
+                6.3801,
+                45.144
+              ]
+            },
+            "fall": {
+              "count": 33,
+              "per_hour": 124.04,
+              "per_hour_ci95": [
+                78.1836,
+                190.5983
+              ]
+            },
+            "fight": {
+              "count": 15,
+              "per_hour": 56.38,
+              "per_hour_ci95": [
+                27.7058,
+                93.803
+              ]
+            },
+            "fire_smoke": {
+              "count": 4,
+              "per_hour": 15.04,
+              "per_hour_ci95": [
+                3.1103,
+                33.6027
+              ]
+            },
+            "total": {
+              "count": 58,
+              "per_hour": 218.01,
+              "per_hour_ci95": [
+                138.0989,
+                326.2497
+              ]
+            }
+          },
+          "all_records": 61
+        },
+        "lookalikes": {
+          "kind": "lookalike",
+          "clips": 25,
+          "minutes": 14.8,
+          "false_alarms": {
+            "crowd": {
+              "count": 2,
+              "per_hour": 8.11,
+              "per_hour_ci95": [
+                0.0,
+                21.0684
+              ]
+            },
+            "fall": {
+              "count": 11,
+              "per_hour": 44.59,
+              "per_hour_ci95": [
+                25.3944,
+                73.8138
+              ]
+            },
+            "fight": {
+              "count": 4,
+              "per_hour": 16.22,
+              "per_hour_ci95": [
+                3.3682,
+                36.7788
+              ]
+            },
+            "fire_smoke": {
+              "count": 2,
+              "per_hour": 8.11,
+              "per_hour_ci95": [
+                0.0,
+                22.6544
+              ]
+            },
+            "total": {
+              "count": 19,
+              "per_hour": 77.02,
+              "per_hour_ci95": [
+                49.1982,
+                131.3731
+              ]
+            }
+          },
+          "all_records": 28
+        },
+        "fight": {
+          "kind": "event",
+          "event_type": "fight",
+          "clips": 172,
+          "minutes": 15.22,
+          "detected": 83,
+          "dashboard_alarms_by_type": {
+            "crowd": 4,
+            "fall": 42,
+            "fight": 83,
+            "fire_smoke": 6
+          },
+          "recall": 0.4826,
+          "recall_ci95": [
+            0.407,
+            0.564
+          ]
+        },
+        "fall": {
+          "kind": "event",
+          "event_type": "fall",
+          "clips": 79,
+          "minutes": 9.01,
+          "detected": 72,
+          "dashboard_alarms_by_type": {
+            "fall": 72
+          },
+          "recall": 0.9114,
+          "recall_ci95": [
+            0.8481,
+            0.962
+          ]
+        },
+        "fire": {
+          "kind": "event",
+          "event_type": "fire_smoke",
+          "clips": 11,
+          "minutes": 5.57,
+          "detected": 10,
+          "dashboard_alarms_by_type": {
+            "fall": 2,
+            "fire_smoke": 10
+          },
+          "recall": 0.9091,
+          "recall_ci95": [
+            0.7273,
+            1.0
+          ]
+        },
+        "smoke": {
+          "kind": "event",
+          "event_type": "fire_smoke",
+          "clips": 13,
+          "minutes": 8.83,
+          "detected": 11,
+          "dashboard_alarms_by_type": {
+            "fall": 1,
+            "fire_smoke": 11
+          },
+          "recall": 0.8462,
+          "recall_ci95": [
+            0.6154,
+            1.0
+          ]
+        }
+      }
+    }
+  },
+  "calibration": {
+    "checkpoint": "scene_anomaly_ae_v2.npz",
+    "model_threshold": 0.717933,
+    "camera_id": "CAM-01",
+    "camera_scale": 8.733,
+    "percentile": 99.0,
+    "observed_percentile_ratio": 8.733,
+    "windows": 51,
+    "median_ratio": 3.7406,
+    "created_at": "2026-10-16T00:19:54",
+    "clips": 172
+  },
+  "run_dates": "2026-10-15, 2026-10-16",
+  "paired_vs_full": {
+    "a_prefix": {
+      "normal": {
+        "metric": "false alarms per hour, config minus full",
+        "delta": 22.55,
+        "ci95": [
+          0.0,
+          41.5425
+        ]
+      },
+      "lookalikes": {
+        "metric": "false alarms per hour, config minus full",
+        "delta": 64.86,
+        "ci95": [
+          40.2237,
+          105.7874
+        ]
+      },
+      "fight": {
+        "metric": "recall, config minus full",
+        "delta": 0.3081,
+        "ci95": [
+          0.2384,
+          0.3779
+        ],
+        "only_config_detected": 54,
+        "only_full_detected": 1
+      },
+      "fall": {
+        "metric": "recall, config minus full",
+        "delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "only_config_detected": 0,
+        "only_full_detected": 0
+      },
+      "fire": {
+        "metric": "recall, config minus full",
+        "delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "only_config_detected": 0,
+        "only_full_detected": 0
+      },
+      "smoke": {
+        "metric": "recall, config minus full",
+        "delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "only_config_detected": 0,
+        "only_full_detected": 0
+      }
+    },
+    "c_no_interaction": {
+      "normal": {
+        "metric": "false alarms per hour, config minus full",
+        "delta": 3.76,
+        "ci95": [
+          -13.8037,
+          22.3093
+        ]
+      },
+      "lookalikes": {
+        "metric": "false alarms per hour, config minus full",
+        "delta": 12.16,
+        "ci95": [
+          0.0,
+          24.8353
+        ]
+      },
+      "fight": {
+        "metric": "recall, config minus full",
+        "delta": 0.2791,
+        "ci95": [
+          0.2093,
+          0.3488
+        ],
+        "only_config_detected": 48,
+        "only_full_detected": 0
+      },
+      "fall": {
+        "metric": "recall, config minus full",
+        "delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "only_config_detected": 0,
+        "only_full_detected": 0
+      },
+      "fire": {
+        "metric": "recall, config minus full",
+        "delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "only_config_detected": 0,
+        "only_full_detected": 0
+      },
+      "smoke": {
+        "metric": "recall, config minus full",
+        "delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "only_config_detected": 0,
+        "only_full_detected": 0
+      }
+    },
+    "d_no_dynamics": {
+      "normal": {
+        "metric": "false alarms per hour, config minus full",
+        "delta": 0.0,
+        "ci95": [
+          -11.2102,
+          11.3796
+        ]
+      },
+      "lookalikes": {
+        "metric": "false alarms per hour, config minus full",
+        "delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ]
+      },
+      "fight": {
+        "metric": "recall, config minus full",
+        "delta": -0.0058,
+        "ci95": [
+          -0.0174,
+          0.0
+        ],
+        "only_config_detected": 0,
+        "only_full_detected": 1
+      },
+      "fall": {
+        "metric": "recall, config minus full",
+        "delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "only_config_detected": 0,
+        "only_full_detected": 0
+      },
+      "fire": {
+        "metric": "recall, config minus full",
+        "delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "only_config_detected": 0,
+        "only_full_detected": 0
+      },
+      "smoke": {
+        "metric": "recall, config minus full",
+        "delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "only_config_detected": 0,
+        "only_full_detected": 0
+      }
+    },
+    "e_no_calibration": {
+      "normal": {
+        "metric": "false alarms per hour, config minus full",
+        "delta": 11.28,
+        "ci95": [
+          -9.2075,
+          29.8176
+        ]
+      },
+      "lookalikes": {
+        "metric": "false alarms per hour, config minus full",
+        "delta": 56.75,
+        "ci95": [
+          35.2897,
+          96.3222
+        ]
+      },
+      "fight": {
+        "metric": "recall, config minus full",
+        "delta": -0.0058,
+        "ci95": [
+          -0.0291,
+          0.0174
+        ],
+        "only_config_detected": 2,
+        "only_full_detected": 3
+      },
+      "fall": {
+        "metric": "recall, config minus full",
+        "delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "only_config_detected": 0,
+        "only_full_detected": 0
+      },
+      "fire": {
+        "metric": "recall, config minus full",
+        "delta": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "only_config_detected": 0,
+        "only_full_detected": 0
+      },
+      "smoke": {
+        "metric": "recall, config minus full",
+        "delta": -0.0769,
+        "ci95": [
+          -0.2308,
+          0.0
+        ],
+        "only_config_detected": 0,
+        "only_full_detected": 1
+      }
+    },
+    "f_single_frame": {
+      "normal": {
+        "metric": "false alarms per hour, config minus full",
+        "delta": 82.69,
+        "ci95": [
+          44.7055,
+          135.8795
+        ]
+      },
+      "lookalikes": {
+        "metric": "false alarms per hour, config minus full",
+        "delta": 32.43,
+        "ci95": [
+          11.7795,
+          70.78
+        ]
+      },
+      "fight": {
+        "metric": "recall, config minus full",
+        "delta": 0.0116,
+        "ci95": [
+          -0.0116,
+          0.0407
+        ],
+        "only_config_detected": 4,
+        "only_full_detected": 2
+      },
+      "fall": {
+        "metric": "recall, config minus full",
+        "delta": 0.1646,
+        "ci95": [
+          0.0886,
+          0.2408
+        ],
+        "only_config_detected": 13,
+        "only_full_detected": 0
+      },
+      "fire": {
+        "metric": "recall, config minus full",
+        "delta": 0.1818,
+        "ci95": [
+          0.0,
+          0.4545
+        ],
+        "only_config_detected": 2,
+        "only_full_detected": 0
+      },
+      "smoke": {
+        "metric": "recall, config minus full",
+        "delta": 0.2308,
+        "ci95": [
+          0.0,
+          0.4615
+        ],
+        "only_config_detected": 3,
+        "only_full_detected": 0
+      }
+    }
+  },
+  "processing_speed": {
+    "normal": 1.3,
+    "lookalikes": 1.21,
+    "fight": 1.22,
+    "fall": 1.2,
+    "fire": 1.05,
+    "smoke": 1.02
+  }
+}

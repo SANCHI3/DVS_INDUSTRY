@@ -121,7 +121,7 @@ def proxy_sets() -> tuple[dict, list[Path]]:
     }
     calibration = fight_split("val", "0")
     random.Random(0).shuffle(calibration)
-    return sets, calibration[:80]
+    return sets, calibration   # all 172: a 5-s clip yields only ~1 anomaly window
 
 
 def field_sets() -> tuple[dict, list[Path]]:
@@ -243,10 +243,52 @@ def summarise(rows: list[dict]) -> dict:
                              "all_records": sum(len(c["incidents"]) for c in clips)}
         else:
             hit = np.array([any(i["dashboard"] and i["event_type"] == event for i in c["incidents"]) for c in clips])
+            by_type = Counter(i["event_type"] for c in clips for i in c["incidents"] if i["dashboard"])
             out[set_name] = {"kind": kind, "event_type": event, "clips": len(clips),
                              "minutes": round(float(minutes.sum()), 2), "detected": int(hit.sum()),
+                             "dashboard_alarms_by_type": dict(sorted(by_type.items())),
                              "recall": round(float(hit.mean()), 4),
                              "recall_ci95": bootstrap_ci(len(clips), lambda idx: float(hit[idx].mean()))}
+    return out
+
+
+def paired_differences(reference: list[dict], other: list[dict]) -> dict:
+    """Configuration minus full system on the SAME clips, with a paired bootstrap
+    (one resample of clips is applied to both configurations)."""
+    ref = {r["clip"]: r for r in reference}
+    out = {}
+    for set_name, (kind, event, _) in SET_INFO.items():
+        clips = [r for r in other if r["set"] == set_name and r["clip"] in ref]
+        if not clips:
+            continue
+        minutes = np.array([c["minutes"] for c in clips])
+        if kind in ("normal", "lookalike"):
+            def alarms(rows):
+                return np.array([sum(1 for i in r["incidents"] if i["dashboard"]) for r in rows])
+            a, b = alarms(clips), alarms([ref[c["clip"]] for c in clips])
+            delta = lambda idx: float((a[idx].sum() - b[idx].sum()) * 60.0 / minutes[idx].sum())  # noqa: E731
+            out[set_name] = {"metric": "false alarms per hour, config minus full",
+                             "delta": round(delta(np.arange(len(clips))), 2), "ci95": bootstrap_ci(len(clips), delta)}
+        else:
+            def hits(rows):
+                return np.array([any(i["dashboard"] and i["event_type"] == event for i in r["incidents"]) for r in rows],
+                                dtype=float)
+            a, b = hits(clips), hits([ref[c["clip"]] for c in clips])
+            delta = lambda idx: float(a[idx].mean() - b[idx].mean())  # noqa: E731
+            out[set_name] = {"metric": "recall, config minus full",
+                             "delta": round(delta(np.arange(len(clips))), 4), "ci95": bootstrap_ci(len(clips), delta),
+                             "only_config_detected": int(((a == 1) & (b == 0)).sum()),
+                             "only_full_detected": int(((a == 0) & (b == 1)).sum())}
+    return out
+
+
+def processing_speed(rows: list[dict]) -> dict:
+    """Wall-clock seconds per second of video, per set (1.0 = real time)."""
+    out = {}
+    for set_name in SET_INFO:
+        clips = [r for r in rows if r["set"] == set_name]
+        if clips:
+            out[set_name] = round(sum(c["wall_seconds"] for c in clips) / (60 * sum(c["minutes"] for c in clips)), 2)
     return out
 
 
@@ -365,6 +407,46 @@ def markdown(results: dict, figure: str | None) -> str:
             else:
                 cells.append("–")
         out.append(f"| {CONFIGS[n]['label']} | " + " | ".join(cells) + " |")
+    paired = results.get("paired_vs_full") or {}
+    if paired:
+        cols = ["normal", "lookalikes"] + event_sets
+        out += ["", "### Paired differences against the full system", "",
+                "Every configuration ran on the same clips, so each is compared with (b) clip by clip: the "
+                "same bootstrap resample of clips is applied to both. False alarms: alarms per hour, "
+                "configuration minus full (positive = more false alarms without the stage). Recall: "
+                "configuration minus full (positive = the stage was costing detections). An interval that "
+                "excludes 0 marks a difference larger than resampling noise.", "",
+                "| Configuration | " + " | ".join(f"Δ FA/h {c}" if c in ("normal", "lookalikes") else f"Δ recall {c}"
+                                               for c in cols) + " |",
+                "|---" * (len(cols) + 1) + "|"]
+        for n in names:
+            if n not in paired:
+                continue
+            cells = []
+            for c in cols:
+                d = paired[n].get(c)
+                if d is None:
+                    cells.append("–")
+                    continue
+                digits = 1 if c in ("normal", "lookalikes") else 2
+                cells.append(f"{d['delta']:+.{digits}f} [{d['ci95'][0]:+.{digits}f}, {d['ci95'][1]:+.{digits}f}]"
+                             if d["ci95"] else f"{d['delta']:+.{digits}f}")
+            out.append(f"| {CONFIGS[n]['label']} | " + " | ".join(cells) + " |")
+    speed = results.get("processing_speed")
+    if speed:
+        out += ["", "Processing pace in (b), wall-clock seconds per second of video (1.0 = real time): "
+                + ", ".join(f"{k} {v}" for k, v in speed.items())
+                + ". Wall time includes each clip's detector start-up (about a second), which dominates on "
+                  "the 5-s clips; the longer FIRESENSE clips show the pipeline itself at close to real time, "
+                  "though one 189-s look-alike clip took 242 s, so its time-based rules saw the scene somewhat slowed."]
+    out += ["", "Unusual-activity (anomaly) alarms raised while the genuine-event clips played (no labelled "
+                "unusual-activity set exists in the proxy, so this is the only indication of what calibration "
+                "costs in anomaly detections):", "",
+            "| Configuration | " + " | ".join(event_sets) + " |", "|---" * (len(event_sets) + 1) + "|"]
+    for n in names:
+        s = cfgs[n]["sets"]
+        out.append(f"| {CONFIGS[n]['label']} | " + " | ".join(
+            str(s[e].get("dashboard_alarms_by_type", {}).get("anomaly", 0)) if e in s else "–" for e in event_sets) + " |")
     missing = [CONFIGS[n]["label"] for n in CONFIGS if n not in cfgs]
     out += ["", "Configurations:", ""]
     for n in names:
@@ -377,7 +459,7 @@ def markdown(results: dict, figure: str | None) -> str:
     cal = results.get("calibration")
     if cal:
         out += ["", f"Scene-anomaly calibration used by the calibrated configurations: {cal['windows']} windows "
-                    f"pooled from {cal['clips']} normal clips disjoint from the evaluation sets "
+                    f"pooled from {cal["clips"]} normal clips disjoint from the evaluation sets "
                     f"(fight-dataset validation split); 99th-percentile ratio {cal['observed_percentile_ratio']} "
                     f"→ camera threshold {cal['camera_scale']}× the model's."]
     out += ["", "Caveats: one run per configuration (the pipeline is timing-dependent, so a re-run can differ "
@@ -418,6 +500,11 @@ def report() -> None:
     results["run_dates"] = ", ".join(sorted(d for d in dates if d)) or "–"
     if not results["configs"]:
         raise SystemExit("no ablation runs found; run `python -m evaluation.ablation run` first")
+    if "b_full" in results["configs"]:
+        reference = load_per_clip("b_full")
+        results["paired_vs_full"] = {n: paired_differences(reference, load_per_clip(n))
+                                     for n in results["configs"] if n != "b_full"}
+        results["processing_speed"] = processing_speed(reference)
     figure = make_figure(results)
     (RESULTS_DIR / "ablation.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
     text = markdown(results, figure)
@@ -426,6 +513,7 @@ def report() -> None:
 
 
 def main() -> None:
+    sys.stdout.reconfigure(errors="replace")  # Windows consoles cannot print every character in the tables
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("command", choices=["run", "report"])
     parser.add_argument("--configs", nargs="+", choices=list(CONFIGS), default=list(CONFIGS))

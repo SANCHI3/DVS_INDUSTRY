@@ -1,0 +1,11 @@
+{
+  "checkpoint": "scene_anomaly_ae_v2.npz",
+  "model_threshold": 0.717933,
+  "camera_id": "CAM-01",
+  "camera_scale": 8.733,
+  "percentile": 99.0,
+  "observed_percentile_ratio": 8.733,
+  "windows": 51,
+  "median_ratio": 3.7406,
+  "created_at": "2026-10-16T00:19:54"
+}

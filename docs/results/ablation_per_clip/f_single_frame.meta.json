@@ -1,0 +1,21 @@
+{
+  "run_at": "2026-10-16T02:59:57+00:00",
+  "finished_at": "2026-10-16T04:22:36+00:00",
+  "code": "4bd2c06",
+  "overrides": {
+    "fight_detection.rgb.persistence_window": 1,
+    "fight_detection.rgb.required_confirmed": 1,
+    "fire_smoke_detection.persistence_window": 1,
+    "fire_smoke_detection.required_hits": 1,
+    "fire_smoke_detection.single_class_confirm_seconds": 0,
+    "fall_detection.gru.persistence_window": 1,
+    "fall_detection.gru.required_hits": 1,
+    "scene_anomaly.persistence_window": 1,
+    "scene_anomaly.required_hits": 1,
+    "confirmation.default.probable_hits": 1,
+    "confirmation.default.probable_window": 1,
+    "confirmation.default.confirmed_hits": 1,
+    "confirmation.default.confirmed_window": 1
+  },
+  "limit_per_set": null
+}

@@ -164,9 +164,14 @@ def main() -> None:
 
     if args.mode == "calibrate":
         detector = instances[-1]
-        if observed_seconds < detector.calibration_seconds or len(pooled) < detector.calibration_min_windows:
+        # the run overrides calibration.seconds so no clip finishes calibrating on its own;
+        # the requirement is the configured value
+        required = float(original_load()[1]["scene_anomaly"]["calibration"]["seconds"])
+        args.calibration.with_suffix(".windows.json").write_text(
+            json.dumps({"ratios": pooled, "observed_seconds": observed_seconds}), encoding="utf-8")
+        if observed_seconds < required or len(pooled) < detector.calibration_min_windows:
             raise SystemExit(f"not enough normal footage to calibrate: {observed_seconds:.0f}s, "
-                             f"{len(pooled)} windows (need {detector.calibration_seconds:.0f}s, "
+                             f"{len(pooled)} windows (need {required:.0f}s, "
                              f"{detector.calibration_min_windows} windows)")
         detector._calibration_ratios = pooled
         detector.calibration_path = str(args.calibration)
