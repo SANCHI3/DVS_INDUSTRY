@@ -15,23 +15,21 @@
 #   loitering: true/false       force lingering checks on/off for this zone
 #   active_hours: "08:00-20:00" zone only raises alerts inside these hours (overnight ranges allowed)
 #
-# IMPORTANT: the z1/z2 polygons below are EXAMPLES covering whole thirds of
-# the frame. Anyone sitting in the left third of a webcam view counts as
-# "inside a restricted area" and will raise lingering alerts. Redraw them
-# around the real restricted area before relying on lingering/intrusion alerts.
-# main.py prints a warning at start-up for zones covering >= 25% of the view.
+# Lingering and intrusion alerts come ONLY from zones listed here (they are
+# rules, not a trained model). With no zones, they never fire. Draw zones
+# only around real restricted areas; main.py warns at start-up about zones
+# covering >= 25% of the view.
 
 cameras:
   - id: CAM-01
     name: Demo Camera
     location: "Test Room"
     source: "0"               # webcam by default; swap for an RTSP URL or file path
-    zones:
-      - zone_id: z1
-        type: restricted
-        # example polygon covering the left third of a 640x480 frame
-        polygon: [[0, 0], [200, 0], [200, 480], [0, 480]]
-        active_hours: "00:00-23:59"   # always active for demo purposes
-      - zone_id: z2
-        type: ppe_required
-        polygon: [[400, 0], [640, 0], [640, 480], [400, 480]]
+    # No restricted or lingering areas at this site, so no lingering/intrusion
+    # alerts. To add one, draw it on a camera frame:
+    #   python scripts/draw_zones.py --camera CAM-01
+    # and paste the printed zones here, e.g.
+    #   - zone_id: z1
+    #     type: restricted
+    #     polygon: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+    zones: []
