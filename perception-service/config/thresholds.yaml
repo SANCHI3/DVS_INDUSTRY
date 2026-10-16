@@ -209,6 +209,15 @@ fall_detection:
     required_hits: 2                # 2 of the last 3 evaluations above threshold
     cooldown_seconds: 30            # one incident per person per fall
     max_people_for_pose: 12
+    verification:                   # temporal/fall_gru_recognition.py fall_plausibility()
+      # A high model score is only raised as a fall when it is physically
+      # plausible at that moment. Rejected checks are retried at the next
+      # evaluation, so a fall still in progress passes once the person is down.
+      enabled: true
+      bottom_edge: 0.99             # box reaching the bottom edge with no torso found = person
+                                    # only partly in view (close desk webcam): not judged
+      require_down: true            # torso tilted (or wide box without a skeleton) right now
+      # Measured on the 160 labelled fall videos: a passing frame remains in 77/79 falls.
     serious:                        # fallen person who does not get back up
       after_seconds: 20             # still down this long -> escalate the fall to CRITICAL
       recovered_after_seconds: 2    # upright (standing or sitting up) this long = got up

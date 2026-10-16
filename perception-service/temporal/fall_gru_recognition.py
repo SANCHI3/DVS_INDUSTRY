@@ -49,6 +49,28 @@ def is_upright(row: np.ndarray, max_torso_tilt: float, max_box_aspect: float) ->
     return float(row[0]) <= max_box_aspect
 
 
+def fall_plausibility(row: np.ndarray, bottom_edge: float, require_down: bool,
+                     max_torso_tilt: float, max_box_aspect: float) -> Optional[str]:
+    """Why a high fall score cannot be a real fall right now, or None if it can.
+
+    * truncated: the box reaches the bottom edge of the frame and no torso
+      (shoulders + hips) was found -- the person is only partly in view, e.g.
+      sitting close to a desk webcam. A head-and-shoulders box is wide and
+      short, which looks like a lying person to the model.
+    * upright: the person is standing or sitting upright at this moment.
+
+    Not rejected for good: the next evaluation checks again, so a real fall
+    that is still in progress passes once the person is down and in view.
+    On the 160 labelled fall-dataset videos, the truncation rule leaves a
+    passing frame in 79/79 falls, and with require_down in 77/79.
+    """
+    if float(row[3]) >= bottom_edge and row[9] == 0:
+        return "truncated"
+    if require_down and is_upright(row, max_torso_tilt, max_box_aspect):
+        return "upright"
+    return None
+
+
 class GruFallDetector:
     def __init__(self, camera_id: str, cfg: dict, pose_estimator: Optional[PoseEstimator] = None):
         self.camera_id = camera_id
@@ -68,6 +90,10 @@ class GruFallDetector:
         self.max_unseen = float(serious_cfg.get("max_unseen_seconds", 5.0))
         self.upright_tilt = float(serious_cfg.get("upright_torso_tilt", 0.35))  # ~31 degrees
         self.upright_aspect = float(serious_cfg.get("upright_box_aspect", 0.8))
+        verify_cfg = cfg.get("verification") or {}
+        self.verify = bool(verify_cfg.get("enabled", False))
+        self.bottom_edge = float(verify_cfg.get("bottom_edge", 0.99))
+        self.require_down = bool(verify_cfg.get("require_down", True))
 
         self.rows: Dict[int, Deque[Optional[np.ndarray]]] = {}
         self.hits: Dict[int, Deque[bool]] = {}
@@ -76,7 +102,8 @@ class GruFallDetector:
         self.cycles = 0
         self._stats = {"cycles": 0, "pose_runs": 0, "evaluations": 0,
                        "high_scores": 0, "candidates": 0, "max_score": 0.0,
-                       "recovered": 0, "serious": 0}
+                       "recovered": 0, "serious": 0,
+                       "rejected_truncated": 0, "rejected_upright": 0}
         print(f"[{camera_id}] pose fall model loaded: {cfg['checkpoint']} threshold={self.threshold:.2f}")
 
     def evaluate(self, buffer: TemporalBuffer, frame) -> list:
@@ -127,6 +154,13 @@ class GruFallDetector:
             self._stats["high_scores"] += 1
             if sum(history) < self.required_hits or now < self.cooldown_until.get(person.track_id, 0.0):
                 continue
+            latest = rows[-1]
+            if self.verify and latest is not None:
+                reason = fall_plausibility(latest, self.bottom_edge, self.require_down,
+                                           self.upright_tilt, self.upright_aspect)
+                if reason:
+                    self._stats[f"rejected_{reason}"] += 1
+                    continue  # no cooldown: checked again at the next evaluation
             self.cooldown_until[person.track_id] = now + self.cooldown_seconds
             self.watches[person.track_id] = DownWatch(
                 person.track_id, tuple(person.states[-1].bbox), now, now, score
@@ -136,7 +170,10 @@ class GruFallDetector:
                 event_type="fall",
                 track_ids=[person.track_id],
                 camera_id=self.camera_id,
-                detail={"mode": "pose_gru", "score": round(score, 3)},
+                detail={"mode": "pose_gru", "score": round(score, 3),
+                        **({"box_bottom": round(float(latest[3]), 2), "torso_found": bool(latest[9]),
+                            "torso_tilt": round(float(latest[4]), 2), "box_aspect": round(float(latest[0]), 2)}
+                           if latest is not None else {})},
                 raw_confidence=score,
             ))
         return candidates

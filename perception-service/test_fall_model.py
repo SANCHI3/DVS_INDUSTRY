@@ -135,3 +135,43 @@ if __name__ == "__main__":
         if name.startswith("test_") and callable(fn):
             fn()
             print(f"PASS {name}")
+
+
+def _skeleton(points):
+    """17x3 keypoints; `points` maps keypoint index -> (x, y)."""
+    kps = np.zeros((17, 3), dtype=np.float32)
+    for i, (x, y) in points.items():
+        kps[i] = (x, y, 0.9)
+    return kps
+
+
+def _plausibility(bbox, keypoints=None):
+    from fall_gru.features import frame_features
+    from temporal.fall_gru_recognition import fall_plausibility
+
+    row = frame_features(bbox, 480, keypoints)
+    return fall_plausibility(row, bottom_edge=0.99, require_down=True, max_torso_tilt=0.35, max_box_aspect=0.8)
+
+
+def test_close_desk_webcam_view_is_not_judged_as_a_fall():
+    # head and shoulders filling the lower frame, cut off at the bottom, no hips found
+    shoulders_only = _skeleton({0: (320, 260), 5: (220, 420), 6: (420, 420)})
+    assert _plausibility((120, 180, 520, 480), shoulders_only) == "truncated"
+    assert _plausibility((120, 180, 520, 480)) == "truncated"
+
+
+def test_person_standing_or_sitting_upright_is_not_a_fall():
+    upright = _skeleton({5: (300, 150), 6: (340, 150), 11: (305, 300), 12: (335, 300)})
+    assert _plausibility((280, 100, 360, 420), upright) == "upright"
+    assert _plausibility((290, 80, 350, 400)) == "upright"          # tall box, no skeleton
+
+
+def test_person_lying_on_the_floor_is_plausible():
+    lying = _skeleton({5: (150, 380), 6: (150, 400), 11: (330, 385), 12: (330, 405)})
+    assert _plausibility((100, 350, 450, 430), lying) is None
+    assert _plausibility((100, 360, 450, 430)) is None                # wide box, no skeleton
+
+
+def test_fallen_person_at_the_frame_edge_with_torso_visible_still_counts():
+    lying = _skeleton({5: (150, 440), 6: (150, 465), 11: (330, 445), 12: (330, 470)})
+    assert _plausibility((100, 400, 450, 480), lying) is None
