@@ -127,6 +127,8 @@ function explain(eventType: string, detail: Json): { label: string; value: strin
     if (typeof detail['sustained_seconds'] === 'number')
       add('For', `${detail['sustained_seconds']} s`);
   }
+  // Lingering / restricted-area detection was removed; kept so evidence of
+  // incidents recorded before the removal still displays.
   if (eventType === 'loitering' || eventType === 'intrusion') {
     add('Zone', str(detail['zone_name']));
     if (typeof detail['dwell_seconds'] === 'number')

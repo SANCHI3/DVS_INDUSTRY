@@ -15,8 +15,6 @@ temporal_buffer:
   window_seconds: 30              # rolling history kept per track
 
 rules:
-  loitering:
-    dwell_seconds: 10             # time in a zone before "loitering" candidate fires
   crowd:
     person_count_threshold: 3
     sustained_seconds: 5
@@ -24,8 +22,6 @@ rules:
     aspect_ratio_flip_seconds: 1.5     # standing->fallen transition must happen within this
     stillness_seconds: 5                # time lying still before PROBABLE
     confirm_stillness_seconds: 8        # time lying still before CONFIRMED
-  intrusion:
-    min_frames_inside: 3          # frames of continuous presence before confirming (filters flicker)
 
 confirmation:
   # number of positive evaluation windows out of the last N required per tier,
@@ -35,11 +31,6 @@ confirmation:
     probable_window: 5
     confirmed_hits: 4
     confirmed_window: 5
-  intrusion:
-    probable_hits: 1
-    probable_window: 3
-    confirmed_hits: 1
-    confirmed_window: 3
   fall:
     probable_hits: 1
     probable_window: 3
@@ -47,8 +38,7 @@ confirmation:
     confirmed_window: 3
   fight:
     # per design doc: fight needs sustained signal across several clip
-    # evaluations before CONFIRMED, unlike geometry-based events like
-    # intrusion which can confirm almost immediately
+    # evaluations before CONFIRMED
     # RGB detector performs 2-of-3 inference-window persistence internally.
     # Once emitted here, confirm immediately; pipeline cycles without an RGB
     # evaluation must not count as model misses.
@@ -68,9 +58,7 @@ severity:
   base:
     fall: MEDIUM
     accident: HIGH
-    intrusion: MEDIUM
     crowd: LOW
-    loitering: LOW
     ppe_violation: LOW
     theft_probable: LOW
     fight: MEDIUM

@@ -32,7 +32,7 @@ from evaluation.common import RESULTS_DIR, SERVICE_ROOT, update_section
 QUIET_ENV = {"DASHBOARD_BACKEND_URL": "", "DASHBOARD_API_TOKEN": "", "DASHBOARD_SERVICE_EMAIL": "",
              "LLM_API_KEY": "", "LEGACY_INCIDENT_API_URL": ""}
 STAGES = [("yolo_detect", "YOLOv8n person/object detection"), ("bytetrack", "ByteTrack tracking"),
-          ("rule_engine", "Rule engine (loitering, intrusion, crowd)"), ("fight", "Fight (R3D-18 + interaction)"),
+          ("rule_engine", "Rule engine (crowd)"), ("fight", "Fight (R3D-18 + interaction)"),
           ("fire_smoke", "Fire/smoke (YOLOv8n + verifier)"), ("fall", "Fall (YOLOv8-Pose + BiGRU)"),
           ("anomaly", "Unusual activity (optical flow + autoencoder)"), ("cycle_total", "Whole frame")]
 

@@ -11,7 +11,7 @@ with open("config/cameras.yaml") as f:
 with open("config/thresholds.yaml") as f:
     thresholds = yaml.safe_load(f)
 
-# Isolate this test from intrusion/loitering zones.
+# Isolate this test from any configured crowd zones (whole-frame crowding).
 cam = dict(cameras["cameras"][0])
 cam["zones"] = []
 engine = RuleEngine(cam, thresholds)

@@ -8,8 +8,8 @@ File paths are given so you can open the code if asked.
 **1. What problem does the project solve?**
 Plants record CCTV that nobody watches continuously, and their operational
 data lives in a different system. We combine an ERP with a CCTV AI that
-detects fights, falls, fire/smoke, unusual activity, loitering, intrusion and
-crowding, and turns each one into a single incident with evidence. The
+detects fights, falls, fire/smoke, crowding and unusual activity, and turns
+each one into a single incident with evidence. The
 incident appears live on the dashboard.
 
 **2. Why not just use YOLO for everything?**
@@ -112,28 +112,28 @@ Confirmation tiers. An event needs N positive windows out of the last M
 become CONFIRMED. Only CONFIRMED incidents go to the dashboard.
 
 **17. How do you prevent duplicate incidents?**
-`IncidentDeduper`: while an event is ongoing (same camera, and same zone for
-loitering), repeats update the existing incident. A new incident needs 45–120
+`IncidentDeduper`: while an event is ongoing (same camera and event type),
+repeats update the existing incident. A new incident needs 45–120
 s of quiet. The backend also ignores a resent `incident_id`, so retries are
 safe.
 
 **18. How is the confidence value computed? Is it a probability?**
 It comes from the detector, and each record stores `confidence_basis`
 explaining how. For example, fight = mean R3D-18 probability over the
-high-scoring clips; loitering = detector confidence × share of time inside
-the zone. The anomaly value is a score (`ratio/(ratio+1)`), not a
+high-scoring clips; crowd = mean person-detector confidence of the group.
+The anomaly value is a score (`ratio/(ratio+1)`), not a
 probability, and it is labelled as such.
 
 **19. Tell us about the false positives you found.**
 Normal activity in the test room produced lingering, fight, smoke and anomaly
 incidents. The causes were:
 - ghost tracks kept 15 s after people left;
-- a made-up confidence formula (`0.5 + dwell/40`);
+- made-up confidence formulas instead of detector outputs;
 - a motion gate that paired one person's two track IDs;
 - static look-alikes passing frame persistence;
 - an anomaly threshold calibrated on another site.
 
-Each has a fix and a regression test (26 scenarios in
+Each has a fix and a regression test (18 scenarios in
 `test_false_positives.py`).
 
 **20. Have you measured false alarms per hour after the fix?**
@@ -195,17 +195,15 @@ caps; for example, an unsupervised anomaly can never exceed MEDIUM, because
 the AI cannot say what it is. A human always makes the final call.
 
 **29. How would you deploy this in a real factory?**
-1. Draw the real zones (`scripts/draw_zones.py`).
-2. Calibrate the anomaly detector on normal footage.
-3. Measure false alarms per camera-hour.
-4. Fine-tune the fight and fall models on site footage.
-5. Run the backend with PM2 behind Nginx with TLS, with daily database
+1. Calibrate the anomaly detector on normal footage.
+2. Measure false alarms per camera-hour.
+3. Fine-tune the fight and fall models on site footage.
+4. Run the backend with PM2 behind Nginx with TLS, with daily database
    backups (templates in `ops/`).
 
 **30. What are the main limitations?**
 - Domain gap: trained on public datasets, not on our cameras.
 - False alarms per hour not yet measured on site.
 - Small fire and smoke test sets.
-- Placeholder zones.
 - The anomaly detector is silent for 5 minutes while it calibrates.
 - The single-process SSE bus means several backend workers need a shared bus.

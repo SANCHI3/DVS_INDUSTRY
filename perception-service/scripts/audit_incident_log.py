@@ -20,10 +20,6 @@ from pathlib import Path
 
 
 def legacy_signature(event: str, confidence: float, detail: dict) -> str | None:
-    if event == "loitering" and "dwell_seconds" in detail and "confidence_basis" not in detail:
-        expected = min(0.5 + float(detail["dwell_seconds"]) / 40.0, 0.95)
-        if abs(expected - confidence) < 0.02:
-            return "old loitering formula 0.5 + dwell/40"
     if event == "anomaly" and "confidence_basis" not in detail and "anomaly_ratio" in detail:
         expected = 1.0 - math.exp(-float(detail["anomaly_ratio"]))
         if abs(expected - confidence) < 0.02:

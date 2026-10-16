@@ -34,10 +34,6 @@ function parseDate(value: string | undefined, fallback: Date): Date {
 function legacySignature(type: string, title: string, confidence: number | null): string | null {
   if (confidence === null) return null;
   const event = title.toLowerCase();
-  // loitering: 0.5 + dwell/40 -> 0.75 at the 10 s threshold, rising slowly
-  if ((type === 'LOITERING' || event === 'loitering') && confidence >= 0.75 && confidence <= 0.85) {
-    return 'loitering confidence matches old formula 0.5 + dwell/40';
-  }
   // crowd: 0.62 + overflow * 0.07
   if ((type === 'CROWD' || event === 'crowd') && confidence >= 0.62 && confidence <= 0.95) {
     const steps = (confidence - 0.62) / 0.07;

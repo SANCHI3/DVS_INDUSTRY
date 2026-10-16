@@ -21,7 +21,7 @@ perception-service/   CCTV AI: main.py and one folder per stage/model
   rgb_fight_model/ fall_gru/ fall_rf/ fire_verifier/ anomaly/ explain/
   evaluation/         results table, false-alarm and speed measurement
   models/             trained weights + metrics JSON (fight weights via Git LFS)
-  config/             cameras.yaml (sources, zones), thresholds.yaml (all tunables)
+  config/             cameras.yaml (sources), thresholds.yaml (all tunables)
 docs/                 RESULTS.md, figures, report chapters, demo script
 start-demo.ps1/.sh    one-command demo
 ```

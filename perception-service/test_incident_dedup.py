@@ -80,12 +80,12 @@ def test_ongoing_detection_keeps_incident_open_past_window():
     _run(body)
 
 
-def test_loitering_is_scoped_per_zone_and_types_are_independent():
+def test_one_incident_per_camera_and_type_and_types_are_independent():
     def body(clock):
         d = IncidentDeduper({})
-        d.register(_event("loitering", tracks=(3,), zone_id="z1"), "LOW", "INC-1")
-        assert d.check(_event("loitering", tracks=(9,), zone_id="z1"), "LOW") == ("suppress", "INC-1")
-        assert d.check(_event("loitering", tracks=(9,), zone_id="z2"), "LOW") == ("new", None)
+        d.register(_event("crowd", tracks=(3,), zone_id="canteen"), "LOW", "INC-1")
+        assert d.check(_event("crowd", tracks=(9,), zone_id="canteen"), "LOW") == ("suppress", "INC-1")
+        assert d.check(_event("crowd", tracks=(9,), zone_id="gate"), "LOW") == ("suppress", "INC-1")
         assert d.check(_event("fight"), "MEDIUM") == ("new", None)
     _run(body)
 

@@ -40,12 +40,6 @@ def compute_severity(event_type: str, confirmed_event, severity_cfg: dict) -> st
         overflow = detail.get("count", 0) - detail.get("threshold", 0)
         if overflow >= 5:
             level = _bump(level, 1)
-    elif event_type == "loitering":
-        if detail.get("dwell_seconds", 0) > 60:
-            level = _bump(level, 1)
-    elif event_type == "intrusion":
-        if detail.get("zone_type") == "restricted" and confirmed_event.tier == "CONFIRMED":
-            level = _bump(level, 1)
     elif event_type == "fight":
         # sustained signal (long duration above threshold) or a high score
         # bumps severity; still deterministic/explainable, no learned scoring here

@@ -39,7 +39,7 @@ const capabilities = [
 const aiFeatures = [
   { icon: Package, title: "Real-time Inventory Intelligence", desc: "Automated stock tracking, smart reorder suggestions, and scrap analytics across all material categories." },
   { icon: Settings, title: "Predictive Maintenance", desc: "Machine health scoring, wear pattern detection, and maintenance scheduling before breakdowns occur." },
-  { icon: Shield, title: "AI Security Surveillance", desc: "YOLO-based PPE compliance detection, restricted zone alerts, and crowd formation monitoring." },
+  { icon: Shield, title: "AI Security Surveillance", desc: "Camera AI that detects fights, falls, fire and smoke, crowding and unusual activity." },
 ];
 
 const manufacturingFlow = [

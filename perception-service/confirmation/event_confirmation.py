@@ -6,8 +6,8 @@ mechanism (design doc section 6). This is what prevents a single noisy
 frame from becoming an incident report.
 
 Keyed by (camera_id, event_type, primary_track_id) so that, e.g., two
-different people loitering in two different zones are tracked as separate
-candidate "streaks" rather than one blended signal.
+different people who fall are tracked as separate candidate "streaks"
+rather than one blended signal.
 """
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ class EventConfirmation:
     # A fight can cause frequent ByteTrack ID switches and several nearby
     # candidate pairs. Treat it as one camera-level episode for alerting; the
     # candidate still carries the currently relevant track IDs as evidence.
-    AGGREGATE_EVENT_TYPES = {"crowd", "fight", "fire_smoke", "intrusion"}
+    AGGREGATE_EVENT_TYPES = {"crowd", "fight", "fire_smoke"}
 
     def _key(self, candidate: EventCandidate) -> Tuple[str, str, int]:
         if candidate.event_type in self.AGGREGATE_EVENT_TYPES:
@@ -80,8 +80,8 @@ class EventConfirmation:
         This is the de-duplication behavior described in the design doc
         (section 13): "if the same event type keeps re-triggering for the
         same track/zone within a short window, update the existing incident
-        rather than spamming new ones." A person standing in a zone for 30
-        seconds should produce one incident, not one per processing cycle.
+        rather than spamming new ones." A crowd that stays for 30 seconds
+        should produce one incident, not one per processing cycle.
         """
         fired_keys = set()
         results = []

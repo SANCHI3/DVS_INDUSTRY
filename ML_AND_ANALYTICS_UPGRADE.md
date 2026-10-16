@@ -23,11 +23,11 @@ YOLO is only the first stage. Each abnormal-incident type uses the model family 
 | Fall | **YOLOv8-Pose + box features → temporal CNN + BiGRU** (`fall_gru/`, primary). Alternative: **16 biomechanical features → Random Forest** (`fall_rf/`) | pose estimation + recurrent deep learning / classical ML | **new, trained** |
 | Explainability | **Grad-CAM** heatmaps on the R3D-18 fight model, saved with each fight incident | explainable AI | **new** |
 | Unknown / unlabelled abnormal events | **Optical flow + background subtraction → denoising autoencoder** | unsupervised deep learning | **new, trained** |
-| Intrusion, loitering, crowd | geometric rule engine on tracks | rules | existing |
+| Crowd | geometric rule engine on tracks | rules | existing |
 | Incident summaries | LLM summarizer | generative AI | existing |
 
 ```
-camera ─► YOLOv8 + ByteTrack ─► temporal buffer ─┬─► rule engine (intrusion, loitering, crowd)
+camera ─► YOLOv8 + ByteTrack ─► temporal buffer ─┬─► rule engine (crowd)
                                                   ├─► R3D-18 / pose-LSTM ............ fight
                                                   ├─► YOLOv8-Pose ─► GRU (or RF) .... fall        (new)
          frame ───────────────────────────────────┼─► YOLOv8 fire/smoke ─► learned verifier  fire_smoke (new)

@@ -1,35 +1,20 @@
-# Camera and zone configuration.
+# Camera configuration.
 # `source` can be:
 #   - an integer string like "0" for a local webcam
 #   - an RTSP URL like "rtsp://user:pass@ip:554/stream"
 #   - a path to a video file (useful for testing without a real camera)
 #
-# Zones are defined as polygons in pixel coordinates of the *processing*
-# resolution (see thresholds.yaml -> perception.process_width/height).
-# Draw them by clicking on a camera frame:
-#   python scripts/draw_zones.py --camera CAM-01
-#
-# Optional per-zone keys:
-#   name: "Loading bay"         shown to staff in incident descriptions
-#   loitering_seconds: 30       dwell before a lingering alert (default rules.loitering.dwell_seconds)
-#   loitering: true/false       force lingering checks on/off for this zone
-#   active_hours: "08:00-20:00" zone only raises alerts inside these hours (overnight ranges allowed)
-#
-# Lingering and intrusion alerts come ONLY from zones listed here (they are
-# rules, not a trained model). With no zones, they never fire. Draw zones
-# only around real restricted areas; main.py warns at start-up about zones
-# covering >= 25% of the view.
+# `zones` is optional and only used by the crowd rule. Without zones, crowding
+# is checked on the whole frame. To check one area only, add a polygon in
+# pixel coordinates of the *processing* resolution (thresholds.yaml ->
+# perception.process_width/height):
+#   - zone_id: canteen
+#     type: crowd
+#     polygon: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
 
 cameras:
   - id: CAM-01
     name: Demo Camera
     location: "Test Room"
     source: "0"               # webcam by default; swap for an RTSP URL or file path
-    # No restricted or lingering areas at this site, so no lingering/intrusion
-    # alerts. To add one, draw it on a camera frame:
-    #   python scripts/draw_zones.py --camera CAM-01
-    # and paste the printed zones here, e.g.
-    #   - zone_id: z1
-    #     type: restricted
-    #     polygon: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
     zones: []

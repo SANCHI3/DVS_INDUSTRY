@@ -30,15 +30,13 @@ YOLO, and its evaluated score (from [../RESULTS.md](../RESULTS.md)).
   stored for 30 s in a temporal buffer.
 - **Score:** pretrained model, not re-evaluated in this project.
 
-### Rule engine: loitering, intrusion, crowd (`temporal/rule_engine.py`)
-- **Detects:** a person staying in a restricted zone longer than its dwell
-  time (default 10 s); presence in a restricted zone (optional); 4 or more
-  people grouped for 5 s.
+### Rule engine: crowd (`temporal/rule_engine.py`)
+- **Detects:** 4 or more people grouped for 5 s, on the whole frame (or in an
+  optional crowd zone).
 - **Why rules:** these are defined by geometry and time, not appearance. Rules
   are exact, explainable and need no training data.
-- **Safeguards:** only tracks seen in the last 1 s count, so ghost tracks
-  are ignored. The person must be inside the zone for ≥ 80 % of the visit, and
-  confidence is the mean detector confidence × the inside fraction.
+- **Safeguards:** only recently seen tracks count, so ghost tracks are
+  ignored, and confidence is the mean detector confidence of the group.
 
 ### Fight: R3D-18 + interaction check (`temporal/rgb_action_recognition.py`, `temporal/interaction.py`)
 - **Detects:** fighting, punching or shoving.
@@ -118,7 +116,7 @@ YOLO, and its evaluated score (from [../RESULTS.md](../RESULTS.md)).
   - fire and smoke together → +1;
   - anomaly capped at MEDIUM.
 - **De-duplication** (`confirmation/incident_dedup.py`): while an event keeps
-  being detected (per camera, and per zone for loitering/intrusion), repeats
+  being detected (per camera and event type), repeats
   update the open incident through the escalate endpoint. A new incident is
   created only after 45–120 s of quiet, depending on the type.
 

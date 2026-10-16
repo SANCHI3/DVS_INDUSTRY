@@ -15,9 +15,9 @@ detection and the real backend connection — see design doc Phase 1-4.
 - YOLOv8 detection filtered to relevant classes (`detection/yolo_detector.py`).
 - ByteTrack identity tracking (`tracking/byte_tracker.py`).
 - Rolling per-track temporal history (`temporal/temporal_buffer.py`).
-- Rule engine for **intrusion, loitering, crowd gathering, and fall**
-  (`temporal/rule_engine.py`) — the four event types that have reliable
-  geometric/kinematic signatures (see design doc §3/§5).
+- Rule engine for **crowd gathering and fall** (`temporal/rule_engine.py`)
+  — event types with reliable geometric/kinematic signatures (see design
+  doc §3/§5).
 - Event confirmation tiering: CONFIRMED / PROBABLE / LOW_CONFIDENCE, so a
   single noisy frame never becomes an incident (`confirmation/event_confirmation.py`).
 - Deterministic severity scoring with hard caps for policy-sensitive event
@@ -63,8 +63,9 @@ First run will auto-download `yolov8n.pt` (~6MB) via Ultralytics.
 ## Configure
 Edit `config/cameras.yaml`:
 - Set `source` to `"0"` for a webcam, an RTSP URL, or a video file path.
-- Adjust the `zones` polygons to match your actual camera framing (pixel
-  coordinates at the configured `process_width`/`process_height`).
+- Optional: add a `type: crowd` zone to check crowding in one area only
+  (pixel coordinates at the configured `process_width`/`process_height`);
+  without zones, crowding is checked on the whole frame.
 
 Edit `config/thresholds.yaml` to tune detection confidence, rule
 thresholds, and confirmation persistence requirements.
@@ -135,19 +136,16 @@ fight_detection:
 Do not enable model mode with `fight_lstm_demo.pt`; that checkpoint learned synthetic patterns only.
 
 ## Next steps (see main design doc)
-1. **Loitering zone_id cleanup**: currently `zone_entry_times` isn't pruned
-   when a track goes stale — fine for a demo, worth hardening before longer
-   runs.
-2. Wire `reporting/incident_report.py`'s `save()`/`update_evidence()` to
+1. Wire `reporting/incident_report.py`'s `save()`/`update_evidence()` to
    call the Spring Boot backend once it exists, instead of writing local
    JSON lines.
-3. PPE detection: fine-tune YOLO on a helmet/vest dataset and add a
-   `_check_ppe_violation` rule (needs a "required zone" + "no helmet class
-   detected on this person's crop" check).
-4. Evidence retention/cleanup policy — the current buffer only ever grows
+2. PPE detection: fine-tune YOLO on a helmet/vest dataset and add a
+   `_check_ppe_violation` rule (needs a "no helmet class detected on this
+   person's crop" check).
+3. Evidence retention/cleanup policy — the current buffer only ever grows
    `output/evidence/`; add a cron/scheduled cleanup once storage policy is
    decided (see design doc §10 on why raw video shouldn't live in MongoDB).
-5. Collect footage and train the fight-detection LSTM (see above) — this
+4. Collect footage and train the fight-detection LSTM (see above) — this
    is the highest-value next step for demo accuracy.
 
 ## Added models (see ../ML_AND_ANALYTICS_UPGRADE.md)

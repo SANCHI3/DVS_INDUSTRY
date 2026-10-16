@@ -9,13 +9,10 @@ instead of 10, and the demo fall clip did not trigger in a CPU test.
 
 1. `git lfs pull` (fight model weights), then
    `python perception-service/scripts/prepare_demo_videos.py` (demo clips).
-2. Draw the real restricted zone:
-   `cd perception-service && python scripts/draw_zones.py --camera CAM-01`.
-   Paste the result into `config/cameras.yaml` and give the zone a name.
-3. Full rehearsal: `.\start-demo.ps1` (Windows) or `./start-demo.sh`.
-4. On the **AI Security → Incident Center** page, resolve or close old test
+2. Full rehearsal: `.\start-demo.ps1` (Windows) or `./start-demo.sh`.
+3. On the **AI Security → Incident Center** page, resolve or close old test
    incidents so new ones stand out.
-5. Optional: put an `LLM_API_KEY` in `perception-service/.env` for AI-written
+4. Optional: put an `LLM_API_KEY` in `perception-service/.env` for AI-written
    summaries. Without one, the built-in description is used; that is fine.
 
 ## Start (before the examiners arrive)

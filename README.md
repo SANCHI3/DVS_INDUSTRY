@@ -2,7 +2,7 @@
 
 A full-stack ERP for a manufacturing plant (workforce, inventory, orders,
 production, reports, analytics) with an integrated CCTV AI. The AI detects
-fights, falls, fire/smoke, unusual activity, loitering, intrusion and crowding,
+fights, falls, fire/smoke, crowding and unusual activity,
 and turns each event into **one** incident with evidence. The incident appears
 live on every open dashboard.
 
@@ -26,7 +26,7 @@ live on every open dashboard.
   | Fall | YOLOv8-Pose skeletons → temporal CNN + BiGRU |
   | Fire / smoke | Fine-tuned YOLOv8n + flicker/growth check + learned verifier |
   | Unusual activity | Optical flow → denoising autoencoder (unsupervised, per-camera calibration) |
-  | Loitering, intrusion, crowd | Geometric rules on ByteTrack tracks inside camera zones |
+  | Crowd | Geometric rule on ByteTrack tracks (whole frame) |
 
 - **One event = one incident:** N-of-M confirmation (PROBABLE → CONFIRMED),
   rule-based severity with hard caps, and de-duplication.
@@ -87,8 +87,7 @@ GPU is optional.
 7. Open **AI Security**. Incidents appear as the clips play. For a webcam,
    use `.\start-demo.ps1 -Camera`
 8. Optional: add `LLM_API_KEY` to `perception-service/.env` for AI-written
-   summaries, and draw your restricted zones with
-   `python perception-service/scripts/draw_zones.py --camera CAM-01`
+   summaries.
 
 Running the parts by hand, the environment variables and the deployment
 templates are covered in [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md) and
@@ -111,7 +110,7 @@ and protocols: [docs/RESULTS.md](docs/RESULTS.md)):
   frame and sustains 9.2 of the 10 target frames/s. On CPU it reaches 6.1
   frames/s.
 - **False-positive fixes:** false alarms seen on a real camera were traced to
-  root causes and fixed, with 26 regression scenarios
+  root causes and fixed, with 18 regression scenarios
   ([details](perception-service/docs/FALSE_POSITIVE_FIXES.md)). False alarms
   per hour on long normal footage have not been measured yet; the script is
   ready (`python -m evaluation.false_alarms`).

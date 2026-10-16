@@ -39,32 +39,29 @@
 8. **Small evaluation sets for some tasks.** Fire (27 videos) and smoke (22)
    are small. The fall model used 160 videos from 48 events, so
    cross-validation was used instead of a single test split.
-9. **Placeholder zones.** The restricted zones in `config/cameras.yaml` are
-   examples covering whole thirds of the frame. Lingering and intrusion alerts
-   are only meaningful after the real areas are drawn.
-10. **Unusual-activity detector.** It is silent for the first 5 minutes on each
+9. **Unusual-activity detector.** It is silent for the first 5 minutes on each
    camera while calibrating, and an incident during calibration raises the
    threshold. Recall is moderate (0.67).
-11. **Single-process event bus.** The SSE stream uses an in-process bus, so
+10. **Single-process event bus.** The SSE stream uses an in-process bus, so
    running several backend workers (PM2 cluster) needs a shared bus such as
    Redis or PostgreSQL LISTEN/NOTIFY.
-12. **Evidence storage is local.** Evidence lives on the perception machine's
+11. **Evidence storage is local.** Evidence lives on the perception machine's
    disk. The dashboard reads it through the backend only when both run on
    the same machine or share a folder (`PERCEPTION_OUTPUT_DIR`). Clips are
    saved as MPEG-4 Part 2, which browsers do not play inline, so they are
    offered as downloads.
-13. **CPU-only operation.** It runs at about 6 frames/s instead of 10, and
+12. **CPU-only operation.** It runs at about 6 frames/s instead of 10, and
    time-based detectors (fall) can miss short events. A native crash was seen
    intermittently in CPU-only runs (2 of 6), so the start script restarts the
    service.
-14. **Pose-LSTM fallback.** Its metrics are reported, but its weights are not
+13. **Pose-LSTM fallback.** Its metrics are reported, but its weights are not
    in the repository.
-15. **Dataset provenance.** The sources of some training datasets are
+14. **Dataset provenance.** The sources of some training datasets are
     inferred from file naming and must be confirmed (chapter 2).
-16. **Statistics are incomplete.** Fight, fall and fire/smoke-with-verifier
+15. **Statistics are incomplete.** Fight, fall and fire/smoke-with-verifier
     metrics store only aggregate counts, so they have no confidence interval,
     and fight v1 vs v2 could not be tested for significance (McNemar).
-17. **Single runs.** Each ablation configuration was run once. The pipeline
+16. **Single runs.** Each ablation configuration was run once. The pipeline
     is timing-dependent, so a re-run can differ by an alert or a detection.
 
 ## 7.2 Future scope
@@ -92,8 +89,8 @@
 - **Evidence:** H.264 clips for in-browser playback, central evidence storage
   with retention rules, and a review workflow ("true alarm / false alarm")
   whose labels feed retraining.
-- **More incident types:** PPE (helmet, vest) detection, which zones already
-  support (`ppe_required`); smoking; vehicle–person proximity.
+- **More incident types:** PPE (helmet, vest) detection; smoking;
+  vehicle–person proximity.
 - **Privacy:** face blurring in saved evidence and role-limited access to
   clips.
 - **Notifications:** SMS / e-mail / push for CRITICAL incidents outside the

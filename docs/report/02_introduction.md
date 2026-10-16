@@ -6,8 +6,8 @@ A small or medium manufacturing plant runs on two kinds of information:
 
 - **Operational data:** employees, shifts and attendance, materials and stock,
   client and supplier orders, and production work orders.
-- **Safety and security data:** incidents such as fights, falls, fires,
-  people in restricted areas, and crowding.
+- **Safety and security data:** incidents such as fights, falls, fires
+  and crowding.
 
 Operational data is increasingly kept in an ERP. Safety monitoring usually
 means CCTV cameras recording to a video recorder. Footage is reviewed after
@@ -21,8 +21,7 @@ Build a system that:
 
 1. manages the plant's operational data in one ERP, with role-based access;
 2. watches CCTV footage automatically and recognises safety incidents (fights,
-   falls, fire/smoke, unusual activity, loitering, intrusion, crowding) in
-   real time;
+   falls, fire/smoke, crowding, unusual activity) in real time;
 3. raises **one** incident per real event, with a confidence, a severity and
    evidence, and alerts staff on every open dashboard within seconds;
 4. explains each alert in plain language to staff who are not technical, and

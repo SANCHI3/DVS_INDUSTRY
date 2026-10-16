@@ -9,7 +9,7 @@ describes the fix.
 
 ```
 StreamReader → YOLOv8 → ByteTrack → TemporalBuffer
-   → RuleEngine (intrusion, loitering, crowd, fall)
+   → RuleEngine (crowd, fall)
    → RgbFightDetector · FireSmokeDetector · GruFallDetector · SceneAnomalyDetector
    → EventConfirmation (N-of-M tiers) → severity → IncidentDeduper
    → IncidentReporter (incidents.jsonl; CONFIRMED only → backend → SSE → dashboard)
@@ -23,16 +23,11 @@ fields; this is covered by a test now).
 
 ## Root causes and fixes
 
-### Lingering (loitering) and intrusion
+### Lingering
 
-| Root cause | Fix |
-|---|---|
-| `TemporalBuffer` keeps a track for 15 s after the person leaves view (or after a ByteTrack ID switch). The rule used `tracks_by_class`, so these "ghost" tracks kept timing a person who had already gone. | Rules use `active_tracks_by_class` (seen in the last `active_track_seconds`, default 1 s). |
-| Dwell time = wall clock minus a single first sighting stored in `zone_entry_times`, never cleared. A person who stepped into the zone once and was seen there again later counted the whole interval. | Dwell is measured from observation timestamps inside the zone, with `exit_grace_seconds` (2 s) for detector flicker. State is dropped when the person leaves view. |
-| Boundary jitter (foot point flipping across the polygon edge) counted as being inside. | `min_inside_fraction` (0.8): the person must be inside for most of the visit. |
-| Confidence = `0.5 + dwell/40`: a made-up number (76 % at 10 s) that rose with time. | Confidence = mean person-detector confidence inside the zone × inside fraction (`confidence_basis` stored). |
-| Example zone `z1` (restricted) covers the left third of the frame (31 %). Anyone sitting there for 10 s produced "Lingering". | Start-up warning for loitering zones that cover ≥ 25 % of the view. Zones support `name`, `loitering_seconds`, `loitering: true/false` and `active_hours` (see `config/cameras.yaml`). **Redraw the polygons for the real restricted areas.** |
-| Description claimed "stayed in the same spot". | "Someone has stayed in the restricted area "<name>" in <location> for N seconds." |
+Lingering and restricted-area detection have since been removed: no floor
+plan or zone data is available for the plant. Old lingering records stay in
+the dashboard as history.
 
 ### Fight
 
@@ -69,9 +64,8 @@ through the growth check without waiting.
   obtained) and `validation_version: 2`. The bbox fall rule's fixed 0.7 is
   replaced by measured detector confidence.
 - Event types map as before (`anomaly` → `OTHER`, title `anomaly`).
-- Duplicates: one ongoing event is one incident (`IncidentDeduper`; loitering
-  and intrusion per zone). Fixing ghost tracks also removed the repeated
-  lingering incidents for one person.
+- Duplicates: one ongoing event is one incident (`IncidentDeduper`, per
+  camera and event type).
 
 ## Old vs new records (nothing is deleted)
 
@@ -92,7 +86,6 @@ Rejected candidates are logged (rate-limited, every 10 s per source) with the
 measured evidence. For example:
 
 ```
-[CAM-01] loitering rejected: track 4 in zone Panel room only 55% of 12s (needs 80%)
 [CAM-01] fight rejected despite model score 0.91: motion is not agitated (agitation 0.03 < 0.1 body heights) ...
 [CAM-01] fire/smoke smoke rejected: region is static (changes no more than the rest of the scene) {...}
 [CAM-01] scene-anomaly calibrated on 148 windows: p99 ratio 3.41 -> camera threshold 3.41x model threshold
@@ -103,13 +96,10 @@ Diagnostics at shutdown now include `alarms_rejected_static_region`,
 
 ## Tests
 
-`python test_false_positives.py` runs 26 scenarios without a camera, GPU, torch
+`python test_false_positives.py` runs 18 scenarios without a camera, GPU, torch
 or ultralytics:
 
 - **Normal activity:**
-  - a person who left the zone
-  - standing outside the zone or walking through it
-  - boundary flicker
   - people standing or talking close together
   - walking past each other
   - one person with two IDs
@@ -121,20 +111,15 @@ or ultralytics:
   - an uncalibrated busy camera
   - a high fight-model score without interaction
 - **Genuine events:**
-  - lingering in a zone, with measured confidence
-  - intrusion
   - an agitated close pair, including through `RgbFightDetector`
   - a flickering flame (confirmed, mean confidence)
   - slowly growing smoke
   - abnormal motion after calibration
 - **Reporting:**
   - LLM output can't change the type or confidence, or add facts
-  - the description no longer says "same spot"
 
 ## Remaining limitations
 
-- **Zones must be redrawn.** `z1`/`z2` are placeholders. With the real
-  restricted area outlined, lingering only fires there.
 - **Anomaly detection is silent for the first 5 minutes** on each camera (or
   after `recalibrate: true`). Calibrate while the scene is normal. If an
   incident happens during calibration it raises the threshold.

@@ -57,7 +57,6 @@ from temporal.fire_smoke_recognition import FireSmokeDetector
 from temporal.rgb_action_recognition import RgbFightDetector
 from temporal.rule_engine import RuleEngine
 from temporal.temporal_buffer import TemporalBuffer
-from temporal.zones import zone_warnings
 from tracking.byte_tracker import ByteTracker
 
 TIER_COLOR = {
@@ -276,9 +275,6 @@ def run(
         )
 
     tracker, buffer, rule_engine = new_scene_state()
-    for warning in zone_warnings(cam_cfg.get("zones", []), perception_cfg["process_width"],
-                                 perception_cfg["process_height"]):
-        print(f"[{camera_id}] WARNING {warning}")
     run_fight = fight_cfg.get("enabled", True) and (
         only_events is None or "fight" in only_events
     )
@@ -646,7 +642,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--only-events",
         nargs="+",
-        choices=["intrusion", "loitering", "crowd", "fall", "fight", "fire_smoke", "anomaly"],
+        choices=["crowd", "fall", "fight", "fire_smoke", "anomaly"],
         default=None,
         help="run/report only selected event modules (useful for isolated testing)",
     )
