@@ -254,15 +254,14 @@ export function UserManagementPage() {
     )}
 
     {deleteUser && (
-      <Modal title="Confirm Delete" onClose={() => setDeleteUser(null)}>
+      <Modal title="Confirm Deactivation" onClose={() => setDeleteUser(null)}>
         <div>
           <div className="p-4 rounded-lg mb-4" style={{ background: "#FFEBEE", border: "1px solid #FFCDD2" }}>
-            <p style={{ fontSize: "0.875rem", color: "#C0392B", fontWeight: 600, marginBottom: "0.25rem" }}>Warning: This action cannot be undone</p>
-            <p style={{ fontSize: "0.8rem", color: "#7A6C6A" }}>Removing <strong>{deleteUser.name}</strong> ({deleteUser.id}) will revoke all their system access.</p>
+            <p style={{ fontSize: "0.8rem", color: "#7A6C6A" }}><strong>{deleteUser.name}</strong> will no longer be able to log in. Their records are kept.</p>
           </div>
           <div className="flex gap-2">
             <button onClick={() => setDeleteUser(null)} style={{ flex: 1, padding: "0.6rem", border: "1px solid #E8E2E0", borderRadius: "0.5rem", background: "#fff", cursor: "pointer" }}>Cancel</button>
-            <button onClick={handleDelete} style={{ flex: 1, padding: "0.6rem", border: "none", borderRadius: "0.5rem", background: "#C0392B", color: "#fff", fontWeight: 600, cursor: "pointer" }}>Delete User</button>
+            <button onClick={handleDelete} style={{ flex: 1, padding: "0.6rem", border: "none", borderRadius: "0.5rem", background: "#C0392B", color: "#fff", fontWeight: 600, cursor: "pointer" }}>Deactivate User</button>
           </div>
         </div>
       </Modal>
@@ -362,7 +361,7 @@ export function UserManagementPage() {
                 actions: (
                   <div className="flex gap-1.5">
                     <button onClick={() => setEditUser({ ...u })} className="p-1.5 rounded" style={{ background: "#F5F0EF", color: "#4E342E", cursor: "pointer", border: "none" }}><EditIcon size={12} /></button>
-                    <button onClick={() => setDeleteUser(u)} className="p-1.5 rounded" style={{ background: "#FFEBEE", color: "#C0392B", cursor: "pointer", border: "none" }}><TrashIcon size={12} /></button>
+                    <button onClick={() => setDeleteUser(u)} title="Deactivate User" aria-label={`Deactivate ${u.name}`} className="p-1.5 rounded" style={{ background: "#FFEBEE", color: "#C0392B", cursor: "pointer", border: "none" }}><TrashIcon size={12} /></button>
                   </div>
                 ),
               }))}

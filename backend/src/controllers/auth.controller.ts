@@ -153,8 +153,7 @@ export async function updateProfile(req: AuthenticatedRequest, res: Response): P
 // ── Deactivate User ───────────────────────────────────────────────────────────
 
 export async function deactivateUser(req: AuthenticatedRequest, res: Response): Promise<void> {
-  const rawId = req.params['id'];
-  const targetUserId = parseInt(typeof rawId === 'string' ? rawId : '0', 10);
+  const targetUserId = Number(req.params['id']);
   const user = await authService.deactivateUser(req.user!.id, targetUserId);
   sendSuccess(res, user, 200, 'User deactivated successfully');
 }

@@ -349,10 +349,12 @@ export function TabBar({ tabs, active, onChange }: { tabs: { id: string; label: 
             fontSize: "0.8375rem",
             fontWeight: active === tab.id ? 600 : 400,
             color: active === tab.id ? "#A52A2A" : "#7A6C6A",
+            borderTop: "none",
+            borderRight: "none",
             borderBottom: `2px solid ${active === tab.id ? "#A52A2A" : "transparent"}`,
+            borderLeft: "none",
             marginBottom: "-2px",
             background: "transparent",
-            border: "none",
             cursor: "pointer",
           }}
         >
