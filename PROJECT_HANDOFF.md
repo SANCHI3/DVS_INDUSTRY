@@ -89,6 +89,12 @@ ops/
 
 The backend role is an object such as `{ name: "ADMIN" }`. The frontend auth adapter extracts the role name before selecting the dashboard.
 
+### My Profile
+
+Every admin, production and store user can open **My Profile** from the sidebar menu (admin) or by clicking their name at the bottom of the sidebar (all three roles). It shows name, email, role, phone and last login from `GET /api/v1/auth/me`, saves name and phone with `PATCH /api/v1/auth/me`, and changes the password with `PATCH /api/v1/auth/change-password`. A password change revokes every refresh session, so the user is sent back to the login page with "Password changed. Please log in again."
+
+This page replaced the earlier technical Settings page (API, database, uptime, Node.js version). The `/api/v1/health` and `/api/v1/metrics` endpoints are still served for deployment checks and the start scripts; the frontend no longer calls them.
+
 ### Roles
 
 - `ADMIN`: full access
@@ -294,6 +300,7 @@ The local project is not the same thing as a production deployment. DNS, certifi
 
 ### Done since the first handoff
 
+- The technical Settings page was replaced by **My Profile** (see section 4)
 - Password-reset tokens are stored in PostgreSQL (`PasswordResetToken`); reset
   emails are sent over SMTP when `SMTP_HOST` is set (logged in development)
 - Real-time security alerts: SSE stream, live Security page, priority popup on

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import { HomePage } from "./components/HomePage";
 import { LoginPage } from "./components/LoginPage";
 import { ResetPasswordPage } from "./components/ResetPasswordPage";
@@ -49,6 +49,13 @@ export default function App() {
     setPage("home");
   };
 
+  // The backend ended every session (e.g. password changed): sign in again.
+  const handleSessionEnded = async (message: string) => {
+    await apiLogout();
+    toast.success(message);
+    setPage("login");
+  };
+
   const leaveReset = () => {
     // Drop the single-use token from the address bar and history
     window.history.replaceState(null, "", window.location.pathname);
@@ -67,9 +74,9 @@ export default function App() {
         />
       )}
       {page === "reset" && resetToken !== null && <ResetPasswordPage token={resetToken} onDone={leaveReset} />}
-      {page === "admin"      && <AdminApp onLogout={handleLogout} userRole="admin" />}
-      {page === "production" && <AdminApp onLogout={handleLogout} userRole="production" />}
-      {page === "store"      && <AdminApp onLogout={handleLogout} userRole="store" />}
+      {page === "admin"      && <AdminApp onLogout={handleLogout} onSessionEnded={handleSessionEnded} userRole="admin" />}
+      {page === "production" && <AdminApp onLogout={handleLogout} onSessionEnded={handleSessionEnded} userRole="production" />}
+      {page === "store"      && <AdminApp onLogout={handleLogout} onSessionEnded={handleSessionEnded} userRole="store" />}
       {page === "unauthorized" && <div style={{ padding: "2rem" }}>Unauthorized role. Contact an administrator.</div>}
       {page === "supplier"   && <SupplierApp onLogout={handleLogout} />}
       {page === "client"     && <ClientApp  onLogout={handleLogout} />}

@@ -13,7 +13,8 @@ live on every open dashboard.
 
 - **ERP:** employees, shifts and attendance; materials, stock and scrap;
   client and purchase orders; production work orders; reports; audit trail;
-  role-based access for 8 roles plus a service role.
+  role-based access for 8 roles plus a service role; a **My Profile** page
+  where every user edits their name and phone and changes their password.
 - **Smart Analytics:** demand forecasting (Holt / Croston–SBA), dynamic
   reorder points, ABC-XYZ, stock-anomaly detection, an OEE-style index with SPC
   charts, a supplier scorecard, and a Plant Health Index.

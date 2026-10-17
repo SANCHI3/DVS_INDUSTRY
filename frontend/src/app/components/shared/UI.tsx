@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ReactNode, useState } from "react";
+import { ReactNode, useId, useState } from "react";
 import { TrendingUp, TrendingDown, Minus, Search, X, Download, ChevronUp, ChevronDown, AlertCircle, RefreshCw, InboxIcon } from "lucide-react";
 
 /* ── Page wrapper ── */
@@ -366,14 +366,17 @@ export function TabBar({ tabs, active, onChange }: { tabs: { id: string; label: 
 }
 
 /* ── Input ── */
-export function Input({ label, placeholder, value, onChange, type = "text" }: {
-  label?: string; placeholder?: string; value?: string; onChange?: (v: string) => void; type?: string;
+export function Input({ label, placeholder, value, onChange, type = "text", autoComplete }: {
+  label?: string; placeholder?: string; value?: string; onChange?: (v: string) => void; type?: string; autoComplete?: string;
 }) {
+  const id = useId();
   return (
     <div>
-      {label && <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 500, color: "#4A4A4A", marginBottom: "0.3rem" }}>{label}</label>}
+      {label && <label htmlFor={id} style={{ display: "block", fontSize: "0.775rem", fontWeight: 500, color: "#4A4A4A", marginBottom: "0.3rem" }}>{label}</label>}
       <input
+        id={id}
         type={type}
+        autoComplete={autoComplete}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange?.(e.target.value)}
