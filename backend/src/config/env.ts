@@ -53,6 +53,15 @@ const envSchema = z.object({
   // incident evidence and explanations.
   PERCEPTION_OUTPUT_DIR: z.string().default('../perception-service/output'),
 
+  // "Ask DVS" assistant: any OpenAI-compatible chat-completions API with tool
+  // calling. Without an API key the assistant reports "not configured".
+  ASSISTANT_LLM_BASE_URL: z.string().url().default('https://api.groq.com/openai/v1'),
+  ASSISTANT_LLM_MODEL: z.string().min(1).default('openai/gpt-oss-20b'),
+  ASSISTANT_LLM_API_KEY: z
+    .string()
+    .optional()
+    .transform((v) => (v?.trim() ? v.trim() : undefined)),
+
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'http', 'debug']).default('info'),
 

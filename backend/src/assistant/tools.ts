@@ -122,6 +122,28 @@ function capped<T>(rows: T[]) {
   };
 }
 
+/** Most rows a tool reads to compute its counts (10 pages of 100). */
+const MAX_SCAN = 1000;
+
+/**
+ * Read every page of a list endpoint (up to MAX_SCAN rows) so counts are
+ * complete, not just the first page. `complete` is false when the scan stopped
+ * at MAX_SCAN.
+ */
+async function fetchAll<T>(
+  page: (pageNumber: number) => Promise<{ data: T[]; total: number }>,
+): Promise<{ rows: T[]; total: number; complete: boolean }> {
+  const rows: T[] = [];
+  let total = 0;
+  for (let pageNumber = 1; rows.length < MAX_SCAN; pageNumber++) {
+    const result = await page(pageNumber);
+    rows.push(...result.data);
+    total = result.total;
+    if (result.data.length === 0 || rows.length >= total) break;
+  }
+  return { rows, total, complete: rows.length >= total };
+}
+
 const INCIDENT_LABELS: Record<string, string> = {
   FIGHT: 'possible fight',
   FALL: 'person has fallen',
@@ -130,6 +152,8 @@ const INCIDENT_LABELS: Record<string, string> = {
   FIRE_SMOKE: 'fire or smoke',
   CROWD: 'crowd gathering',
   OTHER: 'unusual activity',
+  LOITERING: 'someone lingering',
+  INTRUSION: 'person in restricted area',
 };
 
 function incidentLabel(type: string): string {
@@ -200,13 +224,16 @@ const getLowStockMaterials: AssistantTool = {
   parameters: { type: 'object', properties: {} },
   schema: z.object({}),
   run: async () => {
-    const result = await inventory.getAllMaterials({
-      lowStockOnly: true,
-      pageSize: 100,
-      sortBy: 'currentStock',
-      sortOrder: 'asc',
-    });
-    const rows = result.data.map((m) => ({
+    const result = await fetchAll((page) =>
+      inventory.getAllMaterials({
+        lowStockOnly: true,
+        page,
+        pageSize: 100,
+        sortBy: 'currentStock',
+        sortOrder: 'asc',
+      }),
+    );
+    const rows = result.rows.map((m) => ({
       name: m.name,
       currentStock: round(m.currentStock, 2),
       unit: m.unit,
@@ -289,14 +316,17 @@ const getPurchaseOrders: AssistantTool = {
   }),
   run: async ({ status, supplierName }: { status?: string; supplierName?: string }, now: Date) => {
     const direct = status && status !== 'OPEN' && status !== 'OVERDUE' ? status : undefined;
-    const result = await orders.getAllPurchaseOrders({
-      status: direct as never,
-      search: supplierName,
-      pageSize: 100,
-      sortBy: 'expectedDelivery',
-      sortOrder: 'asc',
-    });
-    const all = result.data
+    const result = await fetchAll((page) =>
+      orders.getAllPurchaseOrders({
+        status: direct as never,
+        search: supplierName,
+        page,
+        pageSize: 100,
+        sortBy: 'expectedDelivery',
+        sortOrder: 'asc',
+      }),
+    );
+    const all = result.rows
       .filter((po) => matches(po.supplierName, supplierName))
       .filter((po) => status !== 'OPEN' || OPEN_PO.has(po.status))
       .map((po) => {
@@ -395,13 +425,16 @@ const getClientOrders: AssistantTool = {
       .optional(),
   }),
   run: async ({ status }: { status?: string }, now: Date) => {
-    const result = await orders.getAllClientOrders({
-      status: status && status !== 'OPEN' ? (status as never) : undefined,
-      pageSize: 100,
-      sortBy: 'requiredDate',
-      sortOrder: 'asc',
-    });
-    const all = result.data
+    const result = await fetchAll((page) =>
+      orders.getAllClientOrders({
+        status: status && status !== 'OPEN' ? (status as never) : undefined,
+        page,
+        pageSize: 100,
+        sortBy: 'requiredDate',
+        sortOrder: 'asc',
+      }),
+    );
+    const all = result.rows
       .filter((o) => (status === 'OPEN' ? OPEN_CLIENT_ORDER.has(o.status) : true))
       .map((o) => {
         const late = OPEN_CLIENT_ORDER.has(o.status) ? daysLate(o.requiredDate, now) : null;
@@ -449,13 +482,16 @@ const getWorkOrders: AssistantTool = {
       .optional(),
   }),
   run: async ({ status }: { status?: string }, now: Date) => {
-    const result = await production.getAllWorkOrders({
-      status: status && status !== 'OPEN' ? (status as never) : undefined,
-      pageSize: 100,
-      sortBy: 'scheduledStart',
-      sortOrder: 'asc',
-    });
-    const all = result.data
+    const result = await fetchAll((page) =>
+      production.getAllWorkOrders({
+        status: status && status !== 'OPEN' ? (status as never) : undefined,
+        page,
+        pageSize: 100,
+        sortBy: 'scheduledStart',
+        sortOrder: 'asc',
+      }),
+    );
+    const all = result.rows
       .filter((w) => (status === 'OPEN' ? OPEN_WORK_ORDER.has(w.status) : true))
       .map((w) => {
         const late = OPEN_WORK_ORDER.has(w.status) ? daysLate(w.scheduledEnd, now) : null;
@@ -573,16 +609,19 @@ const getOpenIncidents: AssistantTool = {
   run: async ({ type }: { type?: string }) => {
     const [open, investigating] = await Promise.all(
       (['OPEN', 'INVESTIGATING'] as const).map((status) =>
-        security.getAllIncidents({
-          status,
-          pageSize: 100,
-          sortBy: 'occurredAt',
-          sortOrder: 'desc',
-        }),
+        fetchAll((page) =>
+          security.getAllIncidents({
+            status,
+            page,
+            pageSize: 100,
+            sortBy: 'occurredAt',
+            sortOrder: 'desc',
+          }),
+        ),
       ),
     );
     const allowed = type ? new Set<string>(INCIDENT_TYPE_GROUPS[type]) : null;
-    const all = [...open!.data, ...investigating!.data]
+    const all = [...open!.rows, ...investigating!.rows]
       .filter((i) => allowed === null || allowed.has(i.type))
       .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
       .map((i) => ({
@@ -621,15 +660,18 @@ const getIncidentSummary: AssistantTool = {
   schema: z.object({ period: z.enum(PERIODS) }),
   run: async ({ period }: { period: Period }, now: Date) => {
     const range = periodRange(period, now);
-    const result = await security.getAllIncidents({
-      fromDate: range.from,
-      pageSize: 100,
-      sortBy: 'occurredAt',
-      sortOrder: 'desc',
-    });
-    const count = (key: (i: (typeof result.data)[number]) => string) =>
+    const result = await fetchAll((page) =>
+      security.getAllIncidents({
+        fromDate: range.from,
+        page,
+        pageSize: 100,
+        sortBy: 'occurredAt',
+        sortOrder: 'desc',
+      }),
+    );
+    const count = (key: (i: (typeof result.rows)[number]) => string) =>
       Object.entries(
-        result.data.reduce<Record<string, number>>((acc, i) => {
+        result.rows.reduce<Record<string, number>>((acc, i) => {
           const k = key(i);
           acc[k] = (acc[k] ?? 0) + 1;
           return acc;
@@ -638,7 +680,7 @@ const getIncidentSummary: AssistantTool = {
     return {
       period: range.label,
       total: result.total,
-      ...(result.total > result.data.length ? { breakdownCovers: result.data.length } : {}),
+      ...(result.complete ? {} : { breakdownCovers: result.rows.length }),
       byKind: count((i) => incidentLabel(i.type)),
       bySeverity: count((i) => i.severity.toLowerCase()),
       byStatus: count((i) => i.status.toLowerCase()),

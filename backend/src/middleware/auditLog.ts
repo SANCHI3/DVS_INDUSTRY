@@ -12,8 +12,11 @@ export interface AuditActor {
   role: string;
 }
 
-/** Endpoints that are pure session plumbing and would only add noise. */
-const SKIPPED_PATHS = ['/auth/refresh', '/auth/me'];
+/**
+ * Endpoints that are pure session plumbing and would only add noise, or that
+ * write their own, more detailed audit entry (assistant questions).
+ */
+const SKIPPED_PATHS = ['/auth/refresh', '/auth/me', '/assistant/ask'];
 
 /**
  * Maps HTTP method + path + response status → AuditAction.
