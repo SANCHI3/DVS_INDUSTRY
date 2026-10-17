@@ -473,6 +473,7 @@ export class SecurityRepository {
   async getKPIs(departmentId?: number, fromDate?: Date, toDate?: Date): Promise<SecurityKPIs> {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     const incBase: Prisma.SecurityIncidentWhereInput = {
       deletedAt: null,
@@ -487,6 +488,11 @@ export class SecurityRepository {
       },
     };
 
+    const incToday: Prisma.SecurityIncidentWhereInput = {
+      ...incBase,
+      occurredAt: { gte: startOfToday },
+    };
+
     const alertBase: Prisma.SecurityAlertWhereInput = {
       ...(departmentId ? { departmentId } : {}),
     };
@@ -497,12 +503,15 @@ export class SecurityRepository {
       investigatingIncidents,
       resolvedThisMonth,
       criticalIncidents,
+      criticalOpenIncidents,
+      detectionsToday,
       totalAlerts,
       activeAlerts,
       acknowledgedAlerts,
       criticalAlerts,
       incByType,
       incBySeverity,
+      incTodayByType,
       alertByType,
     ] = await prisma.$transaction([
       prisma.securityIncident.count({ where: incBase }),
@@ -512,6 +521,10 @@ export class SecurityRepository {
       prisma.securityIncident.count({
         where: { ...incBase, severity: 'CRITICAL', status: { notIn: ['CLOSED'] } },
       }),
+      prisma.securityIncident.count({
+        where: { ...incBase, severity: 'CRITICAL', status: { in: ['OPEN', 'INVESTIGATING'] } },
+      }),
+      prisma.securityIncident.count({ where: incToday }),
       prisma.securityAlert.count({ where: alertBase }),
       prisma.securityAlert.count({ where: { ...alertBase, status: 'ACTIVE' } }),
       prisma.securityAlert.count({ where: { ...alertBase, status: 'ACKNOWLEDGED' } }),
@@ -529,6 +542,12 @@ export class SecurityRepository {
         where: incBase,
         _count: { id: true },
         orderBy: { severity: 'asc' },
+      }),
+      prisma.securityIncident.groupBy({
+        by: ['type'],
+        where: incToday,
+        _count: { id: true },
+        orderBy: { type: 'asc' },
       }),
       prisma.securityAlert.groupBy({
         by: ['type'],
@@ -565,6 +584,8 @@ export class SecurityRepository {
       investigatingIncidents,
       resolvedThisMonth,
       criticalIncidents,
+      criticalOpenIncidents,
+      detectionsToday,
       totalAlerts,
       activeAlerts,
       acknowledgedAlerts,
@@ -575,6 +596,10 @@ export class SecurityRepository {
       })),
       incidentsBySeverity: incBySeverity.map((r) => ({
         severity: r.severity as IncidentSeverity,
+        count: (r._count as { id?: number } | undefined)?.id ?? 0,
+      })),
+      incidentsTodayByType: incTodayByType.map((r) => ({
+        type: r.type as IncidentType,
         count: (r._count as { id?: number } | undefined)?.id ?? 0,
       })),
       alertsByType: alertByType.map((r) => ({

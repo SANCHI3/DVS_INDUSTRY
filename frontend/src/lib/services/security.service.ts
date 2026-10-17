@@ -56,12 +56,15 @@ export interface SecurityKPIs {
   investigatingIncidents:  number;
   resolvedThisMonth:       number;
   criticalIncidents:       number;
+  criticalOpenIncidents:   number;
+  detectionsToday:         number;
   totalAlerts:             number;
   activeAlerts:            number;
   acknowledgedAlerts:      number;
   criticalAlerts:          number;
   incidentsByType:         Array<{ type: IncidentType; count: number }>;
   incidentsBySeverity:     Array<{ severity: IncidentSeverity; count: number }>;
+  incidentsTodayByType:    Array<{ type: IncidentType; count: number }>;
   alertsByType:            Array<{ type: AlertType; count: number }>;
   incidentTrend:           Array<{ date: string; count: number }>;
 }
