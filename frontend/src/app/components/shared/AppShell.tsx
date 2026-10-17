@@ -1,6 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import { useState, ReactNode } from "react";
 import { useERP } from "../admin/ERPContext";
+import { AskDvs } from "./AskDvs";
+import { getStoredBackendRole } from "../../../lib/auth";
 import {
   LayoutDashboard, Factory, Users, Shield, Package, ShoppingCart, BarChart3,
   UserCircle, LogOut, Menu, X, Bell, Search, ChevronDown, ChevronRight,
@@ -312,6 +314,9 @@ export function AppShell({ role, userRole, userName, activeSection, onSectionCha
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
+            {/* Ask DVS assistant: staff apps only (admin, production, store) */}
+            {role === "admin" && <AskDvs backendRole={getStoredBackendRole() ?? "STORE"} />}
+
             {/* Notifications */}
             <div className="relative">
               <button

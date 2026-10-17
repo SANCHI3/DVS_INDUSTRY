@@ -144,6 +144,12 @@ export async function resetPassword(token: string, newPassword: string): Promise
   await api.post('/auth/reset-password', { token, newPassword, confirmPassword: newPassword });
 }
 
+/** Backend role name of the signed-in user (e.g. "STORE"), or null. */
+export function getStoredBackendRole(): string | null {
+  const user = loadUser();
+  return user ? getBackendRoleName(user.role).toUpperCase() : null;
+}
+
 /** True when the signed-in user has the backend ADMIN role (not MANAGER/HR). */
 export function isAdministrator(): boolean {
   const user = getUser();
