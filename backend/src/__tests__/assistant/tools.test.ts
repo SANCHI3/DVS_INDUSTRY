@@ -12,6 +12,7 @@ vi.mock('../../logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: 
 
 import { ForbiddenError } from '../../errors';
 import { InventoryService } from '../../services/inventory.service';
+import { OrdersService } from '../../services/orders.service';
 import { SecurityService } from '../../services/security.service';
 import { TOOLS, executeTool, toolSpecs, toolsForRole } from '../../assistant/tools';
 import { stripSensitive } from '../../assistant/sanitize';
@@ -114,6 +115,33 @@ describe('executeTool', () => {
           location: 'Rack A',
         },
       ],
+    });
+  });
+
+  it('finds a purchase order by its number', async () => {
+    const po = (poNumber: string) => ({
+      poNumber,
+      supplierName: 'Acme Metals',
+      material: 'Steel',
+      quantity: '500',
+      unit: 'kg',
+      status: 'DELIVERED',
+      orderDate: new Date(2026, 8, 1),
+      expectedDelivery: new Date(2026, 8, 15),
+    });
+    const list = vi
+      .spyOn(OrdersService.prototype, 'getAllPurchaseOrders')
+      .mockResolvedValue({ data: [po('PO-0011'), po('PO-0012')], total: 2 } as never);
+
+    const run = await executeTool(
+      'getPurchaseOrders',
+      { poNumber: 'PO-0012' },
+      { id: 1, email: 'a@t.com', role: 'ADMIN' },
+    );
+    expect(list).toHaveBeenCalledWith(expect.objectContaining({ search: 'PO-0012' }));
+    expect(run.result).toMatchObject({
+      count: 1,
+      purchaseOrders: [{ poNumber: 'PO-0012', status: 'delivered' }],
     });
   });
 

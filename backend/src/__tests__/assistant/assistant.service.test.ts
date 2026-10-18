@@ -16,7 +16,7 @@ import {
   MAX_TOOL_ROUNDS,
   type AuditEntry,
 } from '../../assistant/assistant.service';
-import type { CompletionRequest, CompletionResult, LlmClient } from '../../assistant/llm';
+import { createLlmClient, type CompletionRequest, type CompletionResult, type LlmClient } from '../../assistant/llm';
 import { NO_RELIABLE_ANSWER, writeRequestReply } from '../../assistant/prompt';
 import { checkGrounding, numbersIn } from '../../assistant/grounding';
 import type { ToolRun, AssistantUser } from '../../assistant/tools';
@@ -129,6 +129,18 @@ describe('AssistantService.ask', () => {
     ]);
   });
 
+  it('replaces non-breaking hyphens so order numbers can be copied', async () => {
+    const { llm } = scriptedLlm([
+      { content: null, toolCalls: [toolCall('getLowStockMaterials')] },
+      text('PO‑TEST‑002 is 2 days late.'),
+    ]);
+    const result = await service(llm, fakeExecute({ getLowStockMaterials: LOW_STOCK })).svc.ask(
+      'Which purchase orders are late?',
+      STORE,
+    );
+    expect(result.answer).toBe('PO-TEST-002 is 2 days late.');
+  });
+
   it('rejects an answer with a number that is not in the tool results', async () => {
     const { llm, requests } = scriptedLlm([
       { content: null, toolCalls: [toolCall('getLowStockMaterials')] },
@@ -228,5 +240,32 @@ describe('checkGrounding', () => {
 
   it('reads numbers the way people write them', () => {
     expect(numbersIn('1,25,000 units, PO-0012 and 3.5 kg')).toEqual([125000, 12, 3.5]);
+  });
+});
+
+describe('createLlmClient', () => {
+  const reply = { choices: [{ message: { content: 'There are 2.' } }] };
+  const ok = () => new Response(JSON.stringify(reply), { status: 200 });
+  const limited = (retryAfter: string) =>
+    new Response('{}', { status: 429, headers: { 'retry-after': retryAfter } });
+
+  it('waits once for a short rate-limit pause, then answers', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn().mockResolvedValueOnce(limited('1')).mockResolvedValueOnce(ok());
+    const client = createLlmClient({ baseUrl: 'https://llm.test/v1', model: 'm', apiKey: 'k' }, fetchImpl);
+    const pending = client.complete({ messages: [{ role: 'user', content: 'hi' }] });
+    await vi.advanceTimersByTimeAsync(1000);
+    await expect(pending).resolves.toEqual({ content: 'There are 2.', toolCalls: [] });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it('reports "busy" without waiting when the pause is long', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(limited('60'));
+    const client = createLlmClient({ baseUrl: 'https://llm.test/v1', model: 'm', apiKey: 'k' }, fetchImpl);
+    await expect(client.complete({ messages: [{ role: 'user', content: 'hi' }] })).rejects.toMatchObject({
+      message: expect.stringContaining('busy'),
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });

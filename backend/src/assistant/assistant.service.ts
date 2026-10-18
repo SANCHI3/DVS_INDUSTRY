@@ -96,6 +96,11 @@ function defaultLlm(): LlmClient | null {
   });
 }
 
+/** Plain hyphens instead of the non-breaking ones some models emit (PO‑0012), so numbers can be copied and searched. */
+function tidy(text: string | null | undefined): string {
+  return (text ?? '').replace(/[\u2010\u2011]/g, '-').trim();
+}
+
 function parseArgs(raw: string): unknown {
   try {
     return raw.trim() ? JSON.parse(raw) : {};
@@ -176,7 +181,7 @@ export class AssistantService {
         ...(specs.length > 0 ? { tools: specs, toolChoice: canUseTools ? 'auto' : 'none' } : {}),
       });
       if (!canUseTools || reply.toolCalls.length === 0) {
-        answer = reply.content?.trim() ?? '';
+        answer = tidy(reply.content);
         break;
       }
       messages.push({ role: 'assistant', content: reply.content, tool_calls: reply.toolCalls });
@@ -219,7 +224,7 @@ export class AssistantService {
         messages,
         ...(specs.length > 0 ? { tools: specs, toolChoice: 'none' as const } : {}),
       });
-      const retried = retry.content?.trim() ?? '';
+      const retried = tidy(retry.content);
       if (retried && checkGrounding(retried, evidence).grounded) {
         return { answer: retried, toolsUsed, sources, grounded: true };
       }

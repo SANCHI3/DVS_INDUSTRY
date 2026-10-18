@@ -293,7 +293,7 @@ const getStockOutForecast: AssistantTool = {
 const getPurchaseOrders: AssistantTool = {
   name: 'getPurchaseOrders',
   description:
-    'List purchase orders to suppliers, optionally by status or supplier name. Marks overdue (late) open orders.',
+    'List purchase orders to suppliers, optionally by status, supplier name or PO number. Marks overdue (late) open orders.',
   module: 'Orders',
   roles: STAFF, // orders.routes.ts GET /purchase-orders (SUPPLIER_ORDER_READ_ROLES, staff only here)
   parameters: {
@@ -306,6 +306,7 @@ const getPurchaseOrders: AssistantTool = {
           'OPEN = not yet delivered or cancelled; OVERDUE = open and past the expected delivery date',
       },
       supplierName: { type: 'string' },
+      poNumber: { type: 'string', description: 'A purchase order number such as PO-0012' },
     },
   },
   schema: z.object({
@@ -313,13 +314,21 @@ const getPurchaseOrders: AssistantTool = {
       .enum(['PENDING', 'CONFIRMED', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'OPEN', 'OVERDUE'])
       .optional(),
     supplierName: z.string().max(100).optional(),
+    poNumber: z.string().max(50).optional(),
   }),
-  run: async ({ status, supplierName }: { status?: string; supplierName?: string }, now: Date) => {
+  run: async (
+    {
+      status,
+      supplierName,
+      poNumber,
+    }: { status?: string; supplierName?: string; poNumber?: string },
+    now: Date,
+  ) => {
     const direct = status && status !== 'OPEN' && status !== 'OVERDUE' ? status : undefined;
     const result = await fetchAll((page) =>
       orders.getAllPurchaseOrders({
         status: direct as never,
-        search: supplierName,
+        search: poNumber ?? supplierName,
         page,
         pageSize: 100,
         sortBy: 'expectedDelivery',
@@ -327,7 +336,7 @@ const getPurchaseOrders: AssistantTool = {
       }),
     );
     const all = result.rows
-      .filter((po) => matches(po.supplierName, supplierName))
+      .filter((po) => matches(po.supplierName, supplierName) && matches(po.poNumber, poNumber))
       .filter((po) => status !== 'OPEN' || OPEN_PO.has(po.status))
       .map((po) => {
         const open = OPEN_PO.has(po.status);
@@ -391,7 +400,7 @@ const getSupplierScorecard: AssistantTool = {
 const getClientOrders: AssistantTool = {
   name: 'getClientOrders',
   description:
-    'List customer (client) orders, optionally by status. Marks open orders past their required date as late.',
+    'List customer (client) orders, optionally by status or order number. Marks open orders past their required date as late.',
   module: 'Orders',
   roles: STAFF, // orders.routes.ts GET /client-orders (CLIENT_READ_ROLES, staff only here)
   parameters: {
@@ -409,6 +418,7 @@ const getClientOrders: AssistantTool = {
           'OPEN',
         ],
       },
+      orderNumber: { type: 'string', description: 'A client order number such as ORD-0012' },
     },
   },
   schema: z.object({
@@ -423,11 +433,13 @@ const getClientOrders: AssistantTool = {
         'OPEN',
       ])
       .optional(),
+    orderNumber: z.string().max(50).optional(),
   }),
-  run: async ({ status }: { status?: string }, now: Date) => {
+  run: async ({ status, orderNumber }: { status?: string; orderNumber?: string }, now: Date) => {
     const result = await fetchAll((page) =>
       orders.getAllClientOrders({
         status: status && status !== 'OPEN' ? (status as never) : undefined,
+        search: orderNumber,
         page,
         pageSize: 100,
         sortBy: 'requiredDate',
@@ -436,6 +448,7 @@ const getClientOrders: AssistantTool = {
     );
     const all = result.rows
       .filter((o) => (status === 'OPEN' ? OPEN_CLIENT_ORDER.has(o.status) : true))
+      .filter((o) => matches(o.orderNumber, orderNumber))
       .map((o) => {
         const late = OPEN_CLIENT_ORDER.has(o.status) ? daysLate(o.requiredDate, now) : null;
         return {
