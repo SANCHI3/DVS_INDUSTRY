@@ -174,7 +174,16 @@ def test_person_standing_or_sitting_upright_is_not_a_fall():
 def test_person_lying_on_the_floor_is_plausible():
     lying = _skeleton({5: (150, 380), 6: (150, 400), 11: (330, 385), 12: (330, 405)})
     assert _plausibility((100, 350, 450, 430), lying) is None
-    assert _plausibility((100, 360, 450, 430)) is None                # wide box, no skeleton
+    # wide box, no skeleton: plausible once the person was seen with a torso before
+    standing = _skeleton({5: (300, 150), 6: (340, 150), 11: (305, 300), 12: (335, 300)})
+    assert _plausibility((100, 360, 450, 430), before=((280, 100, 360, 420), standing, 30)) is None
+
+
+def test_person_half_hidden_behind_a_desk_is_not_judged_as_a_fall():
+    # head, shoulders and arms above a desk in mid-frame: wide box, hips never found
+    shoulders_only = _skeleton({0: (320, 140), 5: (250, 230), 6: (390, 230)})
+    assert _plausibility((180, 100, 460, 350), shoulders_only) == "no_torso"
+    assert _plausibility((180, 100, 460, 350)) == "no_torso"
 
 
 def test_fallen_person_at_the_frame_edge_with_torso_visible_still_counts():

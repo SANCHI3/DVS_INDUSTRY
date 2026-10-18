@@ -49,6 +49,11 @@ def is_upright(row: np.ndarray, max_torso_tilt: float, max_box_aspect: float) ->
     return float(row[0]) <= max_box_aspect
 
 
+def has_torso(row: np.ndarray) -> bool:
+    """YOLOv8-pose found both shoulders and hips for this person."""
+    return row[9] > 0
+
+
 def is_truncated(row: np.ndarray, bottom_edge: float) -> bool:
     """Box reaches the bottom edge of the frame and no torso (shoulders + hips) was found."""
     return float(row[3]) >= bottom_edge and row[9] == 0
@@ -65,6 +70,9 @@ def fall_plausibility(rows: list, bottom_edge: float, max_truncated_share: float
       is wide and short, which looks like a lying person to the model. A real
       fall that ends at the bottom edge passes: the person was fully visible
       before falling.
+    * no_torso: the same, but the lower body is hidden inside the frame, e.g.
+      sitting behind a desk or table. The box alone cannot tell lying from
+      half-hidden, so a person whose torso was never seen is not judged.
     * upright: the person is standing or sitting upright at this moment.
 
     Not rejected for good: the next evaluation checks again, so a real fall
@@ -79,6 +87,9 @@ def fall_plausibility(rows: list, bottom_edge: float, max_truncated_share: float
         return "truncated"
     if require_down and is_upright(row, max_torso_tilt, max_box_aspect):
         return "upright"
+    if not has_torso(row) and \
+            float(np.mean([not has_torso(r) for r in seen])) >= max_truncated_share:
+        return "no_torso"
     return None
 
 
@@ -115,7 +126,7 @@ class GruFallDetector:
         self._stats = {"cycles": 0, "pose_runs": 0, "evaluations": 0,
                        "high_scores": 0, "candidates": 0, "max_score": 0.0,
                        "recovered": 0, "serious": 0,
-                       "rejected_truncated": 0, "rejected_upright": 0}
+                       "rejected_truncated": 0, "rejected_no_torso": 0, "rejected_upright": 0}
         print(f"[{camera_id}] pose fall model loaded: {cfg['checkpoint']} threshold={self.threshold:.2f}")
 
     def evaluate(self, buffer: TemporalBuffer, frame) -> list:

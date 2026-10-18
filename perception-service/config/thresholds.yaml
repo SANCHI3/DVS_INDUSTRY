@@ -199,6 +199,8 @@ fall_detection:
       max_truncated_share: 0.8      # ... for >= 80% of the 4-s window = never fully in view
                                     # (close desk webcam): not judged. A real fall that ends at
                                     # the bottom edge passes, because the person was visible before.
+                                    # The same share applies when no torso is found mid-frame
+                                    # (sitting behind a desk or table).
       require_down: true            # torso tilted (or wide box without a skeleton) right now
     serious:                        # fallen person who does not get back up
       after_seconds: 20             # still down this long -> escalate the fall to CRITICAL
