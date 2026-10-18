@@ -159,7 +159,7 @@ export function UserManagementPage() {
       setEditUser(null);
       await refreshUsers();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to update user.");
+      toast.error(isApiError(error) || error instanceof Error ? error.message : "Unable to update user.");
     }
   };
 
@@ -172,7 +172,7 @@ export function UserManagementPage() {
       setDeleteUser(null);
       await refreshUsers();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to deactivate user.");
+      toast.error(isApiError(error) || error instanceof Error ? error.message : "Unable to deactivate user.");
     }
   };
 
@@ -361,7 +361,7 @@ export function UserManagementPage() {
                 actions: (
                   <div className="flex gap-1.5">
                     <button onClick={() => setEditUser({ ...u })} className="p-1.5 rounded" style={{ background: "#F5F0EF", color: "#4E342E", cursor: "pointer", border: "none" }}><EditIcon size={12} /></button>
-                    <button onClick={() => setDeleteUser(u)} title="Deactivate User" aria-label={`Deactivate ${u.name}`} className="p-1.5 rounded" style={{ background: "#FFEBEE", color: "#C0392B", cursor: "pointer", border: "none" }}><TrashIcon size={12} /></button>
+                    <button onClick={() => setDeleteUser(u)} disabled={u.status !== "active"} title={u.status === "active" ? "Deactivate User" : "Already deactivated"} aria-label={`Deactivate ${u.name}`} className="p-1.5 rounded" style={{ background: "#FFEBEE", color: "#C0392B", cursor: u.status === "active" ? "pointer" : "not-allowed", opacity: u.status === "active" ? 1 : 0.4, border: "none" }}><TrashIcon size={12} /></button>
                   </div>
                 ),
               }))}
