@@ -13,6 +13,10 @@ python -m evaluation.ablation run         # ablation of the verification stages 
 python -m evaluation.interaction_separation  # fight interaction-check thresholds
 ```
 
+Section 6 (Ask DVS assistant) comes from `backend/scripts/eval-assistant.ts`
+(`npm run eval:assistant` in `backend/`; needs the assistant API key and the
+database).
+
 <!-- BEGIN:models -->
 ## 1. Model metrics
 
@@ -301,3 +305,24 @@ Pass rates are for the check on its own at every frame. In the pipeline it only 
 
 *Distribution of agitation (left) and close time (right) for fight vs normal clips; dashed = configured threshold.*
 <!-- END:interaction -->
+
+## 6. Ask DVS assistant
+
+<!-- BEGIN:assistant -->
+Generated 2026-10-17 by `backend/scripts/eval-assistant.ts` with `openai/gpt-oss-20b`; per-question answers in [results/assistant_eval.json](results/assistant_eval.json).
+
+40 questions: 30 data questions (stock, forecast, purchase and client orders, suppliers, production, attendance, incidents, plant health), 5 out-of-scope questions and 5 requests to change data. Expected facts are computed from the database at run time, independently of the assistant's tools. The baseline is the same model and system prompt answering from the question alone.
+
+| Metric | Ask DVS (tools + grounding) | No-tools baseline |
+|---|---|---|
+| Tool-selection accuracy (40) | 95% (38/40) | n/a |
+| Answer correctness (30 data questions) | 86.7% (26/30) | 10% (3/30) |
+| Grounded answers (30 data questions) | 100% (30/30) | 96.7% (29/30) |
+| Refusal correctness (10) | 100% (out of scope 5/5, change requests 5/5) | 100% (out of scope 5/5, change requests 5/5) |
+| Median latency | 1372 ms | 692 ms |
+| Errors | 0 | 0 |
+
+Database at run time: 1 material(s), 1 supplier(s), 3 purchase order(s), 3 client order(s), 136 open incident(s), 0 unit(s) produced this week, 0 employee(s) in today's attendance. Many expected answers are therefore "none" or 0; re-run on a fuller database for a stronger test.
+
+A baseline answer counts as grounded only if it contains no numbers beyond those in the question and the date. Latency excludes waits for the provider's rate limit.
+<!-- END:assistant -->

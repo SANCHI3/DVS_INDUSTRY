@@ -41,6 +41,49 @@ live on every open dashboard.
   used without a key.
 - **Demo mode:** one command runs the whole chain on recorded clips, without
   a camera.
+- **Ask DVS:** staff ask questions in plain language ("Which materials will
+  run out this week?") and get a short answer from live ERP data.
+
+## Ask DVS assistant
+
+The **Ask DVS** button in the top bar opens a chat panel for admin,
+manager, HR, production, store and sales staff. An LLM picks from twelve
+lookups (stock, stock-out forecast, purchase and client orders, supplier
+scorecard, work orders, production totals, attendance, incidents, plant
+health). It then answers in one to four plain sentences, with a "Based on:
+Inventory, Orders" line.
+
+Safety design:
+
+- **Read-only:** every lookup wraps an existing service and only reads.
+  Requests to create, approve or delete get "use the … page" instead.
+- **Role-based:** the LLM is offered only the lookups your role may use
+  (the same rules as the API routes), and each call is checked again
+  before it runs.
+- **Grounded:** every number in an answer must appear in the data looked
+  up for that question. If it does not, the assistant retries once and
+  otherwise says "I couldn't find a reliable answer to that."
+- **Private:** passwords, tokens, e-mail addresses and phone numbers are
+  removed before anything is sent to the LLM.
+- **Audited and limited:** each question is logged in the audit trail
+  (user, lookups used, grounded or not, time taken), and each user can ask
+  20 questions per 10 minutes.
+
+To turn it on, add an API key for any OpenAI-compatible service with tool
+calling to `backend/.env` (the default is Groq; a free key is available at
+console.groq.com) and restart the backend:
+
+```bash
+ASSISTANT_LLM_API_KEY=<your key>
+# optional overrides
+ASSISTANT_LLM_BASE_URL=https://api.groq.com/openai/v1
+ASSISTANT_LLM_MODEL=openai/gpt-oss-20b
+```
+
+Without a key, the panel says "Assistant not configured" and the rest of
+the system works as usual. `npm run eval:assistant` (in `backend/`) runs 40
+test questions against the database and compares the assistant with a
+no-tools baseline ([results](docs/RESULTS.md#6-ask-dvs-assistant)).
 
 ## Architecture
 

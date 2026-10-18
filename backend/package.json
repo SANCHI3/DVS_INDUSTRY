@@ -23,6 +23,7 @@
     "db:reset": "prisma migrate reset",
     "db:seed": "tsx prisma/seed.ts",
     "audit:incidents": "tsx scripts/audit-incidents.ts",
+    "eval:assistant": "tsx scripts/eval-assistant.ts",
     "prepare": "husky"
   },
   "keywords": [],
