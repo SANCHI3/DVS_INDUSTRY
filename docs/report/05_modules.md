@@ -31,7 +31,7 @@ YOLO, and its evaluated score (from [../RESULTS.md](../RESULTS.md)).
 - **Score:** pretrained model, not re-evaluated in this project.
 
 ### Rule engine: crowd (`temporal/rule_engine.py`)
-- **Detects:** 4 or more people grouped for 5 s, on the whole frame (or in an
+- **Detects:** 15 or more people grouped for 5 s, on the whole frame (or in an
   optional crowd zone).
 - **Why rules:** these are defined by geometry and time, not appearance. Rules
   are exact, explainable and need no training data.

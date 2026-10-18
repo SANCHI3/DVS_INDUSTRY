@@ -17,6 +17,8 @@ with open("config/cameras.yaml") as f:
 with open("config/thresholds.yaml") as f:
     thresholds_cfg = yaml.safe_load(f)
 
+# Pin the crowd threshold so the 4-person demo below still forms a crowd.
+thresholds_cfg["rules"]["crowd"]["person_count_threshold"] = 3
 cam_cfg = cameras_cfg["cameras"][0]
 rule_engine = RuleEngine(cam_cfg, thresholds_cfg)
 confirmation = EventConfirmation(thresholds_cfg["confirmation"])

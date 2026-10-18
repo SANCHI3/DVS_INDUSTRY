@@ -16,7 +16,7 @@ temporal_buffer:
 
 rules:
   crowd:
-    person_count_threshold: 4
+    person_count_threshold: 15         # people in one group before it counts as a crowd (site asks for 15-20)
     sustained_seconds: 5
   fall:
     aspect_ratio_flip_seconds: 1.5     # standing->fallen transition must happen within this
