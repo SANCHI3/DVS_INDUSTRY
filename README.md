@@ -137,6 +137,18 @@ Running the parts by hand, the environment variables and the deployment
 templates are covered in [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md) and
 [ops/README.md](ops/README.md).
 
+### Live deployment
+
+- Dashboard: https://dvs-industry.vercel.app (Vercel, `frontend/`, see
+  [frontend/vercel.json](frontend/vercel.json))
+- API: https://dvs-industry-api.onrender.com (Render free plan, `backend/`, see
+  [render.yaml](render.yaml)); the dashboard forwards `/api` to it
+- Database: Neon PostgreSQL
+
+Both rebuild on every push to `master`. The CCTV AI needs a GPU and a
+camera, so it runs on a local machine and reports to the API. The free API
+sleeps when idle; the first request after a pause takes about 30 s.
+
 ## Results
 
 Held-out evaluation of the deployed models (full table with 21 rows, charts
