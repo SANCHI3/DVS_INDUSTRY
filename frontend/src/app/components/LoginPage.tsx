@@ -1,8 +1,7 @@
 import { useState } from "react";
 import {
-  Shield, Package, Building2, Eye, EyeOff, ArrowLeft, Lock,
-  Mail, User, ChevronRight, AlertCircle, CheckCircle2, Factory,
-  Users, PackageCheck, ShoppingCart,
+  Shield, Package, Building2, Eye, EyeOff, ArrowLeft, Lock, Mail, ChevronRight,
+  AlertCircle, CheckCircle2, Factory, ShoppingCart,
 } from "lucide-react";
 import { login as apiLogin, type FrontendRole } from "../../lib/auth";
 import api from "../../lib/api";
@@ -74,39 +73,12 @@ const roles = [
   },
 ];
 
-function PasswordStrengthBar({ password }: { password: string }) {
-  if (!password) return null;
-  const checks = [
-    password.length >= 8,
-    /[A-Z]/.test(password),
-    /[0-9]/.test(password),
-    /[^A-Za-z0-9]/.test(password),
-  ];
-  const score = checks.filter(Boolean).length;
-  const colors = ["#C0392B", "#E65100", "#F57F17", "#2E7D32"];
-  const labels = ["Weak", "Fair", "Good", "Strong"];
-  return (
-    <div className="mt-2">
-      <div className="flex gap-1 mb-1">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="flex-1 h-1.5 rounded-full" style={{ background: i < score ? colors[score - 1] : "#E8E2E0", transition: "background 0.2s" }} />
-        ))}
-      </div>
-      {score > 0 && <p style={{ fontSize: "0.7rem", color: colors[score - 1] }}>{labels[score - 1]} password</p>}
-    </div>
-  );
-}
-
 export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: LoginPageProps) {
   const [selectedRole, setSelectedRole] = useState<Role>(initialRole ?? "admin");
   const [mode, setMode] = useState<AuthMode>("login");
   const [showPass, setShowPass] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPw, setConfirmPw] = useState("");
-  const [name, setName] = useState("");
-  const [company, setCompany] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
@@ -114,7 +86,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
   const role = roles.find((r) => r.id === selectedRole)!;
   const Icon = role.icon;
 
-  const reset = () => { setError(""); setSuccess(""); setEmail(""); setPassword(""); setConfirmPw(""); setName(""); setCompany(""); };
+  const reset = () => { setError(""); setSuccess(""); setEmail(""); setPassword(""); };
 
   const handleRoleSelect = (r: Role) => { setSelectedRole(r); reset(); };
 

@@ -46,7 +46,7 @@ export function AdminApp({ onLogout, onSessionEnded, userRole }: AdminAppProps) 
       if (section === "dashboard") return <AdminDashboard onNavigate={setSection} />;
       if (productionSections.has(section)) return <ProductionPage />;
       if (securitySections.has(section)) return <SecurityPage />;
-      if (inventorySections.has(section)) return <InventoryPage onNavigate={setSection} />;
+      if (inventorySections.has(section)) return <InventoryPage />;
       if (orderSections.has(section)) return <OrdersPage onNavigate={setSection} />;
       if (section === "reports") return <ReportsPage />;
       if (section === "analytics") return <SmartAnalyticsPage />;
@@ -62,7 +62,7 @@ export function AdminApp({ onLogout, onSessionEnded, userRole }: AdminAppProps) 
 
   return (
     <ERPProvider>
-      <AppShell role="admin" userRole={userRole} userName={userName} activeSection={section} onSectionChange={setSection} onOpenProfile={() => setSection("profile")} onLogout={onLogout} notificationCount={0}>
+      <AppShell role="admin" userRole={userRole} userName={userName} activeSection={section} onSectionChange={setSection} onOpenProfile={() => setSection("profile")} onLogout={onLogout}>
         {renderSection()}
       </AppShell>
       {/* Security roles get high-priority incidents on every page; the store

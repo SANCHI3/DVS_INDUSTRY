@@ -277,10 +277,10 @@ export function UserManagementPage() {
       {dataError && <p className="mb-4" style={{ color: "#C0392B", fontSize: "0.8125rem" }}>{dataError}</p>}
 
       <div className="flex gap-0 mb-5" style={{ borderBottom: "2px solid #E8E2E0" }}>
-        {[["users", "All Users"], ["permissions", "Permissions"], ["logs", "Audit Logs"]].map(([id, label]) => (
+        {([["users", "All Users"], ["permissions", "Permissions"], ["logs", "Audit Logs"]] as const).map(([id, label]) => (
           <button
             key={id}
-            onClick={() => setActiveTab(id as any)}
+            onClick={() => setActiveTab(id)}
             style={{
               padding: "0.625rem 1rem", fontSize: "0.8375rem",
               fontWeight: activeTab === id ? 600 : 400,

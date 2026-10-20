@@ -1,22 +1,12 @@
 import { useEffect, useState } from "react";
-import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from "recharts";
-import {
-  Plus, Download, CheckCircle2, XCircle, Edit2, Upload, Truck, MessageSquare, Star,
-  TrendingUp, Package, Clock, AlertCircle,
-} from "lucide-react";
-import { toast } from "sonner";
+import { LineChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { AppShell } from "../shared/AppShell";
-import { PageHeader, KPICard, Card, CardHeader, StatusBadge, Btn, DataTable, TabBar } from "../shared/UI";
+import { PageHeader, KPICard, Card, CardHeader, StatusBadge, Btn, DataTable } from "../shared/UI";
 
 import { getUser } from "../../../lib/auth";
 import { isApiError } from "../../../lib/api";
 import {
-  getPurchaseOrders,
-  getSuppliers,
-  type PurchaseOrderDto,
-  type SupplierDto,
+  getPurchaseOrders, getSuppliers, type PurchaseOrderDto, type SupplierDto,
 } from "../../../lib/services/orders.service";
 
 type SupplierData = {
@@ -304,7 +294,7 @@ export function SupplierApp({ onLogout }: { onLogout: () => void }) {
   };
 
   return (
-    <AppShell role="supplier" activeSection={section} onSectionChange={setSection} onLogout={onLogout} notificationCount={3}>
+    <AppShell role="supplier" activeSection={section} onSectionChange={setSection} onLogout={onLogout}>
       {renderSection()}
     </AppShell>
   );

@@ -1,12 +1,12 @@
 import type { LucideIcon } from "lucide-react";
-import { useState, ReactNode } from "react";
+import type { ReactNode } from "react";
+import { useState } from "react";
 import { useERP } from "../admin/ERPContext";
 import { AskDvs } from "./AskDvs";
 import { getStoredBackendRole } from "../../../lib/auth";
 import {
-  LayoutDashboard, Factory, Users, Shield, Package, ShoppingCart, BarChart3,
-  UserCircle, LogOut, Menu, X, Bell, Search, ChevronDown, ChevronRight,
-  Cpu, Building2, Truck, UserCheck, FileText, MessageSquare, Star,
+  LayoutDashboard, Factory, Shield, Package, ShoppingCart, BarChart3, UserCircle, LogOut,
+  Menu, X, Bell, Search, Cpu, Building2, Truck, UserCheck, FileText, MessageSquare, Star,
   ShoppingBag, MapPin, Headphones, Sparkles,
 } from "lucide-react";
 
@@ -99,10 +99,9 @@ interface AppShellProps {
   onOpenProfile?: () => void;
   onLogout: () => void;
   children: ReactNode;
-  notificationCount?: number;
 }
 
-export function AppShell({ role, userRole, userName, activeSection, onSectionChange, onOpenProfile, onLogout, children, notificationCount = 3 }: AppShellProps) {
+export function AppShell({ role, userRole, userName, activeSection, onSectionChange, onOpenProfile, onLogout, children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");

@@ -5,10 +5,9 @@ import {
   LineChart, Line, PieChart, Pie, Cell, RadialBarChart, RadialBar,
 } from "recharts";
 import {
-  Plus, Download, AlertTriangle, Play,
-  Zap, Package, RotateCcw, Info, X,
+  Plus, Download, AlertTriangle, Play, Zap, Package, RotateCcw, Info, X,
 } from "lucide-react";
-import { PageHeader, Card, CardHeader, KPICard, StatusBadge, Btn, DataTable, TabBar } from "../shared/UI";
+import { PageHeader, KPICard, StatusBadge, Btn, DataTable, TabBar } from "../shared/UI";
 import {
   getMaterials, getInventoryStats, adjustStock, createMaterial,
   type InventoryStatistics, type MaterialDto,
@@ -633,7 +632,7 @@ function toInventoryMaterial(material: MaterialDto): InventoryMaterial {
   };
 }
 
-export function InventoryPage({ onNavigate }: { onNavigate?: (section: string) => void }) {
+export function InventoryPage() {
   const [tab, setTab]                   = useState("overview");
   const [materials, setMaterials]       = useState<InventoryMaterial[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(true);
@@ -724,7 +723,7 @@ export function InventoryPage({ onNavigate }: { onNavigate?: (section: string) =
           ].map((f) => (
             <div key={f.key}>
               <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.3rem" }}>{f.label}</label>
-              <input type={f.type || "text"} placeholder={f.placeholder} value={(newMat as any)[f.key]}
+              <input type={f.type || "text"} placeholder={f.placeholder} value={newMat[f.key as keyof typeof newMat]}
                 onChange={(e) => setNewMat((p) => ({ ...p, [f.key]: e.target.value }))}
                 style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #D4BFBB", borderRadius: "0.375rem", fontSize: "0.8375rem", outline: "none" }}
                 onFocus={(e) => { e.target.style.borderColor = "#A52A2A"; }}

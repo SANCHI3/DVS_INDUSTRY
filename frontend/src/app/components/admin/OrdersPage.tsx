@@ -1,18 +1,12 @@
 import { useState, useEffect } from "react";
 import { toast as showSonnerToast } from "sonner";
-import {
-  Plus, Download, Eye, CheckCircle2, Truck, X,
-  FileText, Package, AlertCircle, Printer,
-} from "lucide-react";
+import { Plus, Download, Eye, CheckCircle2, Truck, X, AlertCircle } from "lucide-react";
 import { PageHeader, Card, CardHeader, KPICard, StatusBadge, Btn, DataTable, TabBar } from "../shared/UI";
 import { useERP } from "./ERPContext";
 import {
-  getClientOrders, getPurchaseOrders, getOrderStats,
-  getClients, getSuppliers,
-  approveClientOrder, dispatchClientOrder, deliverClientOrder,
-  createClientOrder, createPurchaseOrder,
-  type ClientOrderDto, type PurchaseOrderDto, type OrderStatistics,
-  type ClientDto, type SupplierDto,
+  getClientOrders, getPurchaseOrders, getOrderStats, getClients, getSuppliers,
+  approveClientOrder, dispatchClientOrder, createClientOrder, createPurchaseOrder,
+  type OrderStatistics, type ClientDto, type SupplierDto,
 } from "../../../lib/services/orders.service";
 
 /* ── Types ── */
@@ -132,7 +126,7 @@ function POModal({ prefill, suppliers, suppliersLoading, suppliersError, onClose
         ].map((f) => (
           <div key={f.key}>
             <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.3rem" }}>{f.label}</label>
-                    <input type={f.type || "text"} placeholder={f.placeholder} value={(form as any)[f.key]}
+                    <input type={f.type || "text"} placeholder={f.placeholder} value={form[f.key as keyof typeof form]}
               onChange={(e) => set(f.key, e.target.value)}
               style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #D4BFBB", borderRadius: "0.375rem", fontSize: "0.8375rem", outline: "none" }}
               onFocus={(e) => { e.target.style.borderColor = "#A52A2A"; }}
@@ -321,7 +315,7 @@ function NewClientOrderModal({ clients, clientsLoading, clientsError, onClose, o
         ].map((f) => (
           <div key={f.key}>
             <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.3rem" }}>{f.label}</label>
-                    <input list={f.key === "client" ? "available-clients" : undefined} type={f.type || "text"} placeholder={f.placeholder} value={(form as any)[f.key]}
+                    <input list={f.key === "client" ? "available-clients" : undefined} type={f.type || "text"} placeholder={f.placeholder} value={form[f.key as keyof typeof form]}
               onChange={(e) => set(f.key, e.target.value)}
               style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #D4BFBB", borderRadius: "0.375rem", fontSize: "0.8375rem", outline: "none" }}
               onFocus={(e) => { e.target.style.borderColor = "#A52A2A"; }}
@@ -439,15 +433,11 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
   };
 
   const handleDispatchDone = async (id: string) => {
-    try {
-      const order = clientOrders.find(o => o.id === id);
-      if (!order?._apiId) throw new Error("This order is not stored in the database.");
-      await dispatchClientOrder(order._apiId, {});
-      await loadAll();
-      showSonnerToast.success("Dispatch status updated successfully.");
-    } catch (err) {
-      throw err;
-    }
+    const order = clientOrders.find(o => o.id === id);
+    if (!order?._apiId) throw new Error("This order is not stored in the database.");
+    await dispatchClientOrder(order._apiId, {});
+    await loadAll();
+    showSonnerToast.success("Dispatch status updated successfully.");
   };
 
   const handleAddOrder = async (o: ClientOrder) => {

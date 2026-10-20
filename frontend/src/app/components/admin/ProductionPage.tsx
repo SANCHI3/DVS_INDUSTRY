@@ -1,31 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
+  Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { AlertTriangle, Download, Plus, WifiOff, Zap } from "lucide-react";
+import { Download, Plus } from "lucide-react";
 import { PageHeader, KPICard, Card, CardHeader, Btn, DataTable, TabBar } from "../shared/UI";
 import { WorkforceManagement } from "./WorkforceManagement";
 import {
-  getProductionKPIs,
-  getProductionTrend,
-  getWorkOrders,
-  type ProductionKPIs,
-  type ProductionTrendEntry,
-  type WorkOrderDto,
+  getProductionKPIs, getProductionTrend, getWorkOrders, type ProductionKPIs,
+  type ProductionTrendEntry, type WorkOrderDto,
 } from "../../../lib/services/production.service";
 import {
-  getAttendance,
-  getAttendanceSummary,
-  getAttendanceTrend,
-  type AttendanceDto,
-  type WorkforceAttendanceTrendEntry as AttendanceTrendEntry,
-  type DailyAttendanceSummary,
+  getAttendance, getAttendanceSummary, getAttendanceTrend, type AttendanceDto,
+  type WorkforceAttendanceTrendEntry as AttendanceTrendEntry, type DailyAttendanceSummary,
 } from "../../../lib/services/workforce.service";
 
 const unavailable = "—";

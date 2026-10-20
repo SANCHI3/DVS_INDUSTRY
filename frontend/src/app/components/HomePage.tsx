@@ -1,9 +1,7 @@
 import { useState } from "react";
 import {
-  Factory, Shield, Package, BarChart3, Users, ShoppingCart,
-  CheckCircle2, MapPin, Phone, Mail, Award, Zap, Cpu, Star,
-  Globe, Wrench, Eye, Layers, Send, ChevronDown, Lock, ChevronUp,
-  Truck, Cog, FlaskConical, Box, GitBranch, Activity, TrendingUp,
+  Factory, Shield, Package, CheckCircle2, MapPin, Phone, Mail, Award, Zap, Cpu, Star,
+  Globe, Wrench, Eye, Layers, Send, ChevronDown, Lock, ChevronUp, Cog, Box, GitBranch,
   Building2, Car, Wind, Settings,
 } from "lucide-react";
 

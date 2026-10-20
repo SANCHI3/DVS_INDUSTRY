@@ -1,14 +1,25 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { Toaster, toast } from "sonner";
 import { HomePage } from "./components/HomePage";
 import { LoginPage } from "./components/LoginPage";
-import { ResetPasswordPage } from "./components/ResetPasswordPage";
-import { AdminApp } from "./components/admin/AdminApp";
-import { SupplierApp } from "./components/supplier/SupplierApp";
-import { ClientApp } from "./components/client/ClientApp";
 import { logout as apiLogout, getStoredFrontendRole } from "../lib/auth";
 import { SESSION_EXPIRED_EVENT } from "../lib/api";
 import type { FrontendRole } from "../lib/auth";
+
+// Signed-in apps load on demand, so the home and login pages don't download
+// the dashboards and the charting library.
+const ResetPasswordPage = lazy(() => import("./components/ResetPasswordPage").then((m) => ({ default: m.ResetPasswordPage })));
+const AdminApp    = lazy(() => import("./components/admin/AdminApp").then((m) => ({ default: m.AdminApp })));
+const SupplierApp = lazy(() => import("./components/supplier/SupplierApp").then((m) => ({ default: m.SupplierApp })));
+const ClientApp   = lazy(() => import("./components/client/ClientApp").then((m) => ({ default: m.ClientApp })));
+
+function PageLoading() {
+  return (
+    <div role="status" style={{ padding: "2rem", textAlign: "center", color: "#64748b" }}>
+      Loading…
+    </div>
+  );
+}
 
 type Page = "home" | "login" | "reset" | FrontendRole;
 type Role = "admin" | "supplier" | "client" | "production" | "store";
@@ -73,6 +84,7 @@ export default function App() {
           onLoginSuccess={handleLoginSuccess}
         />
       )}
+      <Suspense fallback={<PageLoading />}>
       {page === "reset" && resetToken !== null && <ResetPasswordPage token={resetToken} onDone={leaveReset} />}
       {page === "admin"      && <AdminApp onLogout={handleLogout} onSessionEnded={handleSessionEnded} userRole="admin" />}
       {page === "production" && <AdminApp onLogout={handleLogout} onSessionEnded={handleSessionEnded} userRole="production" />}
@@ -80,6 +92,7 @@ export default function App() {
       {page === "unauthorized" && <div style={{ padding: "2rem" }}>Unauthorized role. Contact an administrator.</div>}
       {page === "supplier"   && <SupplierApp onLogout={handleLogout} />}
       {page === "client"     && <ClientApp  onLogout={handleLogout} />}
+      </Suspense>
     </>
   );
 }
