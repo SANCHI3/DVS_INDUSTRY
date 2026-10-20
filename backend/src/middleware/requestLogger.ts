@@ -18,6 +18,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
       status: res.statusCode,
       duration: `${duration}ms`,
       ip: req.ip,
+      requestId: res.getHeader('X-Request-Id'),
     });
   });
 

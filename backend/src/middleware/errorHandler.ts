@@ -112,6 +112,8 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     success: false,
     error: {
       code: 'INTERNAL_ERROR',
+      // Quoted by users when reporting a problem; matches the server logs
+      requestId: res.getHeader('X-Request-Id'),
       // Hide internal details from clients in production
       message:
         env.NODE_ENV === 'production'

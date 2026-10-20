@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 
 import { env } from './config/env';
 import { requestLogger } from './middleware/requestLogger';
+import { requestId, REQUEST_ID_HEADER } from './middleware/requestId';
 import { notFoundHandler } from './middleware/notFound';
 import { errorHandler } from './middleware/errorHandler';
 import { auditLog } from './middleware/auditLog';
@@ -22,6 +23,9 @@ const app = express();
 if (env.TRUST_PROXY > 0) {
   app.set('trust proxy', env.TRUST_PROXY);
 }
+
+// ── Request ID (first, so every later log line carries it) ─────────────────
+app.use(requestId);
 
 // ── Security headers ───────────────────────────────────────────────────────
 app.use(helmet());
@@ -42,6 +46,7 @@ app.use(
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: [REQUEST_ID_HEADER],
   }),
 );
 

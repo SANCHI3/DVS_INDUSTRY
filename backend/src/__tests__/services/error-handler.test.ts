@@ -12,7 +12,11 @@ vi.mock('../../config/env', () => ({ env: { NODE_ENV: 'production' } }));
 const { errorHandler } = await import('../../middleware/errorHandler');
 
 function run(err: unknown) {
-  const res = { status: vi.fn(), json: vi.fn() };
+  const res = {
+    status: vi.fn(),
+    json: vi.fn(),
+    getHeader: vi.fn().mockReturnValue('req-1234abcd'),
+  };
   res.status.mockReturnValue(res);
   errorHandler(err, { path: '/x', method: 'GET' } as Request, res as unknown as Response, vi.fn());
   return { status: res.status.mock.calls[0]?.[0] as number, body: res.json.mock.calls[0]?.[0] };
@@ -37,5 +41,6 @@ describe('errorHandler', () => {
 
     expect(status).toBe(500);
     expect(JSON.stringify(body)).not.toContain('secret');
+    expect(body.error.requestId).toBe('req-1234abcd');
   });
 });
