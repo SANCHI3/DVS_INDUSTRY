@@ -2,7 +2,7 @@
  * Auth store — thin wrapper over the API client.
  *
  * Responsibilities:
- *  - POST /auth/login → store access token + user profile in localStorage
+ *  - POST /auth/login → keep the access token in memory, the user profile in localStorage
  *  - POST /auth/logout → clear tokens
  *  - POST /auth/refresh → get new access token (used by api.ts interceptor too)
  *  - getUser()  → typed user from localStorage (survives page reload)

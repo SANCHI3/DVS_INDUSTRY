@@ -4,7 +4,7 @@ import {
   AlertCircle, CheckCircle2, Factory, ShoppingCart,
 } from "lucide-react";
 import { login as apiLogin, type FrontendRole } from "../../lib/auth";
-import api from "../../lib/api";
+import api, { isServerStarting, waitForServer } from "../../lib/api";
 
 type Role = "admin" | "supplier" | "client" | "production" | "store";
 type AuthMode = "login" | "signup" | "forgot";
@@ -82,6 +82,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [waking, setWaking] = useState(false);
 
   const role = roles.find((r) => r.id === selectedRole)!;
   const Icon = role.icon;
@@ -95,7 +96,19 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
     if (!email || !password) { setError("Please fill in all fields."); return; }
     setLoading(true);
     try {
-      const { user, frontendRole } = await apiLogin(email, password);
+      let result;
+      try {
+        result = await apiLogin(email, password);
+      } catch (err: unknown) {
+        if (!isServerStarting(err)) throw err;
+        // The API was asleep (free hosting): wait for it, then try once more
+        setWaking(true);
+        const up = await waitForServer();
+        setWaking(false);
+        if (!up) throw new Error("The server is not responding. Please try again in a minute.", { cause: err });
+        result = await apiLogin(email, password);
+      }
+      const { user, frontendRole } = result;
       setSuccess(`Authenticated. Loading ${user.fullName.split(" ")[0]}'s dashboard…`);
       setTimeout(() => onLoginSuccess(frontendRole), 800);
     } catch (err: unknown) {
@@ -104,6 +117,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
         : "Invalid email or password. Please try again.";
       setError(msg);
     } finally {
+      setWaking(false);
       setLoading(false);
     }
   };
@@ -435,7 +449,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                 {loading ? (
                   <>
                     <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                    Processing…
+                    {waking ? "Starting the server…" : "Processing…"}
                   </>
                 ) : mode === "login" ? (
                   <> Sign In <ChevronRight size={17} /></>
@@ -445,6 +459,12 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                   <> Send Reset Link <ChevronRight size={17} /></>
                 )}
               </button>
+
+              {waking && (
+                <p role="status" style={{ marginTop: "0.75rem", fontSize: "0.775rem", color: "#7A6C6A", textAlign: "center", lineHeight: 1.5 }}>
+                  The server sleeps when idle and can take up to a minute to start. You will be signed in automatically.
+                </p>
+              )}
 
               {/* Back to sign in from forgot */}
               {mode === "forgot" && (

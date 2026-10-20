@@ -78,6 +78,19 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
     }
   }
 
+  // ── Database unreachable (down, or a serverless DB still waking) ─
+  if (err instanceof Prisma.PrismaClientInitializationError) {
+    logger.error('Database unavailable', { message: err.message, path: req.path });
+    res.status(HTTP_STATUS.SERVICE_UNAVAILABLE).json({
+      success: false,
+      error: {
+        code: 'DATABASE_UNAVAILABLE',
+        message: 'The database is not reachable. Please try again shortly.',
+      },
+    });
+    return;
+  }
+
   // ── Upload errors (file too large, unexpected field, …) ─────────
   if (err instanceof multer.MulterError) {
     res.status(HTTP_STATUS.BAD_REQUEST).json({

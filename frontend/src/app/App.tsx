@@ -3,7 +3,7 @@ import { Toaster, toast } from "sonner";
 import { HomePage } from "./components/HomePage";
 import { LoginPage } from "./components/LoginPage";
 import { logout as apiLogout, getStoredFrontendRole } from "../lib/auth";
-import { SESSION_EXPIRED_EVENT } from "../lib/api";
+import { SESSION_EXPIRED_EVENT, warmUpServer } from "../lib/api";
 import type { FrontendRole } from "../lib/auth";
 
 // Signed-in apps load on demand, so the home and login pages don't download
@@ -38,6 +38,9 @@ export default function App() {
   const [page, setPage]           = useState<Page>(initialPage);
   const [loginRole, setLoginRole] = useState<Role>("admin");
   const [resetToken]              = useState(readResetToken);
+
+  // The API sleeps when idle on free hosting; start it while the visitor reads
+  useEffect(() => { warmUpServer(); }, []);
 
   // The API client fires this when the session can no longer be refreshed
   useEffect(() => {
