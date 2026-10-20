@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
@@ -32,6 +33,11 @@ export default defineConfig({
         secure:       false,
       },
     },
+  },
+
+  // Playwright owns e2e/; vitest runs only the unit tests in src/
+  test: {
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
