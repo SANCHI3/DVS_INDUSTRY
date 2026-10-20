@@ -42,6 +42,19 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # Known vulnerabilities in the packages that run in production
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: backend
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: frontend
+
   perception-service:
     runs-on: ubuntu-latest
     defaults:
