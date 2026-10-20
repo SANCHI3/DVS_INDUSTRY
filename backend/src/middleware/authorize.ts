@@ -14,7 +14,7 @@ import { ForbiddenError, UnauthorizedError } from '../errors';
  *   router.get('/reports', authenticate, authorize('ADMIN', 'MANAGER'), handler)
  */
 export function authorize(...allowedRoles: RoleName[]): RequestHandler {
-  return (req: AuthenticatedRequest, _res: Response, next: NextFunction): void => {
+  const handler = (req: AuthenticatedRequest, _res: Response, next: NextFunction): void => {
     if (req.user === undefined) {
       throw new UnauthorizedError('Not authenticated');
     }
@@ -25,4 +25,6 @@ export function authorize(...allowedRoles: RoleName[]): RequestHandler {
 
     next();
   };
+  // Read by scripts/api-reference.ts to document who may call each route
+  return Object.assign(handler, { allowedRoles });
 }
