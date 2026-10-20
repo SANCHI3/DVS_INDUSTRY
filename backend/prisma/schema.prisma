@@ -71,6 +71,17 @@ model PasswordResetToken {
   @@index([expiresAt])
 }
 
+// Uploaded files (profile photos), kept in the database so they survive
+// redeploys on hosts with a temporary disk. The id is the public file name:
+// /uploads/profiles/<id>.
+model StoredFile {
+  id        String   @id
+  mimeType  String
+  size      Int
+  data      Bytes
+  createdAt DateTime @default(now())
+}
+
 // ───────────────────────────────────────────────────────────────
 // Workforce
 // ───────────────────────────────────────────────────────────────
@@ -466,7 +477,6 @@ model WorkOrder {
 
   outputs WorkOrderOutput[]
 
-  @@index([workOrderNumber])
   @@index([status])
   @@index([priority])
   @@index([departmentId])
@@ -543,7 +553,6 @@ model SecurityIncident {
   updates IncidentUpdate[]
   alerts  SecurityAlert[]
 
-  @@index([incidentNumber])
   @@index([type])
   @@index([severity])
   @@index([status])
@@ -604,7 +613,6 @@ model SecurityAlert {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([alertNumber])
   @@index([type])
   @@index([severity])
   @@index([status])

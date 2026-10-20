@@ -12,6 +12,7 @@ import { notFoundHandler } from './middleware/notFound';
 import { errorHandler } from './middleware/errorHandler';
 import { auditLog } from './middleware/auditLog';
 import router from './routes';
+import { serveStoredProfileImage } from './utils/upload';
 
 const app = express();
 
@@ -112,7 +113,8 @@ app.use(cookieParser());
 // ── Request logging ────────────────────────────────────────────────────────
 app.use(requestLogger);
 
-// ── Static file serving — uploaded assets ─────────────────────────────────
+// ── Uploaded files — from the database, then the legacy upload folder ─────
+app.get('/uploads/profiles/:name', serveStoredProfileImage);
 app.use(
   '/uploads',
   express.static(path.resolve(process.cwd(), 'uploads'), {

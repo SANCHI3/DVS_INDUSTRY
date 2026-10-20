@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { EmployeeService } from '../services/employee.service';
 import { sendSuccess, sendCreated, sendNoContent } from '../utils/response';
 import { BadRequestError } from '../errors';
-import { profileImageUrl, deleteUploadedFile } from '../utils/upload';
+import { saveProfileImage, deleteProfileImage } from '../utils/upload';
 import type {
   CreateEmployeeInput,
   UpdateEmployeeInput,
@@ -201,13 +201,13 @@ export async function uploadProfileImage(req: Request, res: Response): Promise<v
     throw new BadRequestError('No image file provided. Use field name "image".');
   }
 
-  // Delete previous profile image if stored
   const existing = await employeeService.getById(id);
-  if (existing.profileImage) {
-    deleteUploadedFile(existing.profileImage);
-  }
-
-  const imageUrl = profileImageUrl(req.file.filename);
+  const imageUrl = await saveProfileImage(req.file);
   const employee = await employeeService.updateProfileImage(id, imageUrl);
+
+  // Only once the new image is in place, so a failure never leaves none
+  if (existing.profileImage) {
+    await deleteProfileImage(existing.profileImage);
+  }
   sendSuccess(res, employee, 200, 'Profile image updated successfully');
 }
