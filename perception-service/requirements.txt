@@ -15,7 +15,7 @@ torchvision>=0.17
 
 # Pose-based fall classifier (fall_model/) -- Random Forest / Gradient Boosting
 scikit-learn>=1.3
-joblib>=1.3
+joblib>=1.6.0
 
 # Training plots for fall_model/train.py and anomaly/train_autoencoder.py (optional)
 matplotlib>=3.7
