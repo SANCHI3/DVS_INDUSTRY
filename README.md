@@ -147,7 +147,10 @@ templates are covered in [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md) and
 
 Both rebuild on every push to `master`. The CCTV AI needs a GPU and a
 camera, so it runs on a local machine and reports to the API. The free API
-sleeps when idle; the first request after a pause takes about 30 s.
+sleeps when idle and takes up to a minute to start: the site wakes it as soon
+as it opens, and a login made meanwhile shows "Starting the server…" and
+completes by itself. Uploaded profile photos are stored in the database,
+because the Render disk is wiped on every deploy.
 
 ## Results
 
@@ -170,8 +173,11 @@ and protocols: [docs/RESULTS.md](docs/RESULTS.md)):
   ([details](perception-service/docs/FALSE_POSITIVE_FIXES.md)). False alarms
   per hour on long normal footage have not been measured yet; the script is
   ready (`python -m evaluation.false_alarms`).
-- **Tests:** backend 157, frontend 19, perception 117, all passing. CI runs on
-  every push.
+- **Tests:** backend 207, frontend 52 unit and 11 end-to-end (Playwright: real
+  browser, API and PostgreSQL), perception 117. CI runs them, plus lint,
+  type checks and `npm audit`, on every pull request and push to `master`.
+- **API reference:** [docs/API.md](docs/API.md), all 147 endpoints and the
+  roles allowed to call each, generated from the router.
 
 ## Documentation
 
