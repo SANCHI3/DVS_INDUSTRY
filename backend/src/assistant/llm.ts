@@ -50,6 +50,30 @@ interface ChatCompletionResponse {
   choices?: Array<{ message?: { content?: string | null; tool_calls?: ToolCall[] } }>;
 }
 
+/**
+ * The provider rejected a tool call the model wrote (Groq: HTTP 400
+ * "tool_use_failed", e.g. an argument outside the allowed values). `detail` is
+ * the provider's explanation, so the model can be asked to correct the call.
+ */
+export class InvalidToolCallError extends AppError {
+  constructor(readonly detail: string) {
+    super(
+      'The assistant service is unavailable right now. Please try again later.',
+      502,
+      'ASSISTANT_UNAVAILABLE',
+    );
+  }
+}
+
+async function invalidToolCallDetail(response: Response): Promise<string | null> {
+  try {
+    const body = (await response.json()) as { error?: { code?: string; message?: string } };
+    return body.error?.code === 'tool_use_failed' ? (body.error.message ?? '') : null;
+  } catch {
+    return null;
+  }
+}
+
 export function createLlmClient(config: LlmConfig, fetchImpl: typeof fetch = fetch): LlmClient {
   const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
 
@@ -85,6 +109,8 @@ export function createLlmClient(config: LlmConfig, fetchImpl: typeof fetch = fet
 
   async function read(response: Response): Promise<CompletionResult> {
     if (!response.ok) {
+      const detail = response.status === 400 ? await invalidToolCallDetail(response) : null;
+      if (detail !== null) throw new InvalidToolCallError(detail);
       throw new AppError(
         response.status === 429
           ? 'The assistant is busy right now. Please try again in a minute.'

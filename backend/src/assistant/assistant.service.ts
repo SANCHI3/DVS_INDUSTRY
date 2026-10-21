@@ -15,8 +15,15 @@ import { AppError, ForbiddenError } from '../errors';
 import { AuditRepository } from '../repositories/audit.repository';
 import { logger } from '../logger';
 import { checkGrounding } from './grounding';
-import { createLlmClient, type ChatMessage, type LlmClient } from './llm';
 import {
+  createLlmClient,
+  InvalidToolCallError,
+  type ChatMessage,
+  type CompletionResult,
+  type LlmClient,
+} from './llm';
+import {
+  INVALID_TOOL_CALL_INSTRUCTION,
   NO_RELIABLE_ANSWER,
   REGROUND_INSTRUCTION,
   systemPrompt,
@@ -174,12 +181,22 @@ export class AssistantService {
     const evidence: string[] = [question, day(now) ?? ''];
 
     let answer: string;
+    let correctedToolCall = false;
     for (let round = 0; ; round++) {
       const canUseTools = specs.length > 0 && round < MAX_TOOL_ROUNDS;
-      const reply = await llm.complete({
-        messages,
-        ...(specs.length > 0 ? { tools: specs, toolChoice: canUseTools ? 'auto' : 'none' } : {}),
-      });
+      let reply: CompletionResult;
+      try {
+        reply = await llm.complete({
+          messages,
+          ...(specs.length > 0 ? { tools: specs, toolChoice: canUseTools ? 'auto' : 'none' } : {}),
+        });
+      } catch (err) {
+        // One correction: tell the model why its tool call was rejected.
+        if (!(err instanceof InvalidToolCallError) || correctedToolCall) throw err;
+        correctedToolCall = true;
+        messages.push({ role: 'user', content: `${INVALID_TOOL_CALL_INSTRUCTION} ${err.detail}` });
+        continue;
+      }
       if (!canUseTools || reply.toolCalls.length === 0) {
         answer = tidy(reply.content);
         break;

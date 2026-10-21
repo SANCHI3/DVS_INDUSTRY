@@ -22,6 +22,9 @@ export function systemPrompt(today: string, role: string): string {
 
 export const NO_RELIABLE_ANSWER = "I couldn't find a reliable answer to that.";
 
+export const INVALID_TOOL_CALL_INSTRUCTION =
+  'Your last tool call was rejected because its arguments were not allowed. Call the tool again with only the allowed values. If no allowed value means what the user asked, leave that optional argument out. The error was:';
+
 export const REGROUND_INSTRUCTION =
   'Rewrite your answer using only numbers that appear exactly in the data you looked up. If the data does not contain a number you need, say you could not find it. Keep it to 1 to 4 short sentences.';
 

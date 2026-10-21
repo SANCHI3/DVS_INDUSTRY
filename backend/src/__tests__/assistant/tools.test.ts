@@ -64,6 +64,31 @@ describe('executeTool', () => {
     expect(getAllIncidents).not.toHaveBeenCalled();
   });
 
+  it('treats an incident kind outside the list as all kinds', async () => {
+    const incident = (type: string) => ({
+      type,
+      severity: 'HIGH',
+      status: 'OPEN',
+      location: 'Test Room',
+      occurredAt: new Date(2026, 9, 17, 10, 0),
+      assignedToName: null,
+    });
+    vi.spyOn(SecurityService.prototype, 'getAllIncidents').mockImplementation(
+      async ({ status }) =>
+        (status === 'OPEN'
+          ? { data: [incident('FIGHT'), incident('FALL')], total: 2 }
+          : { data: [], total: 0 }) as never,
+    );
+    const admin = { id: 1, email: 'a@test.com', role: 'ADMIN' as const };
+
+    const any = await executeTool('getOpenIncidents', { type: 'security' }, admin);
+    const fights = await executeTool('getOpenIncidents', { type: 'fight' }, admin);
+
+    expect(any.args).toEqual({ type: undefined });
+    expect(any.result).toMatchObject({ openCount: 2 });
+    expect(fights.result).toMatchObject({ openCount: 1 });
+  });
+
   it('rejects an unknown tool name', async () => {
     await expect(
       executeTool('deleteMaterial', { id: 1 }, { id: 1, email: 'a@test.com', role: 'ADMIN' }),

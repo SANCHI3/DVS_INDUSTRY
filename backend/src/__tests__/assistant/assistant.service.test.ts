@@ -16,7 +16,13 @@ import {
   MAX_TOOL_ROUNDS,
   type AuditEntry,
 } from '../../assistant/assistant.service';
-import { createLlmClient, type CompletionRequest, type CompletionResult, type LlmClient } from '../../assistant/llm';
+import {
+  createLlmClient,
+  InvalidToolCallError,
+  type CompletionRequest,
+  type CompletionResult,
+  type LlmClient,
+} from '../../assistant/llm';
 import { NO_RELIABLE_ANSWER, writeRequestReply } from '../../assistant/prompt';
 import { checkGrounding, numbersIn } from '../../assistant/grounding';
 import type { ToolRun, AssistantUser } from '../../assistant/tools';
@@ -202,6 +208,44 @@ describe('AssistantService.ask', () => {
     expect(result.answer).toBe('2 materials are low on stock.');
   });
 
+  it('tells the model why its tool call was rejected and lets it try again once', async () => {
+    const requests: CompletionRequest[] = [];
+    let calls = 0;
+    const llm: LlmClient = {
+      complete: vi.fn(async (request: CompletionRequest) => {
+        requests.push(structuredClone(request));
+        calls += 1;
+        if (calls === 1) throw new InvalidToolCallError('`/type`: value must be one of fight, fall');
+        if (calls === 2) return { content: null, toolCalls: [toolCall('getOpenIncidents')] };
+        return text('There are 2 open incidents.');
+      }),
+    };
+    const { svc } = service(llm, fakeExecute({ getOpenIncidents: { openCount: 2, incidents: [] } }));
+
+    const result = await svc.ask('How many security incidents are open?', ADMIN);
+
+    expect(result.answer).toBe('There are 2 open incidents.');
+    expect(result.grounded).toBe(true);
+    const correction = requests[1]!.messages.at(-1)!;
+    expect(correction.role).toBe('user');
+    expect('content' in correction && correction.content).toContain('value must be one of fight, fall');
+  });
+
+  it('gives up when the corrected tool call is rejected too', async () => {
+    const llm: LlmClient = {
+      complete: vi.fn(async () => {
+        throw new InvalidToolCallError('`/type`: value must be one of fight, fall');
+      }),
+    };
+    const { svc, audits } = service(llm);
+
+    await expect(svc.ask('How many security incidents are open?', ADMIN)).rejects.toMatchObject({
+      code: 'ASSISTANT_UNAVAILABLE',
+    });
+    expect(llm.complete).toHaveBeenCalledTimes(2);
+    expect(audits.at(-1)!.outcome).toBe('error');
+  });
+
   it('throws 503 with a clear message when no API key is configured', async () => {
     const { svc } = service(null);
     const error = await svc.ask('Which materials are low?', STORE).catch((e: unknown) => e);
@@ -258,6 +302,25 @@ describe('createLlmClient', () => {
     await expect(pending).resolves.toEqual({ content: 'There are 2.', toolCalls: [] });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     vi.useRealTimers();
+  });
+
+  it('reports a rejected tool call with the provider explanation', async () => {
+    const rejected = new Response(
+      JSON.stringify({ error: { code: 'tool_use_failed', message: '`/type`: value must be one of fight, fall' } }),
+      { status: 400 },
+    );
+    const client = createLlmClient({ baseUrl: 'https://llm.test/v1', model: 'm', apiKey: 'k' }, vi.fn().mockResolvedValue(rejected));
+    const error = await client.complete({ messages: [{ role: 'user', content: 'hi' }] }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(InvalidToolCallError);
+    expect((error as InvalidToolCallError).detail).toContain('value must be one of fight, fall');
+  });
+
+  it('treats any other 400 as "unavailable"', async () => {
+    const bad = new Response(JSON.stringify({ error: { code: 'invalid_request' } }), { status: 400 });
+    const client = createLlmClient({ baseUrl: 'https://llm.test/v1', model: 'm', apiKey: 'k' }, vi.fn().mockResolvedValue(bad));
+    const error = await client.complete({ messages: [{ role: 'user', content: 'hi' }] }).catch((e: unknown) => e);
+    expect(error).not.toBeInstanceOf(InvalidToolCallError);
+    expect(error).toMatchObject({ code: 'ASSISTANT_UNAVAILABLE' });
   });
 
   it('reports "busy" without waiting when the pause is long', async () => {

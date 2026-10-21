@@ -603,21 +603,25 @@ const getAttendanceSummary: AssistantTool = {
   },
 };
 
+// No strict enum here: the provider rejects the whole request when the model
+// writes another value (e.g. "security"), so any other value means all kinds.
 const INCIDENT_TYPE_PARAM = {
   type: 'string',
-  enum: Object.keys(INCIDENT_TYPE_GROUPS),
-  description: 'Optional kind of incident',
+  description: `Optional kind of incident: ${Object.keys(INCIDENT_TYPE_GROUPS).join(', ')}. Leave it out for all kinds (security or safety incidents in general).`,
 };
 
 const getOpenIncidents: AssistantTool = {
   name: 'getOpenIncidents',
   description:
-    'Safety incidents from the CCTV AI and staff that are still open or being investigated, most recent first.',
+    'Security and safety incidents (AI Security) from the CCTV AI and staff that are still open or being investigated, most recent first.',
   module: 'AI Security',
   roles: SEC_READ, // security.routes.ts GET /incidents (SEC_READ)
   parameters: { type: 'object', properties: { type: INCIDENT_TYPE_PARAM } },
   schema: z.object({
-    type: z.enum(Object.keys(INCIDENT_TYPE_GROUPS) as [string, ...string[]]).optional(),
+    type: z
+      .string()
+      .optional()
+      .transform((t) => (t !== undefined && t in INCIDENT_TYPE_GROUPS ? t : undefined)),
   }),
   run: async ({ type }: { type?: string }) => {
     const [open, investigating] = await Promise.all(
@@ -662,7 +666,7 @@ const getOpenIncidents: AssistantTool = {
 const getIncidentSummary: AssistantTool = {
   name: 'getIncidentSummary',
   description:
-    'Count of safety incidents for today, the last 7 days or this month, by kind, severity and status.',
+    'Count of security and safety incidents (AI Security) for today, the last 7 days or this month, by kind, severity and status.',
   module: 'AI Security',
   roles: SEC_READ, // security.routes.ts GET /incidents and /kpis (SEC_READ)
   parameters: {
