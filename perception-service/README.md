@@ -27,27 +27,16 @@ detection and the real backend connection — see design doc Phase 1-4.
   saves a "before" clip + keyframes the instant an event confirms, and a
   matching "after" clip a few seconds later once the post-capture window
   completes.
-- **Fight/violence detection** (`temporal/action_recognition.py` +
-  `temporal/motion_gate.py` + `detection/pose_estimator.py` +
-  `temporal/fight_features.py`) — the one event type genuinely gated behind
-  a learned/learnable model rather than pure rules:
-  - A cheap **motion-of-interest gate** runs every cycle on data already in
-    the temporal buffer (proximity + combined speed) and decides whether
-    it's worth paying for pose estimation at all — the expensive model
-    never runs continuously.
-  - When the gate fires, **YOLOv8-Pose** extracts keypoints for the
-    candidate pair, which get normalized into a per-frame feature vector
-    and accumulated into a short rolling pose-sequence per pair.
-  - That sequence is scored by either a **heuristic** (default — hand-crafted
-    jerkiness + proximity scoring, works out of the box, no training data
-    needed) or a **trained PoseSequenceLSTM** (`training/train_fight_lstm.py`,
-    switch on via `fight_detection.mode: "model"` once you've trained a
-    checkpoint on your own recorded footage).
-  - **Be honest about this one**: the heuristic is a rough proxy, not a
-    validated classifier — expect real false positives/negatives. See
-    design doc §0/§23 on why fight detection is explicitly the least
-    reliable event type here, and why it's capped by confirmation
-    persistence rather than trusted on a single reading.
+- **Fight/violence detection** (`temporal/rgb_action_recognition.py` +
+  `temporal/motion_gate.py` + `temporal/interaction.py`):
+  - A cheap **motion-of-interest gate** runs every cycle on the tracks already
+    in the temporal buffer (two people close together and moving) and decides
+    whether the expensive video model is worth running at all.
+  - When it is, the **R3D-18** 3D CNN (`rgb_fight_model/`) scores 1.5-second
+    clips; 2 of the last 3 clips must score high.
+  - A track-based **interaction check** then confirms two distinct people are
+    close and moving in an agitated way before a fight incident is raised.
+    Grad-CAM heatmaps (`explain/gradcam.py`) are saved with each fight.
 - Template-based incident description generation + JSON-lines "incident
   report" persistence, standing in for the future backend API
   (`reporting/`). Evidence paths are attached via `update_evidence()`,
@@ -103,57 +92,19 @@ keep running.
 ```bash
 python test_rules_logic.py       # rule engine + confirmation + severity, synthetic tracks
 python test_evidence.py          # evidence buffer clip/keyframe extraction, synthetic frames
-python test_fight_detection.py   # motion gate, feature vectors, heuristic scoring, full wiring
+python test_false_positives.py   # normal activity vs genuine events (fight, fire/smoke, anomaly)
 ```
 All three feed synthetic data directly into the relevant modules, so they
 run without YOLO, real footage, or a GPU -- useful for quickly checking
 your threshold changes didn't break anything.
 
-## Train the real fight model
+## Train the fight model
 
-The synthetic checkpoint is only a wiring test. For real training, place labelled videos in:
+Training, calibration and evaluation of the R3D-18 fight model are described in
+[rgb_fight_model/README.md](rgb_fight_model/README.md).
 
-```text
-data/fight_videos/fight/
-data/fight_videos/not_fight/
-```
-
-Include hard negatives such as running, hugging, dancing, playing, pushing, crowded movement and normal interaction. Then run:
-
-```bash
-python -m fight_model.extract_features --input data/fight_videos --output data/fight_features --camera-id CAM-01
-python fight_model/train.py --manifest data/fight_features/manifest.csv --output models/fight_lstm.pt --epochs 40
-```
-
-After reviewing real validation/test metrics, update `config/thresholds.yaml`:
-
-```yaml
-fight_detection:
-  mode: model
-  model_checkpoint: "models/fight_lstm.pt"
-```
-
-Do not enable model mode with `fight_lstm_demo.pt`; that checkpoint learned synthetic patterns only.
-
-## Next steps (see main design doc)
-1. Wire `reporting/incident_report.py`'s `save()`/`update_evidence()` to
-   call the Spring Boot backend once it exists, instead of writing local
-   JSON lines.
-2. PPE detection: fine-tune YOLO on a helmet/vest dataset and add a
-   `_check_ppe_violation` rule (needs a "no helmet class detected on this
-   person's crop" check).
-3. Evidence retention/cleanup policy — the current buffer only ever grows
-   `output/evidence/`; add a cron/scheduled cleanup once storage policy is
-   decided (see design doc §10 on why raw video shouldn't live in MongoDB).
-4. Collect footage and train the fight-detection LSTM (see above) — this
-   is the highest-value next step for demo accuracy.
-
-## Added models (see ../ML_AND_ANALYTICS_UPGRADE.md)
-- `fall_gru/` + `temporal/fall_gru_recognition.py`: pose-sequence temporal CNN + BiGRU fall model
-  (`models/fall_gru_v1.pt`, default; CV F1 0.90, AUC 0.96).
-- `fall_rf/` + `temporal/pose_fall_recognition.py`: biomechanical features + Random Forest (alternative).
-- `fire_verifier/`: learned fire/smoke verifier (`models/fire_smoke_verifier_v1.pkl`, default;
-  fire false alarms 2 -> 0). `temporal/fire_verifier.py`: rule-based alternative.
-- `anomaly/` + `temporal/scene_anomaly.py`: unsupervised optical-flow autoencoder (`models/scene_anomaly_ae_v2.npz`; F1 0.79, AUC 0.84).
-- `explain/gradcam.py`: Grad-CAM heatmaps for the R3D-18 fight model, saved with fight incidents.
-- Tests: `test_learned_models.py`, `test_scene_anomaly.py`, `test_fall_model.py`, `test_fire_verifier.py`.
+## Next steps
+1. Retrain the models on the factory's own CCTV footage (site adaptation).
+2. PPE detection: fine-tune YOLO on a helmet/vest dataset.
+3. Evidence retention/cleanup policy: `output/evidence/` only ever grows; add
+   a scheduled cleanup once a storage policy is decided.

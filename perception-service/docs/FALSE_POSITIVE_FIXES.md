@@ -35,7 +35,7 @@ the dashboard as history.
 |---|---|
 | The motion gate paired ghost tracks too: after an ID switch, one person's old and new IDs became a "pair". | Gate uses active tracks only and treats near-identical boxes (IoU ≥ 0.7) as one person. |
 | Gate speed came from the last two samples, so box jitter alone (≥ 30 px/s at 10 fps) opened it. | Speed is measured over ~0.5 s. |
-| A fight incident was created from the R3D-18 clip score alone. On this camera the model (trained on other footage) scores ordinary activity high. | `InteractionValidator` (`temporal/interaction.py`) must also pass. It needs two distinct people, close together (centre distance ≤ 1.2 × body height) for ≥ 1 s of the last 3 s, with agitated motion (≥ 0.1 body heights of erratic box movement and shape change). Walking past, standing and talking don't qualify. Grappling people merged into one box stay valid for 2 s. Rejections are logged with the evidence. Same check in the pose-LSTM fallback. |
+| A fight incident was created from the R3D-18 clip score alone. On this camera the model (trained on other footage) scores ordinary activity high. | `InteractionValidator` (`temporal/interaction.py`) must also pass. It needs two distinct people, close together (centre distance ≤ 1.2 × body height) for ≥ 1 s of the last 3 s, with agitated motion (≥ 0.1 body heights of erratic box movement and shape change). Walking past, standing and talking don't qualify. Grappling people merged into one box stay valid for 2 s. Rejections are logged with the evidence. |
 | Confidence = the latest single clip score. | Mean score of the high-scoring clips in the persistence window. Interaction evidence is stored in the incident. |
 
 ### Fire / smoke
@@ -137,5 +137,5 @@ or ultralytics:
   incidents were newly generated.
 - **Tests that need torch, ultralytics, supervision or fastapi** were not run in
   this environment (`test_learned_models`, `test_rgb_sampling`,
-  `test_fight_model_checkpoint`, `test_cctv_input`, `test_incident_api`).
+  `test_cctv_input`, `test_incident_api`).
   Run them locally.

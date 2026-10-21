@@ -54,8 +54,9 @@
    time-based detectors (fall) can miss short events. A native crash was seen
    intermittently in CPU-only runs (2 of 6), so the start script restarts the
    service.
-13. **Pose-LSTM fallback.** Its metrics are reported, but its weights are not
-   in the repository.
+13. **Pose-LSTM experiment.** An earlier pose-sequence LSTM fight model was
+   evaluated (its metrics are reported for comparison), but it was not
+   deployed and its code has been removed in favour of R3D-18.
 14. **Dataset provenance.** The sources of some training datasets are
     inferred from file naming and must be confirmed (chapter 2).
 15. **Statistics are incomplete.** Fight, fall and fire/smoke-with-verifier

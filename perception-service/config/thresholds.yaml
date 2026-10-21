@@ -91,18 +91,11 @@ evidence:
 
 fight_detection:
   enabled: true
-  mode: rgb                  # primary RGB R3D-18 classifier; use "model" for pose-LSTM fallback
-  pose_model_path: "yolov8n-pose.pt"
-  model_checkpoint: "models/fight_lstm.pt"
-  use_checkpoint_threshold: false # use stricter alert threshold below
+  # R3D-18 video classifier (temporal/rgb_action_recognition.py)
   gate:
     proximity_px: 300               # permissive compute trigger; classifier and confirmation reject false alerts
     velocity_threshold_px_s: 30     # opens early, then camera-level sequence preserves continuity
-  window_frames: 32                 # runtime value is replaced by checkpoint max_frames in model mode
-  min_frames_for_eval: 12           # scene-level sequence now survives tracker ID switches
-  confidence_threshold: 0.60        # balanced runtime starting point
   gate_hold_seconds: 1.5            # continue evaluating briefly when gate flickers closed
-  pair_stale_after_s: 5.0           # pose-LSTM fallback setting
   rgb:
     # v2: clips sampled at 10 fps of real time (matches detection_fps).
     # Live 2-of-3 rule on 344 test videos: P 0.94, R 0.97, F1 0.96 (v1: F1 0.85).

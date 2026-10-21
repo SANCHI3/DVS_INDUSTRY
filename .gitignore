@@ -85,8 +85,6 @@ perception-service/models/*.log
 perception-service/demo_videos/*
 !perception-service/demo_videos/README.md
 
-# Synthetic pose sequences, regenerate with fight_model/make_demo_data.py
-perception-service/fight_model/demo_data/
 
 # Research paper: kept locally, not published in this repository
 docs/paper/

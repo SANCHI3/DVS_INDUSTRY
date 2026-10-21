@@ -21,10 +21,9 @@ from typing import Deque, Dict, Optional, Tuple
 
 import numpy as np
 
-from detection.pose_estimator import PoseEstimator
+from detection.pose_estimator import PoseEstimator, match_pose_to_bbox
 from fall_gru.features import build_sequence, frame_features
 from fall_gru.model import FallClassifier
-from temporal.fight_features import match_pose_to_bbox
 from temporal.rule_engine import EventCandidate
 from temporal.temporal_buffer import TemporalBuffer
 

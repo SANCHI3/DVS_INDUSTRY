@@ -183,6 +183,7 @@ and protocols: [docs/RESULTS.md](docs/RESULTS.md)):
 
 | Document | Contents |
 |---|---|
+| [docs/CODE_MAP.md](docs/CODE_MAP.md) | **Start here for the viva:** the ~25 files that matter and how one request, frame or question flows through them |
 | [docs/RESULTS.md](docs/RESULTS.md) | All metrics, charts, speed benchmark, false-alarm measurement |
 | [docs/report/](docs/report/) | Report chapters (abstract to conclusion, with Mermaid diagrams) |
 | [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | 5-minute live demo plan with a backup plan |

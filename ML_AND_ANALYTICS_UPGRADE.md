@@ -18,7 +18,7 @@ YOLO is only the first stage. Each abnormal-incident type uses the model family 
 | Incident | Model(s) | Type | Status |
 |---|---|---|---|
 | People / objects | YOLOv8n + ByteTrack | CNN detector + tracker | existing |
-| Fight / violence | **R3D-18** (3D CNN on 16-frame RGB clips, v2 retrained with real-time clip sampling); fallback **pose-LSTM** | spatio-temporal deep learning | **retrained (v2)** |
+| Fight / violence | **R3D-18** (3D CNN on 16-frame RGB clips, v2 retrained with real-time clip sampling); an earlier **pose-LSTM** was evaluated but not deployed | spatio-temporal deep learning | **retrained (v2)** |
 | Fire / smoke | YOLOv8n (fine-tuned) **+ learned verifier** (`fire_verifier/`, gradient-boosted features) or the training-free **colour / luminous-core / flicker verifier** (`temporal/fire_verifier.py`) | CNN + ML / classical computer vision | **new, trained** |
 | Fall | **YOLOv8-Pose + box features → temporal CNN + BiGRU** (`fall_gru/`, primary). Alternative: **16 biomechanical features → Random Forest** (`fall_rf/`) | pose estimation + recurrent deep learning / classical ML | **new, trained** |
 | Explainability | **Grad-CAM** heatmaps on the R3D-18 fight model, saved with each fight incident | explainable AI | **new** |
@@ -28,7 +28,7 @@ YOLO is only the first stage. Each abnormal-incident type uses the model family 
 
 ```
 camera ─► YOLOv8 + ByteTrack ─► temporal buffer ─┬─► rule engine (crowd)
-                                                  ├─► R3D-18 / pose-LSTM ............ fight
+                                                  ├─► R3D-18 ....................... fight
                                                   ├─► YOLOv8-Pose ─► GRU (or RF) .... fall        (new)
          frame ───────────────────────────────────┼─► YOLOv8 fire/smoke ─► learned verifier  fire_smoke (new)
          frame ─► optical flow + MOG2 ─► autoencoder ──────────────────────── anomaly   (new)
@@ -340,7 +340,7 @@ the CCTV AI module to production KPIs.
 ## 3. Points worth making in a viva
 
 1. **Multi-model by design**: detection (YOLO), tracking (ByteTrack), 3D-CNN video classification
-   (R3D-18), recurrent sequence models (LSTM for fights, GRU for falls), pose estimation + ensemble trees, unsupervised
+   (R3D-18), recurrent sequence models (GRU for falls; an LSTM for fights was evaluated), pose estimation + ensemble trees, unsupervised
    deep learning (autoencoder), classical CV (verifier), time-series forecasting (Holt / Croston),
    robust statistics (MAD), SPC (p-chart) and an LLM. Each is chosen for its task.
 2. **Evaluated honestly**: splits are by video, thresholds come from validation data only, results
