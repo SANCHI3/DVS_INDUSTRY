@@ -35,7 +35,7 @@ the dashboard as history.
 |---|---|
 | The motion gate paired ghost tracks too: after an ID switch, one person's old and new IDs became a "pair". | Gate uses active tracks only and treats near-identical boxes (IoU ≥ 0.7) as one person. |
 | Gate speed came from the last two samples, so box jitter alone (≥ 30 px/s at 10 fps) opened it. | Speed is measured over ~0.5 s. |
-| A fight incident was created from the R3D-18 clip score alone. On this camera the model (trained on other footage) scores ordinary activity high. | `InteractionValidator` (`temporal/interaction.py`) must also pass. It needs two distinct people, close together (centre distance ≤ 1.2 × body height) for ≥ 1 s of the last 3 s, with agitated motion (≥ 0.1 body heights of erratic box movement and shape change). Walking past, standing and talking don't qualify. Grappling people merged into one box stay valid for 2 s. Rejections are logged with the evidence. |
+| A fight incident was created from the R3D-18 clip score alone. On this camera the model (trained on other footage) scores ordinary activity high. | `InteractionValidator` (`temporal/interaction.py`) must also pass. It needs two distinct people, close together (centre distance ≤ 1.2 × body height) for ≥ 1 s of the last 3 s, with agitated motion (≥ 0.1 body heights of erratic box movement and shape change). Walking past, standing and talking don't qualify. Grappling people merged into one box stay valid for 2 s. Rejections are logged with the evidence. Later changed from a veto to a review signal: without the evidence the fight is reported as PROBABLE for operator review (report section 6.8). |
 | Confidence = the latest single clip score. | Mean score of the high-scoring clips in the persistence window. Interaction evidence is stored in the incident. |
 
 ### Fire / smoke
@@ -123,8 +123,10 @@ or ultralytics:
 - **Anomaly detection is silent for the first 5 minutes** on each camera (or
   after `recalibrate: true`). Calibrate while the scene is normal. If an
   incident happens during calibration it raises the threshold.
-- **The fight model still has a domain gap.** The interaction check removes
-  the cases where the tracks show no fight, but the R3D-18 clip classifier
+- **The fight model still has a domain gap.** The interaction check sends
+  the cases where the tracks show no fight to operator review instead of
+  raising an alert (as a hard veto it cost too much recall; report section
+  6.8), but the R3D-18 clip classifier
   itself was not retrained (no weights changed). The thresholds in
   `fight_detection.interaction` come from synthetic box tracks. Tune them from
   the logged `agitation` values on real footage if needed.

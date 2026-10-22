@@ -1,8 +1,9 @@
 {
-  "run_at": "2026-10-16T01:36:41+00:00",
-  "finished_at": "2026-10-16T02:59:57+00:00",
-  "code": "4bd2c06",
+  "run_at": "2026-10-22T14:44:05+00:00",
+  "finished_at": "2026-10-22T14:44:33+00:00",
+  "code": "6d4063e + uncommitted changes",
   "overrides": {
+    "fight_detection.interaction.mode": "veto",
     "scene_anomaly.calibration.enabled": false
   },
   "limit_per_set": null

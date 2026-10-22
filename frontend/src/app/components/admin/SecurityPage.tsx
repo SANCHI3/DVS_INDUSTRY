@@ -204,7 +204,7 @@ export function SecurityPage() {
     id: incident.incidentNumber,
     dateTime: formatDateTime(incident.occurredAt),
     location: incident.location ?? "—",
-    type: formatEventType(incident.type),
+    type: incidentHeadline(incident),
     aiSummary: incident.aiSummary?.trim() || null,
     description: incident.description,
     confidence: incident.confidenceScore === null ? "—" : `${Math.round(incident.confidenceScore * 100)}%`,
@@ -329,7 +329,7 @@ export function SecurityPage() {
                     {latestDetections.map((incident) => (
                       <button key={incident.id} onClick={() => setSelectedIncidentId(incident.id)} className="rounded-lg border p-4 text-left" style={{ borderColor: "#EEE4E0", background: "#FCFAF9", cursor: "pointer" }}>
                         <div className="mb-1 flex items-center justify-between gap-2">
-                          <span style={{ color: "#302725", fontSize: "0.84rem", fontWeight: 700 }}>{formatEventType(incident.type)}</span>
+                          <span style={{ color: "#302725", fontSize: "0.84rem", fontWeight: 700 }}>{incidentHeadline(incident)}</span>
                           <StatusBadge status={incident.severity.toLowerCase()} />
                         </div>
                         <p style={{ color: "#837572", fontSize: "0.72rem" }}>{incident.location ?? "—"} · {new Date(incident.occurredAt).toLocaleString("en-IN")}</p>

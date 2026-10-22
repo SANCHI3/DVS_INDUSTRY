@@ -6,7 +6,7 @@
 Every incident raised on footage that contains no real incident is a false
 alarm. The script runs the same video through
 
-  * after:  the current code (records carry detail.validation_version = 2)
+  * after:  the current code (records carry detail.validation_version, currently 3)
   * before: the code at --before-ref (default: the commit before
             "Fix false-positive CCTV detections"), checked out into a
             temporary git worktree. Its records have no validation_version.

@@ -8,6 +8,14 @@ describe('incident labels', () => {
     expect(eventTypeLabel('NEAR_MISS')).toBe('Near Miss');
   });
 
+  it('labels a fight sent for review until it is confirmed', () => {
+    const review = { type: 'FIGHT', severity: 'MEDIUM', confidenceScore: null, reportedByName: 'Perception Service' } as const;
+    expect(incidentHeadline(review)).toBe('Possible fight — please check');
+    expect(incidentHeadline({ ...review, confidenceScore: 0.94 })).toBe('Possible fight');
+    expect(incidentHeadline({ ...review, reportedByName: 'Asha (staff)' })).toBe('Possible fight');
+    expect(incidentHeadline({ type: 'FIGHT', severity: 'MEDIUM' })).toBe('Possible fight');
+  });
+
   it('says a critical fall means the person is not getting up', () => {
     expect(incidentHeadline({ type: 'FALL', severity: 'MEDIUM' })).toBe('Person has fallen');
     expect(incidentHeadline({ type: 'FALL', severity: 'CRITICAL' })).toBe('Fallen person not getting up');

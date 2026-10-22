@@ -9,6 +9,8 @@ import cv2
 
 from rgb_fight_model.infer import RgbFightClassifier
 from temporal.interaction import InteractionValidator
+
+INTERACTION_MODES = ("veto", "review", "off")
 from temporal.motion_gate import MotionOfInterestGate
 from temporal.rule_engine import EventCandidate
 from temporal.temporal_buffer import TemporalBuffer
@@ -40,9 +42,22 @@ class RgbFightDetector:
         self.required_confirmed = int(rgb_cfg.get("required_confirmed", 2))
         self.confirmed_history = deque(maxlen=self.persistence_window)
         self.score_history = deque(maxlen=self.persistence_window)
-        # Track-level evidence required before a fight incident is created
-        # (temporal/interaction.py): two distinct people, close, agitated.
-        self.interaction = InteractionValidator(cfg.get("interaction"))
+        # Track-level evidence (temporal/interaction.py): two distinct people,
+        # close, agitated. mode decides what a failed check does:
+        #   review (default) - still report the fight, but as PROBABLE for an
+        #                      operator to check (the ablation showed the veto
+        #                      cost fight recall without a significant drop in
+        #                      false alarms; docs/RESULTS.md section 4)
+        #   veto             - drop the fight (the earlier behaviour)
+        #   off              - do not run the check
+        interaction_cfg = cfg.get("interaction") or {}
+        self.interaction = InteractionValidator(interaction_cfg)
+        mode = str(interaction_cfg.get("mode", "review")).lower()
+        if not self.interaction.enabled:
+            mode = "off"
+        if mode not in INTERACTION_MODES:
+            raise ValueError(f"fight_detection.interaction.mode must be one of {INTERACTION_MODES}, got {mode!r}")
+        self.interaction_mode = mode
         self._last_rejection_log = -1e18
         # Grad-CAM heatmaps saved with each confirmed fight (explain/gradcam.py)
         self.explain = bool(rgb_cfg.get("explain", True))
@@ -70,7 +85,7 @@ class RgbFightDetector:
         self._stats = {"cycles": 0, "gate_open": 0, "scored": 0,
                        "review_signals": 0, "high_score_windows": 0,
                        "confirmed_candidates": 0, "max_score": 0.0,
-                       "rejected_no_interaction": 0}
+                       "rejected_no_interaction": 0, "review_no_interaction": 0}
         print(
             f"[{camera_id}] RGB fight model loaded: {rgb_cfg['checkpoint']} "
             f"probable={self.probable_threshold:.2f} confirmed={self.confirmed_threshold:.2f}"
@@ -121,35 +136,51 @@ class RgbFightDetector:
                 f"awaiting persistence ({confirmed_hits}/{self.required_confirmed})"
             )
             return []
-        # The clip classifier alone is not enough: people walking, standing or
-        # talking near each other must not become a fight incident.
-        interacting, evidence = self.interaction.validate(buffer)
-        if not interacting:
+        # The clip classifier alone can fire on people walking, standing or
+        # talking near each other. Without track evidence of an interaction the
+        # fight is dropped (veto) or sent for operator review (review).
+        if self.interaction_mode == "off":
+            interacting, evidence = True, {"reason": "interaction check off"}
+        else:
+            interacting, evidence = self.interaction.validate(buffer)
+        if not interacting and self.interaction_mode == "veto":
             self._stats["rejected_no_interaction"] += 1
             if now - self._last_rejection_log >= 10.0:
                 self._last_rejection_log = now
                 print(f"[{self.camera_id}] fight rejected despite model score {score:.2f}: "
                       f"{evidence.get('reason')} {evidence}")
             return []
-        self._stats["confirmed_candidates"] += 1
+        review = not interacting
+        self._stats["review_no_interaction" if review else "confirmed_candidates"] += 1
         # Confidence = mean model score of the high-scoring clips in the
         # persistence window (not the single latest clip).
         high_scores = [s for s, h in zip(self.score_history, self.confirmed_history) if h]
         confidence = sum(high_scores) / len(high_scores)
         track_ids = evidence.get("track_ids") or self.last_track_ids
-        print(f"[{self.camera_id}] fight candidate conf={confidence:.2f} tracks={track_ids} {evidence}")
+        print(f"[{self.camera_id}] fight candidate{' for review' if review else ''} "
+              f"conf={confidence:.2f} tracks={track_ids} {evidence}")
         heatmaps = self._explain(clip)
+        detail = {"mode": "rgb_r3d18", "score": round(score, 3),
+                  "clip_frames": self.clip_frames,
+                  "interaction": evidence,
+                  "confidence_basis": "mean R3D-18 fight probability over high-scoring clips "
+                                      "in the persistence window",
+                  **({"gradcam_heatmaps": heatmaps} if heatmaps else {})}
+        if self.interaction_mode != "off":
+            detail["interaction_passed"] = interacting
+        if review:
+            # The model's 2-of-3 rule fired but the tracks show no interaction:
+            # an operator should look before anyone is sent (PROBABLE tier).
+            detail["requested_tier"] = "PROBABLE"
+            detail["review_reason"] = (
+                "the fight model fired, but the camera tracks do not show two people "
+                f"close together with agitated motion ({evidence.get('reason')})"
+            )
         return [EventCandidate(
             event_type="fight",
             track_ids=list(track_ids),
             camera_id=self.camera_id,
-            detail={"mode": "rgb_r3d18", "score": round(score, 3),
-                    "clip_frames": self.clip_frames,
-                    "interaction": evidence,
-                    "confidence_basis": "mean R3D-18 fight probability over high-scoring clips "
-                                        "in the persistence window; emitted only with track-level "
-                                        "interaction evidence",
-                    **({"gradcam_heatmaps": heatmaps} if heatmaps else {})},
+            detail=detail,
             raw_confidence=confidence,
         )]
 
@@ -204,6 +235,7 @@ class RgbFightDetector:
 
     def diagnostics(self):
         return dict(self._stats, buffered_frames=len(self.frames),
+                    interaction_mode=self.interaction_mode,
                     persistence_hits=sum(self.confirmed_history),
                     persistence_window=self.persistence_window,
                     probable_threshold=self.probable_threshold,

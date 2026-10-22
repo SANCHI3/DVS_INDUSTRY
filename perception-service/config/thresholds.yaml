@@ -109,10 +109,17 @@ fight_detection:
     persistence_window: 3
     required_confirmed: 2
   interaction:
-    # Track evidence required before a fight incident (temporal/interaction.py).
+    # Track evidence that two people are physically interacting (temporal/interaction.py).
     # The R3D model scores whole clips and can fire on normal activity; a fight
     # also needs two distinct people, close together, moving in an agitated way.
     enabled: true
+    # What a failed check does when the R3D-18 2-of-3 rule has fired:
+    #   review - report the fight as PROBABLE ("Possible fight - please check",
+    #            no pop-up) for an operator to look at (default)
+    #   veto   - drop it (earlier default; cost fight recall 0.78 -> 0.47 in the
+    #            ablation without a significant drop in false alarms)
+    #   off    - do not run the check
+    mode: review
     active_track_seconds: 1.0       # ignore tracks not seen this recently (left / old IDs)
     duplicate_iou: 0.7              # two boxes this overlapped = one person tracked twice
     proximity_heights: 1.2          # centre distance <= 1.2 x mean body height counts as close

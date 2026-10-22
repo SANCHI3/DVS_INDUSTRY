@@ -29,9 +29,23 @@ export function eventTypeLabel(type: string): string {
   return EVENT_LABELS[type] ?? type.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/**
+ * A fight the camera AI sent for operator review: the fight model fired but
+ * the camera tracks showed no interaction. It arrives without a confidence
+ * score (so it never pops up) and gets one if the fight is later confirmed.
+ */
+export function isReviewFight(
+  incident: Pick<SecurityIncidentDto, 'type'> & Partial<Pick<SecurityIncidentDto, 'confidenceScore' | 'reportedByName'>>,
+): boolean {
+  return incident.type === 'FIGHT' && incident.confidenceScore === null && incident.reportedByName === 'Perception Service';
+}
+
 /** Headline for an alert; a critical fall means the person has not got up. */
-export function incidentHeadline(incident: Pick<SecurityIncidentDto, 'type' | 'severity'>): string {
+export function incidentHeadline(
+  incident: Pick<SecurityIncidentDto, 'type' | 'severity'> & Partial<Pick<SecurityIncidentDto, 'confidenceScore' | 'reportedByName'>>,
+): string {
   if (incident.type === 'FALL' && incident.severity === 'CRITICAL') return 'Fallen person not getting up';
+  if (isReviewFight(incident)) return 'Possible fight — please check';
   return eventTypeLabel(incident.type);
 }
 

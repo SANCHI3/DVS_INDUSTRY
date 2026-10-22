@@ -91,3 +91,23 @@ describe('needsAttention — updated incidents', () => {
     expect(needsAttention({ type: 'incident.deleted', incidentId: 1 })).toBeNull();
   });
 });
+
+describe('needsAttention — fights sent for review', () => {
+  const review = incident({ confidenceScore: null, severity: 'MEDIUM' });
+
+  it('does not pop up a fight that only needs checking', () => {
+    expect(needsAttention({ type: 'incident.created', incident: review })).toBeNull();
+  });
+
+  it('pops up once the fight is confirmed and its confidence arrives', () => {
+    expect(
+      needsAttention({
+        type: 'incident.updated',
+        incident: { ...review, confidenceScore: 0.94 },
+        previousSeverity: 'MEDIUM',
+        previousConfidence: null,
+      }),
+    ).not.toBeNull();
+  });
+});
+

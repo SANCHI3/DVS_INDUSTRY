@@ -31,8 +31,9 @@ Any short clips work. Name them so they sort in the order you want:
 
 - **Normal activity:** 10–30 s of people walking or working.
 - **Fight:** 5–15 s with two or more people grappling or punching, close
-  together. A fight incident also needs the interaction check: two people
-  close for at least 1 s and moving in an agitated way.
+  together. For a CONFIRMED fight (with pop-up) the interaction check must
+  also pass: two people close for at least 1 s and moving in an agitated
+  way. Otherwise it appears as "Possible fight — please check".
 - **Fire:** 10–30 s of a visible, flickering flame. The fire must stay in view
   for about 3 s to be CONFIRMED.
 - **Fall:** 5–10 s of one person, whole body visible, falling to the floor.

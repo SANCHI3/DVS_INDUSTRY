@@ -473,10 +473,13 @@ def run(
 
             for event in confirmed_events:
                 severity = compute_severity(event.event_type, event, thresholds_cfg["severity"])
-                # A probable fight is an operator-facing signal, not a separate
-                # persisted incident. Persist only after the stricter confirmed
-                # policy is met, preventing probable+confirmed duplicate reports.
-                if event.event_type in ("fight", "crowd") and event.tier == "PROBABLE":
+                # A probable crowd is an operator-facing signal, not a separate
+                # persisted incident; persist only once confirmed. A fight is
+                # PROBABLE only when the interaction check (review mode) did not
+                # see an interaction: that one is reported for operator review.
+                review_fight = (event.event_type == "fight"
+                                and event.candidate.detail.get("interaction_passed") is False)
+                if event.event_type in ("fight", "crowd") and event.tier == "PROBABLE" and not review_fight:
                     print(
                         f"[{camera_id}] PROBABLE {event.event_type} candidate "
                         f"severity={severity} conf={event.confidence:.2f} -- awaiting confirmation"

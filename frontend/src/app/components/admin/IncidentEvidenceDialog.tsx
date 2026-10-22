@@ -8,7 +8,7 @@ import {
   type IncidentEvidence,
   type SecurityIncidentDto,
 } from "../../../lib/services/security.service";
-import { confidenceLabel, eventTypeLabel } from "../../../lib/incidentLabels";
+import { confidenceLabel, incidentHeadline } from "../../../lib/incidentLabels";
 import { isAdministrator } from "../../../lib/auth";
 
 const TIER_LABEL: Record<string, string> = {
@@ -90,7 +90,7 @@ export function IncidentEvidenceDialog({ incident, onClose }: { incident: Securi
         <div className="flex items-start gap-3 border-b px-5 py-4" style={{ borderColor: "#EEE4E0" }}>
           <div className="min-w-0 flex-1">
             <p style={{ color: "#A52A2A", fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", fontWeight: 700 }}>{incident.incidentNumber}</p>
-            <h2 style={{ color: "#302725", fontSize: "1.05rem", fontWeight: 700 }}>{eventTypeLabel(incident.type)}{incident.location ? ` · ${incident.location}` : ""}</h2>
+            <h2 style={{ color: "#302725", fontSize: "1.05rem", fontWeight: 700 }}>{incidentHeadline(incident)}{incident.location ? ` · ${incident.location}` : ""}</h2>
             <p style={muted}>{new Date(incident.occurredAt).toLocaleString("en-IN")}</p>
           </div>
           <StatusBadge status={incident.severity.toLowerCase()} />

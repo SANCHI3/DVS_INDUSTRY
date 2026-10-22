@@ -59,7 +59,12 @@ WHAT_HAPPENED: Dict[str, Callable[[str, dict], str]] = {
     "fall": _fall,
     "fire_smoke": _fire_smoke,
     "crowd": _crowd,
-    "fight": lambda loc, d: f"Two or more people in {loc} seem to be fighting or pushing each other.",
+    "fight": lambda loc, d: (
+        f"Possible fight in {loc}, please check the camera: the fight model fired, but the "
+        "camera does not clearly show two people close together and moving roughly."
+        if d.get("interaction_passed") is False
+        else f"Two or more people in {loc} seem to be fighting or pushing each other."
+    ),
     "anomaly": lambda loc, d: (f"The camera in {loc} picked up sudden, unusual movement that does "
                                "not look like normal activity, for example someone running, falling "
                                "or something being thrown. The system cannot tell exactly what it is."),
