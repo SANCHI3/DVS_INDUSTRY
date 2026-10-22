@@ -31,21 +31,26 @@ SECTION_ORDER = ["models", "false_alarms", "benchmark", "ablation", "interaction
 
 
 def update_section(name: str, body: str) -> None:
-    """Replace one generated section of docs/RESULTS.md, keeping the others."""
+    """Replace one generated section of docs/RESULTS.md in place. Everything
+    else in the file (the header, other sections, hand-written sections
+    without markers) is kept as it is."""
 
     DOCS.mkdir(exist_ok=True)
     text = RESULTS_MD.read_text(encoding="utf-8") if RESULTS_MD.exists() else RESULTS_HEADER
-    sections = {}
-    for key in SECTION_ORDER:
-        match = re.search(rf"<!-- BEGIN:{key} -->\n(.*?)<!-- END:{key} -->", text, re.S)
-        if match:
-            sections[key] = match.group(1)
-    sections[name] = body.rstrip() + "\n"
-    out = RESULTS_HEADER
-    for key in SECTION_ORDER:
-        if key in sections:
-            out += f"\n<!-- BEGIN:{key} -->\n{sections[key]}<!-- END:{key} -->\n"
-    RESULTS_MD.write_text(out, encoding="utf-8")
+    block = f"<!-- BEGIN:{name} -->\n{body.rstrip()}\n<!-- END:{name} -->"
+    pattern = re.compile(rf"<!-- BEGIN:{name} -->\n.*?<!-- END:{name} -->", re.S)
+    if pattern.search(text):
+        text = pattern.sub(lambda _: block, text, count=1)
+    else:
+        # New section: before the first later section already in the file, else at the end
+        later = [f"<!-- BEGIN:{key} -->" for key in SECTION_ORDER[SECTION_ORDER.index(name) + 1:]]
+        positions = [text.find(marker) for marker in later if marker in text]
+        if positions:
+            at = min(positions)
+            text = text[:at] + block + "\n\n" + text[at:]
+        else:
+            text = text.rstrip("\n") + "\n\n" + block + "\n"
+    RESULTS_MD.write_text(text, encoding="utf-8")
 
 
 def fmt(value, digits: int = 2) -> str:
