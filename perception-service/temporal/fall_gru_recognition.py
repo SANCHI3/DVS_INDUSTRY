@@ -59,7 +59,8 @@ def is_truncated(row: np.ndarray, bottom_edge: float) -> bool:
 
 
 def fall_plausibility(rows: list, bottom_edge: float, max_truncated_share: float, require_down: bool,
-                      max_torso_tilt: float, max_box_aspect: float) -> Optional[str]:
+                      max_torso_tilt: float, max_box_aspect: float,
+                      min_torso_share: Optional[float] = None) -> Optional[str]:
     """Why a high fall score cannot be a real fall right now, or None if it can.
     `rows`: this person's recent feature rows (the model window), latest last.
 
@@ -69,9 +70,12 @@ def fall_plausibility(rows: list, bottom_edge: float, max_truncated_share: float
       is wide and short, which looks like a lying person to the model. A real
       fall that ends at the bottom edge passes: the person was fully visible
       before falling.
-    * no_torso: the same, but the lower body is hidden inside the frame, e.g.
-      sitting behind a desk or table. The box alone cannot tell lying from
-      half-hidden, so a person whose torso was never seen is not judged.
+    * no_torso: no torso right now, and a torso was seen in less than
+      `min_torso_share` of the window: the lower body is hidden (sitting
+      behind a desk), or the person is too small or the scene too crowded
+      for the pose model, which then gives no keypoints. The box alone cannot
+      tell lying from half-hidden, so such a person is not judged. A real
+      fall passes: the person was visible standing for most of the window.
     * upright: the person is standing or sitting upright at this moment.
 
     Not rejected for good: the next evaluation checks again, so a real fall
@@ -86,8 +90,9 @@ def fall_plausibility(rows: list, bottom_edge: float, max_truncated_share: float
         return "truncated"
     if require_down and is_upright(row, max_torso_tilt, max_box_aspect):
         return "upright"
-    if not has_torso(row) and \
-            float(np.mean([not has_torso(r) for r in seen])) >= max_truncated_share:
+    if min_torso_share is None:
+        min_torso_share = 1.0 - max_truncated_share
+    if not has_torso(row) and float(np.mean([has_torso(r) for r in seen])) < min_torso_share:
         return "no_torso"
     return None
 
@@ -115,6 +120,7 @@ class GruFallDetector:
         self.verify = bool(verify_cfg.get("enabled", False))
         self.bottom_edge = float(verify_cfg.get("bottom_edge", 0.99))
         self.max_truncated_share = float(verify_cfg.get("max_truncated_share", 0.8))
+        self.min_torso_share = float(verify_cfg.get("min_torso_share", 1.0 - self.max_truncated_share))
         self.require_down = bool(verify_cfg.get("require_down", True))
 
         self.rows: Dict[int, Deque[Optional[np.ndarray]]] = {}
@@ -179,7 +185,8 @@ class GruFallDetector:
             latest = rows[-1]
             if self.verify and latest is not None:
                 reason = fall_plausibility(list(rows), self.bottom_edge, self.max_truncated_share,
-                                           self.require_down, self.upright_tilt, self.upright_aspect)
+                                           self.require_down, self.upright_tilt, self.upright_aspect,
+                                           self.min_torso_share)
                 if reason:
                     self._stats[f"rejected_{reason}"] += 1
                     continue  # no cooldown: checked again at the next evaluation
