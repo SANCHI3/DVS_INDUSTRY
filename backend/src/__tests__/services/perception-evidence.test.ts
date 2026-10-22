@@ -5,11 +5,10 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { env } from '../../config/env';
 
 vi.mock('../../config/env', () => ({
-  env: { PERCEPTION_OUTPUT_DIR: '', MODEL_RESULTS_DIR: '' },
+  env: { PERCEPTION_OUTPUT_DIR: '' },
 }));
 import {
   getIncidentEvidence,
-  getModelResults,
   resolveEvidenceFile,
   toOutputRelative,
 } from '../../services/perceptionEvidence.service';
@@ -66,9 +65,7 @@ beforeAll(() => {
       keyframes: [`output/evidence\\CAM-01\\${ID}_frame0.jpg`, '../secret.txt'],
     }),
   );
-  fs.mkdirSync(path.join(root, 'results'));
-  fs.writeFileSync(path.join(root, 'results', 'model_results.json'), '{"rows":[{"task":"Fight"}]}');
-  Object.assign(env, { PERCEPTION_OUTPUT_DIR: out, MODEL_RESULTS_DIR: path.join(root, 'results') });
+  Object.assign(env, { PERCEPTION_OUTPUT_DIR: out });
 });
 
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -113,10 +110,7 @@ describe('perception evidence', () => {
     expect(await resolveEvidenceFile('INC-OTHER', 'evidence/gradcam/g1.jpg')).toBeNull();
   });
 
-  it('reports unknown incidents and missing results without failing', async () => {
+  it('reports unknown incidents without failing', async () => {
     expect((await getIncidentEvidence('INC-NONE', false)).available).toBe(false);
-    const results = getModelResults();
-    expect(results['models']).toEqual({ rows: [{ task: 'Fight' }] });
-    expect(results['benchmark']).toBeNull();
   });
 });

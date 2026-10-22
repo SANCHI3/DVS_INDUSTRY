@@ -50,7 +50,7 @@ flowchart TD
     T --> B["Temporal buffer<br/>30 s per track"]
     F --> EV["Evidence ring buffer<br/>15 s full resolution"]
 
-    B --> R["Rule engine<br/>loitering, intrusion, crowd"]
+    B --> R["Rule engine<br/>crowd"]
     B --> FG["Motion gate"] --> FC["R3D-18 fight classifier<br/>16-frame clips, 2 of 3"] --> IV["Interaction check<br/>2 people, close, agitated"]
     B --> PG["Cheap fall gate"] --> PO["YOLOv8-Pose"] --> GRU["Temporal CNN + BiGRU<br/>4 s pose windows"]
     F --> FS["YOLOv8n fire/smoke<br/>3 of 5 frames"] --> DY["Static-region check<br/>flicker / growth"] --> LV["Learned verifier<br/>gradient boosting"]

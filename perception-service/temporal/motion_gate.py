@@ -10,7 +10,7 @@ Being a *gate*, this is deliberately permissive -- it's fine (expected,
 even) for it to fire on things that turn out not to be fights, like two
 people jogging past each other. Its job is only to filter out the vast
 majority of frames where nothing worth checking is happening; the actual
-fight/no-fight decision happens downstream in action_recognition.py after
+fight/no-fight decision happens downstream in rgb_action_recognition.py after
 persistence is required.
 """
 from __future__ import annotations

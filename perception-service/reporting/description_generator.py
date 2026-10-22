@@ -13,8 +13,6 @@ from typing import Callable, Dict
 
 RECOMMENDED_ACTIONS = {
     "fall": "Send someone to check on the person right away.",
-    "intrusion": "Ask security to check whether the person is allowed to be there.",
-    "loitering": "Look at the camera to see who it is and whether they should be there.",
     "crowd": "Keep an eye on the group, and send staff if it keeps growing or blocks an exit.",
     "fight": "Send security to check. Confirm it in person before stepping in, because the camera can be wrong.",
     "fire_smoke": "Check the area immediately. If it is real, follow the fire emergency procedure and call the fire brigade.",
@@ -29,14 +27,6 @@ def _seconds(value) -> str:
         return f"about {int(round(float(value)))} seconds"
     except (TypeError, ValueError):
         return "a while"
-
-
-def _area(d: dict) -> str:
-    """'the restricted area "Loading bay"' when the zone has a configured
-    `name`, else a generic phrase (zone IDs such as 'z1' mean nothing to staff)."""
-    kind = "restricted area" if d.get("zone_type") in (None, "restricted") else "watched area"
-    name = d.get("zone_name")
-    return f'the {kind} "{name}"' if name else f"a {kind}"
 
 
 def _fall(location: str, d: dict) -> str:
@@ -70,9 +60,6 @@ WHAT_HAPPENED: Dict[str, Callable[[str, dict], str]] = {
     "fire_smoke": _fire_smoke,
     "crowd": _crowd,
     "fight": lambda loc, d: f"Two or more people in {loc} seem to be fighting or pushing each other.",
-    "loitering": lambda loc, d: (f"Someone has stayed in {_area(d)} in {loc} "
-                                 f"for {_seconds(d.get('dwell_seconds'))}."),
-    "intrusion": lambda loc, d: f"Someone has entered {_area(d)} in {loc} where people are not allowed.",
     "anomaly": lambda loc, d: (f"The camera in {loc} picked up sudden, unusual movement that does "
                                "not look like normal activity, for example someone running, falling "
                                "or something being thrown. The system cannot tell exactly what it is."),

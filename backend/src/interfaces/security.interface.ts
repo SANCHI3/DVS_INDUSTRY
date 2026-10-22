@@ -227,6 +227,8 @@ export interface SecurityKPIs {
   investigatingIncidents: number;
   resolvedThisMonth: number;
   criticalIncidents: number; // CRITICAL severity, not CLOSED
+  criticalOpenIncidents: number; // CRITICAL severity, OPEN or INVESTIGATING
+  detectionsToday: number; // incidents that occurred since midnight
 
   // Alerts
   totalAlerts: number;
@@ -237,6 +239,7 @@ export interface SecurityKPIs {
   // Breakdowns
   incidentsByType: Array<{ type: IncidentType; count: number }>;
   incidentsBySeverity: Array<{ severity: IncidentSeverity; count: number }>;
+  incidentsTodayByType: Array<{ type: IncidentType; count: number }>;
   alertsByType: Array<{ type: AlertType; count: number }>;
 
   // Trend — last 7 days

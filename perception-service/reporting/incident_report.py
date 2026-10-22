@@ -23,7 +23,7 @@ from severity.severity_rules import SEVERITY_ORDER
 
 # Bumped when event validation changes, so records produced before and after
 # a change can be told apart (scripts/audit_incident_log.py groups by it).
-# 2: active-track dwell/intrusion, fight interaction check, fire/smoke
+# 2: active-track rules, fight interaction check, fire/smoke
 #    static-region check + verifier reset, per-camera anomaly calibration,
 #    evidence-based confidence scores.
 VALIDATION_VERSION = 2
@@ -33,8 +33,6 @@ VALIDATION_VERSION = 2
 # is never produced or altered by the LLM summary.
 DEFAULT_CONFIDENCE_BASIS = {
     "fall": "fall model probability",
-    "intrusion": "mean person-detector confidence",
-    "loitering": "mean person-detector confidence x share of time inside the zone",
     "crowd": "mean person-detector confidence of the group",
 }
 
@@ -49,8 +47,6 @@ class IncidentReporter:
         "CROWD",
         "FIGHT",
         "FALL",
-        "INTRUSION",
-        "LOITERING",
         "THEFT",
         "INJURY",
         "PROPERTY_DAMAGE",
@@ -65,10 +61,8 @@ class IncidentReporter:
         "fire_smoke": "FIRE_SMOKE",
         "smoke": "SMOKE",
         "fight": "FIGHT",
-        "intrusion": "INTRUSION",
         "fall": "FALL",
         "crowd": "CROWD",
-        "loitering": "LOITERING",
         "anomaly": "OTHER",
     }
     MAX_REMEMBERED_REPORTS = 500

@@ -26,9 +26,7 @@ from temporal.fire_dynamics import RegionDynamics
 from temporal.fire_smoke_recognition import FireSmokeDetector
 from temporal.interaction import InteractionValidator, agitation
 from temporal.motion_gate import MotionOfInterestGate
-from temporal.rule_engine import RuleEngine
 from temporal.temporal_buffer import TemporalBuffer
-from temporal.zones import zone_is_active, zone_warnings
 
 with open("config/thresholds.yaml", encoding="utf-8") as _f:
     THRESHOLDS = yaml.safe_load(_f)
@@ -36,110 +34,10 @@ with open("config/thresholds.yaml", encoding="utf-8") as _f:
 FPS = 10.0
 DT = 1.0 / FPS
 T0 = 1_000_000.0
-ZONE = {"zone_id": "z1", "type": "restricted", "name": "Panel room",
-        "polygon": [[0, 0], [200, 0], [200, 480], [0, 480]]}
-
-
-def _engine(intrusion=False, zones=None):
-    cfg = copy.deepcopy(THRESHOLDS)
-    cfg["rules"]["intrusion"]["enabled"] = intrusion
-    return RuleEngine({"id": "CAM-T", "zones": zones or [ZONE]}, cfg)
 
 
 def _person_box(x, y_top=100, w=40, h=200):
     return (x, y_top, x + w, y_top + h)
-
-
-def _run(engine, steps):
-    """steps: list of (t, [(track_id, bbox, conf), ...]); returns all candidates."""
-    buffer = TemporalBuffer()
-    out = []
-    for t, people in steps:
-        for track_id, bbox, conf in people:
-            buffer.update(track_id, "person", bbox, conf, timestamp=t)
-        buffer.evict_stale(now=t)
-        out += engine.evaluate(buffer)
-    return out
-
-
-def _of(cands, event):
-    return [c for c in cands if c.event_type == event]
-
-
-# --------------------------------------------------------------- lingering
-def test_ghost_track_does_not_accumulate_dwell():
-    """Person stands in the zone 4 s and leaves; another person stays in view
-    elsewhere. The old rule kept timing the departed (buffered) track."""
-    steps = []
-    for i in range(int(25 * FPS)):
-        t = T0 + i * DT
-        people = [(2, _person_box(400), 0.9)]           # someone outside the zone
-        if i < 4 * FPS:
-            people.append((1, _person_box(80), 0.9))   # visitor inside, then leaves
-        steps.append((t, people))
-    assert not _of(_run(_engine(), steps), "loitering")
-
-
-def test_standing_outside_zone_and_walking_through_are_normal():
-    steps = []
-    for i in range(int(30 * FPS)):
-        t = T0 + i * DT
-        x = 20 + i * 6  # walks left -> right across the zone at ~1.5 body-heights/s ... leaves after ~3 s
-        steps.append((t, [(1, _person_box(400), 0.88), (2, _person_box(min(x, 600)), 0.9)]))
-    assert not _of(_run(_engine(), steps), "loitering")
-
-
-def test_boundary_flicker_is_not_lingering():
-    """Foot point jitters across the zone edge: inside only half the time."""
-    steps = []
-    for i in range(int(20 * FPS)):
-        x = 150 if i % 2 == 0 else 190  # centre 170 (inside) / 210 (outside)
-        steps.append((T0 + i * DT, [(1, _person_box(x), 0.9)]))
-    assert not _of(_run(_engine(), steps), "loitering")
-
-
-def test_genuine_lingering_detected_with_measured_confidence():
-    steps = [(T0 + i * DT, [(1, _person_box(80), 0.82)]) for i in range(int(12 * FPS))]
-    found = _of(_run(_engine(), steps), "loitering")
-    assert found, "a person staying 12 s in a restricted zone must be reported"
-    c = found[-1]
-    assert c.zone_id == "z1" and c.detail["dwell_seconds"] >= 10
-    # confidence is the measured detector confidence, not 0.5 + dwell/40 (= 0.80 at 12 s)
-    assert abs(c.raw_confidence - 0.82) < 1e-6, c.raw_confidence
-    assert "confidence_basis" in c.detail
-
-
-def test_per_zone_dwell_and_active_hours():
-    zone = dict(ZONE, loitering_seconds=30)
-    steps = [(T0 + i * DT, [(1, _person_box(80), 0.9)]) for i in range(int(15 * FPS))]
-    assert not _of(_run(_engine(zones=[zone]), steps), "loitering")
-    assert zone_is_active({"active_hours": "22:00-06:00"}, when=_local(23, 30))
-    assert not zone_is_active({"active_hours": "22:00-06:00"}, when=_local(12, 0))
-    assert zone_is_active({}, when=_local(12, 0))
-
-
-def _local(hour, minute):
-    import datetime as dt
-    return dt.datetime(2026, 10, 15, hour, minute).timestamp()
-
-
-def test_placeholder_zone_warning():
-    warnings = zone_warnings([ZONE], 640, 480)
-    assert warnings and "covers 31%" in warnings[0]
-
-
-def test_intrusion_ignores_person_who_left():
-    steps = []
-    for i in range(int(6 * FPS)):
-        people = [(9, _person_box(400), 0.9)]
-        if i < 2:  # one brief sighting in the zone, then gone
-            people.append((1, _person_box(80), 0.9))
-        steps.append((T0 + i * DT, people))
-    cands = _of(_run(_engine(intrusion=True), steps), "intrusion")
-    # min_frames_inside not met by 2 frames; and later the ghost is ignored
-    assert not cands
-    genuine = [(T0 + i * DT, [(1, _person_box(80), 0.9)]) for i in range(10)]
-    assert _of(_run(_engine(intrusion=True), genuine), "intrusion")
 
 
 # ------------------------------------------------------------------- fight
@@ -493,13 +391,6 @@ def test_llm_cannot_change_type_confidence_or_add_facts():
         "recommended_action": "x", "review_status": "pending"})
     invented = "Confirmed fire in Test Room with 99% certainty. Evacuate now."
     assert not summarizer._summary_preserves_required_facts(invented, record)
-
-
-def test_loitering_description_does_not_claim_same_spot():
-    from reporting.description_generator import generate_description
-    text = generate_description("loitering", "Test Room",
-                                {"dwell_seconds": 12, "zone_type": "restricted", "zone_name": "Panel room"})
-    assert "same spot" not in text and "Panel room" in text
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ import {
   type AttendanceReport, type ClientReport, type InventoryReport, type OrdersReport,
   type ProductionReport, type ScrapReport, type SupplierReport, type WorkforceReport,
 } from "../../../lib/services/reports.service";
+import { downloadCSV } from "../../../lib/csv";
 
 type ReportPayload = InventoryReport | WorkforceReport | OrdersReport | ScrapReport | SupplierReport | ClientReport | ProductionReport | AttendanceReport;
 type ReportId = "production" | "inventory" | "workforce" | "orders" | "scrap" | "supplier" | "client" | "attendance" | "security";
@@ -34,17 +35,6 @@ const fetchers: Partial<Record<ReportId, (filters: ReportFilters) => Promise<Rep
   supplier: (filters) => getSupplierReport(filters),
   client: (filters) => getClientReport(filters),
 };
-
-function downloadCSV(filename: string, rows: string[][]) {
-  const csv = rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
 
 function rowsToCSV(rows: Array<Record<string, unknown>>): string[][] {
   if (rows.length === 0) return [];

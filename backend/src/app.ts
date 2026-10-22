@@ -8,10 +8,12 @@ import rateLimit from 'express-rate-limit';
 
 import { env } from './config/env';
 import { requestLogger } from './middleware/requestLogger';
+import { requestId, REQUEST_ID_HEADER } from './middleware/requestId';
 import { notFoundHandler } from './middleware/notFound';
 import { errorHandler } from './middleware/errorHandler';
 import { auditLog } from './middleware/auditLog';
 import router from './routes';
+import { serveStoredProfileImage } from './utils/upload';
 
 const app = express();
 
@@ -21,6 +23,9 @@ const app = express();
 if (env.TRUST_PROXY > 0) {
   app.set('trust proxy', env.TRUST_PROXY);
 }
+
+// ── Request ID (first, so every later log line carries it) ─────────────────
+app.use(requestId);
 
 // ── Security headers ───────────────────────────────────────────────────────
 app.use(helmet());
@@ -41,6 +46,7 @@ app.use(
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    exposedHeaders: [REQUEST_ID_HEADER],
   }),
 );
 
@@ -112,7 +118,8 @@ app.use(cookieParser());
 // ── Request logging ────────────────────────────────────────────────────────
 app.use(requestLogger);
 
-// ── Static file serving — uploaded assets ─────────────────────────────────
+// ── Uploaded files — from the database, then the legacy upload folder ─────
+app.get('/uploads/profiles/:name', serveStoredProfileImage);
 app.use(
   '/uploads',
   express.static(path.resolve(process.cwd(), 'uploads'), {

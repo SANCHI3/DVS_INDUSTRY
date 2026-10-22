@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
-import { Plus, Edit2, Trash2, Shield, Search, X } from "lucide-react";
+import { Plus, Edit2, Trash2, Shield, Search } from "lucide-react";
 import { PageHeader, Card, CardHeader, StatusBadge, Btn, DataTable } from "../shared/UI";
 import { toast } from "sonner";
 import { isApiError } from "../../../lib/api";
 import { deactivateUser, getRoles, getUsers, registerUser, updateUser, type RoleDto, type UserDto } from "../../../lib/services/users.service";
 import { getAuditLogs } from "../../../lib/services/audit.service";
+import { Modal } from "../shared/Modal";
 
 type IconProps = { size?: number; color?: string };
 const PlusIcon = Plus as unknown as (props: IconProps) => JSX.Element;
@@ -12,7 +13,6 @@ const EditIcon = Edit2 as unknown as (props: IconProps) => JSX.Element;
 const TrashIcon = Trash2 as unknown as (props: IconProps) => JSX.Element;
 const ShieldIcon = Shield as unknown as (props: IconProps) => JSX.Element;
 const SearchIcon = Search as unknown as (props: IconProps) => JSX.Element;
-const CloseIcon = X as unknown as (props: IconProps) => JSX.Element;
 
 interface User {
   id: string; name: string; email: string; role: string; dept: string;
@@ -32,20 +32,6 @@ const permissions = [
 ];
 
 const departments = ["Management", "Operations", "Security", "Production", "Quality", "Inventory", "Finance", "Steel", "Aluminium", "Copper", "Automotive", "Engineering"];
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.45)" }} onClick={onClose}>
-      <div className="rounded-xl overflow-hidden w-full max-w-md mx-4" style={{ background: "#fff", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }} onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #E8E2E0", background: "#F9F6F5" }}>
-          <h2 style={{ fontSize: "1rem", fontWeight: 700 }}>{title}</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#7A6C6A" }}><CloseIcon size={18} /></button>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </div>
-  );
-}
 
 const fieldStyle: React.CSSProperties = { width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #E8E2E0", borderRadius: "0.4rem", fontSize: "0.8375rem", outline: "none", background: "#fff" };
 const labelStyle: React.CSSProperties = { fontSize: "0.72rem", fontWeight: 600, color: "#4E342E", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "0.3rem" };
@@ -159,7 +145,7 @@ export function UserManagementPage() {
       setEditUser(null);
       await refreshUsers();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to update user.");
+      toast.error(isApiError(error) || error instanceof Error ? error.message : "Unable to update user.");
     }
   };
 
@@ -172,7 +158,7 @@ export function UserManagementPage() {
       setDeleteUser(null);
       await refreshUsers();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to deactivate user.");
+      toast.error(isApiError(error) || error instanceof Error ? error.message : "Unable to deactivate user.");
     }
   };
 
@@ -183,7 +169,7 @@ export function UserManagementPage() {
   return (
     <>
     {showAdd && (
-      <Modal title="Add New User" onClose={() => setShowAdd(false)}>
+      <Modal title="Add New User" onClose={() => setShowAdd(false)} size="md">
         <div className="space-y-4">
           <div><label style={labelStyle}>Full Name</label><input style={fieldStyle} value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} placeholder="e.g. Arjun Mehta" /></div>
           <div><label style={labelStyle}>Email Address</label><input style={fieldStyle} type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} placeholder="arjun@dvsindustries.com" /></div>
@@ -220,7 +206,7 @@ export function UserManagementPage() {
     )}
 
     {editUser && (
-      <Modal title={`Edit User — ${editUser.id}`} onClose={() => setEditUser(null)}>
+      <Modal title={`Edit User — ${editUser.id}`} onClose={() => setEditUser(null)} size="md">
         <div className="space-y-4">
           <div><label style={labelStyle}>Full Name</label><input style={fieldStyle} value={editUser.name} onChange={(e) => setEditUser({ ...editUser, name: e.target.value })} /></div>
           <div><label style={labelStyle}>Email Address</label><input style={fieldStyle} value={editUser.email} onChange={(e) => setEditUser({ ...editUser, email: e.target.value })} /></div>
@@ -254,15 +240,14 @@ export function UserManagementPage() {
     )}
 
     {deleteUser && (
-      <Modal title="Confirm Delete" onClose={() => setDeleteUser(null)}>
+      <Modal title="Confirm Deactivation" onClose={() => setDeleteUser(null)} size="md">
         <div>
           <div className="p-4 rounded-lg mb-4" style={{ background: "#FFEBEE", border: "1px solid #FFCDD2" }}>
-            <p style={{ fontSize: "0.875rem", color: "#C0392B", fontWeight: 600, marginBottom: "0.25rem" }}>Warning: This action cannot be undone</p>
-            <p style={{ fontSize: "0.8rem", color: "#7A6C6A" }}>Removing <strong>{deleteUser.name}</strong> ({deleteUser.id}) will revoke all their system access.</p>
+            <p style={{ fontSize: "0.8rem", color: "#7A6C6A" }}><strong>{deleteUser.name}</strong> will no longer be able to log in. Their records are kept.</p>
           </div>
           <div className="flex gap-2">
             <button onClick={() => setDeleteUser(null)} style={{ flex: 1, padding: "0.6rem", border: "1px solid #E8E2E0", borderRadius: "0.5rem", background: "#fff", cursor: "pointer" }}>Cancel</button>
-            <button onClick={handleDelete} style={{ flex: 1, padding: "0.6rem", border: "none", borderRadius: "0.5rem", background: "#C0392B", color: "#fff", fontWeight: 600, cursor: "pointer" }}>Delete User</button>
+            <button onClick={handleDelete} style={{ flex: 1, padding: "0.6rem", border: "none", borderRadius: "0.5rem", background: "#C0392B", color: "#fff", fontWeight: 600, cursor: "pointer" }}>Deactivate User</button>
           </div>
         </div>
       </Modal>
@@ -278,10 +263,10 @@ export function UserManagementPage() {
       {dataError && <p className="mb-4" style={{ color: "#C0392B", fontSize: "0.8125rem" }}>{dataError}</p>}
 
       <div className="flex gap-0 mb-5" style={{ borderBottom: "2px solid #E8E2E0" }}>
-        {[["users", "All Users"], ["permissions", "Permissions"], ["logs", "Audit Logs"]].map(([id, label]) => (
+        {([["users", "All Users"], ["permissions", "Permissions"], ["logs", "Audit Logs"]] as const).map(([id, label]) => (
           <button
             key={id}
-            onClick={() => setActiveTab(id as any)}
+            onClick={() => setActiveTab(id)}
             style={{
               padding: "0.625rem 1rem", fontSize: "0.8375rem",
               fontWeight: activeTab === id ? 600 : 400,
@@ -362,7 +347,7 @@ export function UserManagementPage() {
                 actions: (
                   <div className="flex gap-1.5">
                     <button onClick={() => setEditUser({ ...u })} className="p-1.5 rounded" style={{ background: "#F5F0EF", color: "#4E342E", cursor: "pointer", border: "none" }}><EditIcon size={12} /></button>
-                    <button onClick={() => setDeleteUser(u)} className="p-1.5 rounded" style={{ background: "#FFEBEE", color: "#C0392B", cursor: "pointer", border: "none" }}><TrashIcon size={12} /></button>
+                    <button onClick={() => setDeleteUser(u)} disabled={u.status !== "active"} title={u.status === "active" ? "Deactivate User" : "Already deactivated"} aria-label={`Deactivate ${u.name}`} className="p-1.5 rounded" style={{ background: "#FFEBEE", color: "#C0392B", cursor: u.status === "active" ? "pointer" : "not-allowed", opacity: u.status === "active" ? 1 : 0.4, border: "none" }}><TrashIcon size={12} /></button>
                   </div>
                 ),
               }))}

@@ -3,10 +3,10 @@ Camera-level incident de-duplication, applied after EventConfirmation.
 
 EventConfirmation ends an episode after a handful of missed cycles (well under
 a second at 10 fps). Learned detectors only score some cycles and ByteTrack
-re-assigns IDs during fast motion, so one real fight or one person loitering
+re-assigns IDs during fast motion, so one real fight or one ongoing fire
 would otherwise surface as a stream of "new" incidents a few seconds apart.
 
-This layer keys an ongoing incident by (event_type, zone) for the camera and
+This layer keys an ongoing incident by event type for the camera and
 keeps it open while raw candidates for that key keep arriving. Repeats inside
 the window update the existing incident (escalation) or are suppressed; a new
 incident is only created once the key has been quiet for the whole window.
@@ -20,11 +20,8 @@ from typing import Dict, Optional, Tuple
 from confirmation.event_confirmation import TIER_RANK
 from severity.severity_rules import SEVERITY_ORDER
 
-# Zone-scoped events: the same zone is one incident even if the person's
-# track ID changes. Everything else is one incident per camera + type.
-ZONE_SCOPED_EVENT_TYPES = {"loitering", "intrusion"}
-
-Key = Tuple[str, Optional[str]]
+# One ongoing incident per camera + event type.
+Key = str
 
 
 @dataclass
@@ -50,8 +47,8 @@ class IncidentDeduper:
         self._active: Dict[Key, ActiveIncident] = {}
 
     @staticmethod
-    def _key(event_type: str, zone_id: Optional[str]) -> Key:
-        return (event_type, zone_id if event_type in ZONE_SCOPED_EVENT_TYPES else None)
+    def _key(event_type: str) -> Key:
+        return event_type
 
     def _window(self, event_type: str) -> float:
         return self.windows.get(event_type, self.default_window)
@@ -60,7 +57,7 @@ class IncidentDeduper:
         active = self._active.get(key)
         if active is None:
             return None
-        if now - active.last_activity_at > self._window(key[0]):
+        if now - active.last_activity_at > self._window(key):
             del self._active[key]
             return None
         return active
@@ -69,7 +66,7 @@ class IncidentDeduper:
         """Keep open incidents alive while their event keeps being detected."""
         now = time.time()
         for c in candidates:
-            active = self._live(self._key(c.event_type, c.zone_id), now)
+            active = self._live(self._key(c.event_type), now)
             if active is not None:
                 active.last_activity_at = now
 
@@ -79,7 +76,7 @@ class IncidentDeduper:
         A repeat escalates the open incident when it raises the confidence
         tier, the severity (e.g. a fall where the person stays down), or the
         confidence score by at least `confidence_step`."""
-        key = self._key(event.event_type, event.candidate.zone_id)
+        key = self._key(event.event_type)
         active = self._live(key, time.time())
         if active is None:
             return "new", None
@@ -94,7 +91,7 @@ class IncidentDeduper:
         return "suppress", active.incident_id
 
     def register(self, event, severity: str, incident_id: str) -> None:
-        key = self._key(event.event_type, event.candidate.zone_id)
+        key = self._key(event.event_type)
         self._active[key] = ActiveIncident(
             incident_id, event.tier, severity, float(event.confidence), time.time()
         )

@@ -2,8 +2,8 @@
 Thin wrapper around Ultralytics YOLOv8-Pose. Deliberately kept separate
 from detection/yolo_detector.py: pose estimation is more expensive than
 plain object detection, so it should only be invoked when something has
-already gated it as "worth checking closely" (see temporal/motion_gate.py
-and temporal/action_recognition.py) -- never run on every frame.
+already gated it as "worth checking closely" (see
+temporal/fall_gru_recognition.py) -- never run on every frame.
 
 COCO-pose keypoint order (17 points), for reference when building features:
 0 nose, 1 left_eye, 2 right_eye, 3 left_ear, 4 right_ear,
@@ -14,7 +14,7 @@ COCO-pose keypoint order (17 points), for reference when building features:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 from ultralytics import YOLO
@@ -58,3 +58,28 @@ class PoseEstimator:
             out.append(PersonPose(bbox=bbox, keypoints=keypoints, confidence=conf))
 
         return out
+
+
+def _iou(box_a: Tuple[float, float, float, float], box_b: Tuple[float, float, float, float]) -> float:
+    ax1, ay1, ax2, ay2 = box_a
+    bx1, by1, bx2, by2 = box_b
+    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
+    iw, ih = max(0.0, ix2 - ix1), max(0.0, iy2 - iy1)
+    inter = iw * ih
+    area_a = max(0.0, ax2 - ax1) * max(0.0, ay2 - ay1)
+    area_b = max(0.0, bx2 - bx1) * max(0.0, by2 - by1)
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0.0
+
+
+def match_pose_to_bbox(poses: List[PersonPose], bbox: Tuple[float, float, float, float]) -> Optional[PersonPose]:
+    """Find the pose detection whose bbox best overlaps a given tracked
+    person's bbox (associates a track_id, which the pose model doesn't
+    know about, back to the pose model's own detection)."""
+    best, best_iou = None, 0.0
+    for pose in poses:
+        score = _iou(pose.bbox, bbox)
+        if score > best_iou:
+            best, best_iou = pose, score
+    return best if best_iou > 0.1 else None

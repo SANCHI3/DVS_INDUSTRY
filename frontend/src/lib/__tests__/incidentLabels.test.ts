@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alertText, confidenceLabel, eventTypeLabel, incidentHeadline, priorityLabel } from '../incidentLabels';
+import { alertText, confidenceLabel, eventTypeLabel, incidentHeadline, isRetiredIncidentType, priorityLabel } from '../incidentLabels';
 
 describe('incident labels', () => {
   it('uses everyday names instead of internal types', () => {
@@ -42,5 +42,20 @@ describe('alertText', () => {
       summary: 'An event was detected.',
       action: null,
     });
+  });
+});
+
+describe('isRetiredIncidentType', () => {
+  it('flags only the removed lingering and restricted-area types', () => {
+    expect(isRetiredIncidentType('LOITERING')).toBe(true);
+    expect(isRetiredIncidentType('INTRUSION')).toBe(true);
+    for (const type of ['FIGHT', 'FALL', 'FIRE_SMOKE', 'CROWD', 'OTHER']) {
+      expect(isRetiredIncidentType(type)).toBe(false);
+    }
+  });
+
+  it('keeps the labels so old records still display', () => {
+    expect(eventTypeLabel('LOITERING')).toBe('Someone lingering');
+    expect(eventTypeLabel('INTRUSION')).toBe('Person in restricted area');
   });
 });

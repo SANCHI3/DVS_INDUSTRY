@@ -9,13 +9,10 @@ instead of 10, and the demo fall clip did not trigger in a CPU test.
 
 1. `git lfs pull` (fight model weights), then
    `python perception-service/scripts/prepare_demo_videos.py` (demo clips).
-2. Draw the real restricted zone:
-   `cd perception-service && python scripts/draw_zones.py --camera CAM-01`.
-   Paste the result into `config/cameras.yaml` and give the zone a name.
-3. Full rehearsal: `.\start-demo.ps1` (Windows) or `./start-demo.sh`.
-4. On the **AI Security → Incident Center** page, resolve or close old test
+2. Full rehearsal: `.\start-demo.ps1` (Windows) or `./start-demo.sh`.
+3. On the **AI Security → Incident Center** page, resolve or close old test
    incidents so new ones stand out.
-5. Optional: put an `LLM_API_KEY` in `perception-service/.env` for AI-written
+4. Optional: put an `LLM_API_KEY` in `perception-service/.env` for AI-written
    summaries. Without one, the built-in description is used; that is fine.
 
 ## Start (before the examiners arrive)
@@ -35,11 +32,11 @@ instead of 10, and the demo fall clip did not trigger in a CPU test.
 | Time | Do | Say |
 |---|---|---|
 | 0:00–0:30 | **Dashboard**, then click through Production, Inventory, Smart Analytics. | "One ERP for the whole plant: workforce, stock, orders, production, analytics. Security is part of the same system." |
-| 0:30–1:15 | **AI Models** page: pipeline diagram and model cards. | "YOLO only finds and tracks people. Each incident type has its own model: a 3D CNN for fights, pose plus GRU for falls, YOLO plus a verifier for fire, an autoencoder for unusual activity. Each one beats its baseline on held-out videos, for example fight F1 0.85 to 0.96." |
+| 0:30–1:15 | **`docs/RESULTS.md`**: model table and charts. | "YOLO only finds and tracks people. Each incident type has its own model: a 3D CNN for fights, pose plus GRU for falls, YOLO plus a verifier for fire, an autoencoder for unusual activity. Each one beats its baseline on held-out videos, for example fight F1 0.85 to 0.96." |
 | 1:15–2:30 | **AI Security → Live Monitoring.** The demo clips (or the camera) are playing in the video window. | When the fight clip plays: "Within a few seconds: one incident, live, no refresh, and the priority pop-up on any page." When the fire clip plays: "Fire always interrupts. The same ongoing fire updates one incident; no duplicates." |
 | 2:30–3:30 | Click the new **fight** card → **evidence dialog**. | "Snapshots saved at confirmation. Grad-CAM shows where the model looked: on the people, not the background. Confidence in words, and why: two people close for at least a second, moving agitatedly. That check is how we removed the false fights we found on our own camera." |
 | 3:30–4:15 | **Incident Center**: assign the incident, Investigate → Resolve. | "A human always decides; every change is audited. Roles matter: a store user cannot see security data at all." |
-| 4:15–5:00 | **AI Models**, scroll to the table and Speed. Or show `docs/RESULTS.md`. | "Every number on this page is generated from the training metrics files, never typed in. On this laptop GPU the full pipeline runs at about 9 of the 10 target frames per second. What we have not measured yet is false alarms per hour on long normal footage; the script for it is ready." |
+| 4:15–5:00 | **`docs/RESULTS.md`**, scroll to the table and Speed. | "Every number in this file is generated from the training metrics files, never typed in. On this laptop GPU the full pipeline runs at about 9 of the 10 target frames per second. What we have not measured yet is false alarms per hour on long normal footage; the script for it is ready." |
 
 What to expect from the clips (`perception-service/demo_videos/`, about 48 s
 per loop):

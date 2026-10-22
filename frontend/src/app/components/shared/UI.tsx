@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
-import { ReactNode, useState } from "react";
+import type { ReactNode} from "react";
+import { useId, useState } from "react";
 import { TrendingUp, TrendingDown, Minus, Search, X, Download, ChevronUp, ChevronDown, AlertCircle, RefreshCw, InboxIcon } from "lucide-react";
 
 /* ── Page wrapper ── */
@@ -349,10 +350,12 @@ export function TabBar({ tabs, active, onChange }: { tabs: { id: string; label: 
             fontSize: "0.8375rem",
             fontWeight: active === tab.id ? 600 : 400,
             color: active === tab.id ? "#A52A2A" : "#7A6C6A",
+            borderTop: "none",
+            borderRight: "none",
             borderBottom: `2px solid ${active === tab.id ? "#A52A2A" : "transparent"}`,
+            borderLeft: "none",
             marginBottom: "-2px",
             background: "transparent",
-            border: "none",
             cursor: "pointer",
           }}
         >
@@ -364,14 +367,17 @@ export function TabBar({ tabs, active, onChange }: { tabs: { id: string; label: 
 }
 
 /* ── Input ── */
-export function Input({ label, placeholder, value, onChange, type = "text" }: {
-  label?: string; placeholder?: string; value?: string; onChange?: (v: string) => void; type?: string;
+export function Input({ label, placeholder, value, onChange, type = "text", autoComplete }: {
+  label?: string; placeholder?: string; value?: string; onChange?: (v: string) => void; type?: string; autoComplete?: string;
 }) {
+  const id = useId();
   return (
     <div>
-      {label && <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 500, color: "#4A4A4A", marginBottom: "0.3rem" }}>{label}</label>}
+      {label && <label htmlFor={id} style={{ display: "block", fontSize: "0.775rem", fontWeight: 500, color: "#4A4A4A", marginBottom: "0.3rem" }}>{label}</label>}
       <input
+        id={id}
         type={type}
+        autoComplete={autoComplete}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange?.(e.target.value)}

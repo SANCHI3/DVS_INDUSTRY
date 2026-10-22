@@ -17,23 +17,13 @@ with open("config/cameras.yaml") as f:
 with open("config/thresholds.yaml") as f:
     thresholds_cfg = yaml.safe_load(f)
 
+# Pin the crowd threshold so the 4-person demo below still forms a crowd.
+thresholds_cfg["rules"]["crowd"]["person_count_threshold"] = 3
 cam_cfg = cameras_cfg["cameras"][0]
 rule_engine = RuleEngine(cam_cfg, thresholds_cfg)
 confirmation = EventConfirmation(thresholds_cfg["confirmation"])
 
-print("=== TEST 1: Intrusion (person walks into restricted zone z1: x in [0,200]) ===")
-buffer = TemporalBuffer()
-for i in range(6):
-    # foot point inside zone z1's polygon the whole time
-    buffer.update(track_id=1, class_name="person", bbox=(50, 100, 90, 300), confidence=0.9)
-    candidates = rule_engine.evaluate(buffer)
-    confirmed = confirmation.update(candidates)
-    for c in confirmed:
-        sev = compute_severity(c.event_type, c, thresholds_cfg["severity"])
-        print(f"  cycle {i}: {c.tier} {c.event_type} conf={c.confidence:.2f} severity={sev} detail={c.candidate.detail}")
-    time.sleep(0.05)
-
-print("\n=== TEST 2: Crowd gathering (4 people, threshold=3) ===")
+print("=== TEST 1: Crowd gathering (4 people, threshold=3) ===")
 buffer2 = TemporalBuffer()
 confirmation2 = EventConfirmation(thresholds_cfg["confirmation"])
 for i in range(6):
@@ -45,7 +35,7 @@ for i in range(6):
         sev = compute_severity(c.event_type, c, thresholds_cfg["severity"])
         print(f"  cycle {i}: {c.tier} {c.event_type} conf={c.confidence:.2f} severity={sev} detail={c.candidate.detail}")
 
-print("\n=== TEST 3: Fall (aspect ratio flips from tall to wide, then stays still) ===")
+print("\n=== TEST 2: Fall (aspect ratio flips from tall to wide, then stays still) ===")
 print("    (uses configured thresholds: flip window "
       f"{thresholds_cfg['rules']['fall']['aspect_ratio_flip_seconds']}s, "
       f"stillness {thresholds_cfg['rules']['fall']['stillness_seconds']}s -- test runs real time to match)")
@@ -67,13 +57,13 @@ for i in range(steps):
         print(f"  cycle {i} (t={i*0.5:.1f}s): {c.tier} {c.event_type} conf={c.confidence:.2f} severity={sev} detail={c.candidate.detail}")
     time.sleep(0.5)
 
-print("\n=== TEST 4: Normal walking (no zone, no fall, count<threshold) should NOT fire ===")
+print("\n=== TEST 3: Normal walking (no fall, count<threshold) should NOT fire ===")
 buffer4 = TemporalBuffer()
 confirmation4 = EventConfirmation(thresholds_cfg["confirmation"])
 fired = False
 for i in range(6):
     x = 250 + i * 10
-    buffer4.update(track_id=5, class_name="person", bbox=(x, 100, x + 40, 300), confidence=0.9)  # tall box, moving, outside zones
+    buffer4.update(track_id=5, class_name="person", bbox=(x, 100, x + 40, 300), confidence=0.9)  # tall box, moving
     candidates = rule_engine.evaluate(buffer4)
     confirmed = confirmation4.update(candidates)
     if confirmed:

@@ -8,7 +8,9 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     testTimeout: 15000,
-    hookTimeout: 15000,
+    // The integration files import the whole app in beforeAll; with all files
+    // running in parallel on a laptop that alone can take over 15 s.
+    hookTimeout: 60000,
     include: ['src/__tests__/**/*.test.ts'],
     env: {
       NODE_ENV:             'test',

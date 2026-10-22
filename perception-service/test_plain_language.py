@@ -12,8 +12,6 @@ SAMPLE_DETAIL = {
     "fire_smoke": {"detected_classes": ["fire"], "fire_score": 0.72},
     "crowd": {"count": 6, "threshold": 4},
     "fight": {"score": 0.97},
-    "loitering": {"dwell_seconds": 41.6},
-    "intrusion": {"zone_type": "restricted"},
     "anomaly": {"anomaly_ratio": 1.82, "factors": "sudden acceleration"},
     "theft_probable": {},
 }
@@ -44,23 +42,23 @@ def test_unknown_event_type_falls_back_gracefully():
     assert "Gate 2" in text and "What to do:" in text
 
 
-def _record(event_type="loitering", detail=None):
+def _record(event_type="crowd", detail=None):
     return SimpleNamespace(location="Test Room", event_type=event_type, severity="LOW",
-                           detail=detail if detail is not None else {"dwell_seconds": 41.6})
+                           detail=detail if detail is not None else {"count": 6, "threshold": 4})
 
 
 def test_guard_accepts_a_faithful_plain_rewrite():
-    good = ("Someone has been standing in the same spot in Test Room for about 42 seconds. "
-            "Please check the camera to see who it is.")
+    good = ("About 6 people have gathered in Test Room. "
+            "Please keep an eye on the group.")
     assert _summary_preserves_required_facts(good, _record())
 
 
 def test_guard_rejects_invented_numbers_jargon_and_missing_location():
-    invented = "Three people have been standing in Test Room for 5 minutes. Check the camera."
-    jargon = "Loitering detected in Test Room with high confidence. Check the camera."
-    no_place = "Someone has been standing around for about 42 seconds. Check the camera."
+    invented = "Nine people have gathered in Test Room for 5 minutes. Check the camera."
+    jargon = "Crowd detected in Test Room with high confidence. Check the camera."
+    no_place = "About 6 people have gathered. Keep an eye on the group."
     record = _record()
-    assert not _summary_preserves_required_facts(invented.replace("Three", "3"), record)
+    assert not _summary_preserves_required_facts(invented.replace("Nine", "9"), record)
     assert not _summary_preserves_required_facts(jargon, record)
     assert not _summary_preserves_required_facts(no_place, record)
 

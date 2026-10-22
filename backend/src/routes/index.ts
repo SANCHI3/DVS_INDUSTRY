@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { API_PREFIX } from '../constants';
-import aiRouter from './ai.routes';
 import analyticsRouter from './analytics.routes';
+import assistantRouter from '../assistant/assistant.routes';
 import authRouter from './auth.routes';
 import auditRouter from './audit.routes';
 import departmentRouter from './department.routes';
@@ -30,8 +30,8 @@ router.get('/', (_req, res) => {
 });
 
 // ── Feature routers ───────────────────────────────────────────────────────────
-router.use(`${API_PREFIX}/ai`, aiRouter);
 router.use(`${API_PREFIX}/analytics`, analyticsRouter);
+router.use(`${API_PREFIX}/assistant`, assistantRouter);
 router.use(`${API_PREFIX}/auth`, authRouter);
 router.use(`${API_PREFIX}/audit`, auditRouter);
 router.use(`${API_PREFIX}/departments`, departmentRouter);

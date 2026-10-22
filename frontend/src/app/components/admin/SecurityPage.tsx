@@ -16,18 +16,15 @@ import { PageHeader, Card, CardHeader, StatusBadge, Btn, DataTable, TabBar, KPIC
 import {
   getSecurityKPIs,
   getIncidents,
-  getAlerts,
   transitionIncidentStatus,
   assignIncident,
-  acknowledgeAlert,
-  resolveAlert,
   type SecurityKPIs,
   type SecurityIncidentDto,
-  type SecurityAlertDto,
 } from "../../../lib/services/security.service";
 import { getEligibleEmployees, type UserDto } from "../../../lib/services/users.service";
 import { subscribeSecurityStream, subscribeStreamStatus, type StreamStatus } from "../../../lib/securityStream";
-import { eventTypeLabel } from "../../../lib/incidentLabels";
+import { eventTypeLabel, incidentHeadline, isRetiredIncidentType } from "../../../lib/incidentLabels";
+import { detectionCountsByType, sortNeedsAttention, upsertUnresolved } from "../../../lib/needsAttention";
 import { IncidentEvidenceDialog } from "./IncidentEvidenceDialog";
 
 const tabs = [
@@ -71,6 +68,8 @@ function kpiValue(loading: boolean, error: boolean, value: number | undefined) {
   if (error || value === undefined) return "Couldn't load";
   return String(value);
 }
+
+const AI_REPORTER = "Perception Service";
 
 function EmptyState({
   icon: Icon,
@@ -121,13 +120,15 @@ export function SecurityPage() {
   const [filter, setFilter] = useState<(typeof filters)[number]>("all");
   const [kpis, setKpis] = useState<SecurityKPIs | null>(null);
   const [incidents, setIncidents] = useState<SecurityIncidentDto[]>([]);
-  const [alerts, setAlerts] = useState<SecurityAlertDto[]>([]);
+  // Unresolved incidents, loaded separately so older open ones are not lost
+  // behind the 50 newest in `incidents`.
+  const [unresolved, setUnresolved] = useState<SecurityIncidentDto[]>([]);
   const [kpisLoading, setKpisLoading] = useState(true);
   const [incidentsLoading, setIncidentsLoading] = useState(true);
-  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [unresolvedLoading, setUnresolvedLoading] = useState(true);
   const [kpisError, setKpisError] = useState(false);
   const [incidentsError, setIncidentsError] = useState(false);
-  const [alertsError, setAlertsError] = useState(false);
+  const [unresolvedError, setUnresolvedError] = useState(false);
   const [users, setUsers] = useState<UserDto[]>([]);
   const [usersError, setUsersError] = useState(false);
   const [assigningIncidentId, setAssigningIncidentId] = useState<number | null>(null);
@@ -137,28 +138,30 @@ export function SecurityPage() {
   const loadAll = () => {
     setKpisLoading(true);
     setIncidentsLoading(true);
-    setAlertsLoading(true);
+    setUnresolvedLoading(true);
     setKpisError(false);
     setIncidentsError(false);
-    setAlertsError(false);
+    setUnresolvedError(false);
 
     Promise.allSettled([
       getSecurityKPIs(),
       getIncidents({ pageSize: 50, sortBy: "occurredAt", sortOrder: "desc" }),
-      getAlerts({ pageSize: 50, sortBy: "createdAt", sortOrder: "desc" }),
+      getIncidents({ status: "OPEN", pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" }),
+      getIncidents({ status: "INVESTIGATING", pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" }),
       getEligibleEmployees(),
-    ]).then(([kpiResult, incidentResult, alertResult, userResult]) => {
+    ]).then(([kpiResult, incidentResult, openResult, investigatingResult, userResult]) => {
       if (kpiResult.status === "fulfilled") setKpis(kpiResult.value);
       else setKpisError(true);
       if (incidentResult.status === "fulfilled") setIncidents(incidentResult.value.data);
       else setIncidentsError(true);
-      if (alertResult.status === "fulfilled") setAlerts(alertResult.value.data);
-      else setAlertsError(true);
+      if (openResult.status === "fulfilled" && investigatingResult.status === "fulfilled") {
+        setUnresolved([...openResult.value.data, ...investigatingResult.value.data]);
+      } else setUnresolvedError(true);
       if (userResult.status === "fulfilled") setUsers(userResult.value.filter((user) => user.isActive));
       else setUsersError(true);
       setKpisLoading(false);
       setIncidentsLoading(false);
-      setAlertsLoading(false);
+      setUnresolvedLoading(false);
     });
   };
 
@@ -177,6 +180,7 @@ export function SecurityPage() {
     const unsubscribe = subscribeSecurityStream((event) => {
       if (event.type === "incident.deleted") {
         setIncidents((current) => current.filter((incident) => incident.id !== event.incidentId));
+        setUnresolved((current) => current.filter((incident) => incident.id !== event.incidentId));
       } else {
         const changed = event.incident;
         setIncidents((current) => {
@@ -184,6 +188,7 @@ export function SecurityPage() {
           if (exists) return current.map((incident) => (incident.id === changed.id ? changed : incident));
           return [changed, ...current];
         });
+        setUnresolved((current) => upsertUnresolved(current, changed));
       }
       refreshKpis();
     });
@@ -214,25 +219,18 @@ export function SecurityPage() {
   const filteredIncidents = filter === "all"
     ? displayIncidents
     : displayIncidents.filter((incident) => incident.status === filter);
-  const activeAlerts = alerts.filter((alert) => alert.status === "ACTIVE");
-  const latestDetections = incidents.filter((incident) => incident.reportedByName === "Perception Service").slice(0, 6);
-  const selectedIncident = incidents.find((incident) => incident.id === selectedIncidentId) ?? null;
-
-  const handleAcknowledge = async (alertId: number) => {
-    try { await acknowledgeAlert(alertId); toast.success("Alert acknowledged"); loadAll(); }
-    catch { toast.error("Failed to acknowledge alert"); }
-  };
-
-  const handleResolveAlert = async (alertId: number) => {
-    try { await resolveAlert(alertId); toast.success("Alert resolved"); loadAll(); }
-    catch { toast.error("Failed to resolve alert"); }
-  };
+  const needsAttention = sortNeedsAttention(unresolved.filter((incident) => incident.reportedByName === AI_REPORTER));
+  const latestDetections = incidents.filter((incident) => incident.reportedByName === AI_REPORTER).slice(0, 6);
+  const selectedIncident = incidents.find((incident) => incident.id === selectedIncidentId)
+    ?? unresolved.find((incident) => incident.id === selectedIncidentId)
+    ?? null;
 
   // Incident actions apply the server's returned row and refresh only the KPIs
   // (the live stream keeps the rest current) -- a full reload per click would
   // spend 5 requests and could exhaust the API rate limit during triage.
   const applyIncident = (updated: SecurityIncidentDto) => {
     setIncidents((current) => current.map((incident) => (incident.id === updated.id ? updated : incident)));
+    setUnresolved((current) => upsertUnresolved(current, updated));
     getSecurityKPIs().then(setKpis).catch(() => undefined);
   };
 
@@ -311,7 +309,7 @@ export function SecurityPage() {
 
         <section className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KPICard label="Open Incidents" value={kpiValue(kpisLoading, kpisError, kpis?.openIncidents)} sub={kpis ? `${kpis.investigatingIncidents} investigating` : undefined} icon={FileWarning} accent="#A52A2A" />
-          <KPICard label="Active Alerts" value={kpiValue(kpisLoading, kpisError, kpis?.activeAlerts)} sub={kpis ? `${kpis.criticalAlerts} critical` : undefined} icon={AlertTriangle} accent="#C0392B" />
+          <KPICard label="Needs Attention" value={kpiValue(kpisLoading, kpisError, kpis ? kpis.openIncidents + kpis.investigatingIncidents : undefined)} sub={kpis ? `${kpis.criticalOpenIncidents} critical` : undefined} icon={AlertTriangle} accent="#C0392B" />
           <KPICard label="Resolved This Month" value={kpiValue(kpisLoading, kpisError, kpis?.resolvedThisMonth)} icon={CheckCircle2} accent="#2E7D32" />
           <KPICard label="Total Incidents" value={kpiValue(kpisLoading, kpisError, kpis?.totalIncidents)} sub={kpis ? `${kpis.criticalIncidents} critical` : undefined} icon={Zap} accent="#A52A2A" />
         </section>
@@ -346,16 +344,16 @@ export function SecurityPage() {
 
             <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.4fr_1fr]">
               <Card style={{ borderRadius: "0.75rem" }}>
-                <CardHeader title="Active Alerts" subtitle="Alerts currently returned by the security API" actions={<StatusBadge status={activeAlerts.length ? "critical" : "neutral"} label={alertsLoading ? "Loading" : `${activeAlerts.length} active`} />} />
+                <CardHeader title="Needs Attention" subtitle="Open and investigating AI incidents, most urgent first; updates live" actions={<StatusBadge status={needsAttention.length ? "critical" : "neutral"} label={unresolvedLoading ? "Loading" : `${needsAttention.length} open`} />} />
                 <div className="p-5">
-                  {alertsLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading security alerts...</p> : alertsError ? <p style={{ color: "#C0392B", fontSize: "0.82rem" }}>Unable to load security alerts.</p> : activeAlerts.length === 0 ? <EmptyState icon={Shield} title="No active alerts" detail="No active security alerts were returned by the current backend." /> : (
+                  {unresolvedLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading open incidents...</p> : unresolvedError ? <p style={{ color: "#C0392B", fontSize: "0.82rem" }}>Unable to load open incidents.</p> : needsAttention.length === 0 ? <EmptyState icon={Shield} title="All clear: no open incidents" detail="New AI detections that need a response appear here as soon as the cameras report them." /> : (
                     <div className="space-y-2">
-                      {activeAlerts.slice(0, 5).map((alert) => (
-                        <div key={alert.id} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center" style={{ borderColor: "#EEE4E0", background: alert.severity === "CRITICAL" ? "#FFF8F7" : "#FFFCF4" }}>
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md" style={{ background: alert.severity === "CRITICAL" ? "#FCE5E2" : "#FFF0C7", color: alert.severity === "CRITICAL" ? "#B42318" : "#9A6700" }}><AlertTriangle size={17} /></div>
-                          <div className="min-w-0 flex-1"><p className="truncate" style={{ color: "#302725", fontSize: "0.84rem", fontWeight: 700 }}>{alert.alertNumber} · {alert.title}</p><p style={{ color: "#837572", fontSize: "0.73rem" }}>{alert.location ?? "Location unavailable"} · {new Date(alert.createdAt).toLocaleString("en-IN")}</p></div>
-                          <StatusBadge status={alert.severity.toLowerCase()} />
-                          <div className="flex gap-2"><Btn size="sm" variant="secondary" onClick={() => handleAcknowledge(alert.id)}>Acknowledge</Btn><Btn size="sm" variant="success" onClick={() => handleResolveAlert(alert.id)}>Resolve</Btn></div>
+                      {needsAttention.slice(0, 5).map((incident) => (
+                        <div key={incident.id} className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center" style={{ borderColor: "#EEE4E0", background: incident.severity === "CRITICAL" ? "#FFF8F7" : "#FFFCF4" }}>
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md" style={{ background: incident.severity === "CRITICAL" ? "#FCE5E2" : "#FFF0C7", color: incident.severity === "CRITICAL" ? "#B42318" : "#9A6700" }}><AlertTriangle size={17} /></div>
+                          <div className="min-w-0 flex-1"><p className="truncate" style={{ color: "#302725", fontSize: "0.84rem", fontWeight: 700 }}>{incidentHeadline(incident)}</p><p style={{ color: "#837572", fontSize: "0.73rem" }}>{incident.location ?? "Location unavailable"} · {new Date(incident.occurredAt).toLocaleString("en-IN")}</p></div>
+                          <StatusBadge status={incident.severity.toLowerCase()} />
+                          <Btn size="sm" variant="secondary" onClick={() => setSelectedIncidentId(incident.id)}>View evidence <ArrowRight size={12} /></Btn>
                         </div>
                       ))}
                     </div>
@@ -364,13 +362,27 @@ export function SecurityPage() {
               </Card>
 
               <Card style={{ borderRadius: "0.75rem" }}>
-                <CardHeader title="Detection Summary" subtitle="Only aggregate values available from the security KPI API" />
+                <CardHeader title="Detection Summary" subtitle="Incident counts from the security KPI API" />
                 <div className="space-y-4 p-5">
                   {kpisLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading detection summary...</p> : kpisError || !kpis ? <EmptyState icon={FileWarning} title="Summary unavailable" detail="The security KPI data could not be loaded." /> : (
                     <>
-                      <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "#EEE4E0" }}><span style={{ color: "#837572", fontSize: "0.78rem" }}>Critical incidents</span><strong style={{ color: "#302725", fontSize: "1.15rem" }}>{kpis.criticalIncidents}</strong></div>
-                      <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "#EEE4E0" }}><span style={{ color: "#837572", fontSize: "0.78rem" }}>Investigating</span><strong style={{ color: "#302725", fontSize: "1.15rem" }}>{kpis.investigatingIncidents}</strong></div>
-                      <div className="flex items-center justify-between"><span style={{ color: "#837572", fontSize: "0.78rem" }}>Total alerts</span><strong style={{ color: "#302725", fontSize: "1.15rem" }}>{kpis.totalAlerts}</strong></div>
+                      {[
+                        { label: "Detections today", value: kpis.detectionsToday },
+                        { label: "Open", value: kpis.openIncidents },
+                        { label: "Investigating", value: kpis.investigatingIncidents },
+                        { label: "Resolved this month", value: kpis.resolvedThisMonth },
+                        { label: "Critical (open)", value: kpis.criticalOpenIncidents },
+                      ].map((item) => (
+                        <div key={item.label} className="flex items-center justify-between border-b pb-3" style={{ borderColor: "#EEE4E0" }}><span style={{ color: "#837572", fontSize: "0.78rem" }}>{item.label}</span><strong style={{ color: "#302725", fontSize: "1.15rem" }}>{item.value}</strong></div>
+                      ))}
+                      <div>
+                        <p className="mb-2" style={{ color: "#9A8A88", fontSize: "0.7rem", letterSpacing: "0.08em", textTransform: "uppercase" }}>Today by type</p>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {detectionCountsByType(kpis.incidentsTodayByType).map((item) => (
+                            <div key={item.label} className="flex items-center justify-between rounded-lg border px-3 py-2" style={{ borderColor: "#EEE4E0", background: "#FCFAF9" }}><span style={{ color: "#665956", fontSize: "0.76rem" }}>{item.label}</span><strong style={{ color: "#A52A2A", fontSize: "0.85rem" }}>{item.count}</strong></div>
+                          ))}
+                        </div>
+                      </div>
                     </>
                   )}
                 </div>
@@ -421,7 +433,7 @@ export function SecurityPage() {
               <Card style={{ borderRadius: "0.75rem" }}>
                 <CardHeader title="Incidents by Type" subtitle="Aggregate breakdown returned by the security KPI API" />
                 <div className="p-5">
-                  {kpisLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading report data...</p> : kpisError || !kpis ? <EmptyState icon={FileWarning} title="Report data unavailable" detail="The security KPI data could not be loaded." /> : kpis.incidentsByType.length === 0 ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>No data returned.</p> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{kpis.incidentsByType.map((item) => <div key={item.type} className="flex items-center justify-between rounded-lg border px-3 py-2.5" style={{ borderColor: "#EEE4E0", background: "#FCFAF9" }}><span style={{ color: "#665956", fontSize: "0.76rem" }}>{formatEventType(item.type)}</span><strong style={{ color: "#A52A2A", fontSize: "0.85rem" }}>{item.count}</strong></div>)}</div>}
+                  {kpisLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading report data...</p> : kpisError || !kpis ? <EmptyState icon={FileWarning} title="Report data unavailable" detail="The security KPI data could not be loaded." /> : kpis.incidentsByType.filter((item) => !isRetiredIncidentType(item.type)).length === 0 ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>No data returned.</p> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{kpis.incidentsByType.filter((item) => !isRetiredIncidentType(item.type)).map((item) => <div key={item.type} className="flex items-center justify-between rounded-lg border px-3 py-2.5" style={{ borderColor: "#EEE4E0", background: "#FCFAF9" }}><span style={{ color: "#665956", fontSize: "0.76rem" }}>{formatEventType(item.type)}</span><strong style={{ color: "#A52A2A", fontSize: "0.85rem" }}>{item.count}</strong></div>)}</div>}
                 </div>
               </Card>
             </section>

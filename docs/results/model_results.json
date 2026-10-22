@@ -84,7 +84,7 @@
     },
     {
       "task": "Fight",
-      "model": "Pose-LSTM v1 (fallback)",
+      "model": "Pose-LSTM v1 (not deployed)",
       "role": "alternative",
       "protocol": "test split of pose windows",
       "test_size": 386,
@@ -98,7 +98,7 @@
       "fn": 11,
       "tn": 122,
       "source": "fight_lstm.metrics.json test",
-      "note": "different test set (pose windows); weights not in the repo",
+      "note": "different test set (pose windows); not deployed, code removed",
       "ci95": null,
       "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
     },
@@ -118,7 +118,7 @@
       "fn": 59,
       "tn": 132,
       "source": "fight_lstm_v2.metrics.json test",
-      "note": "different test set (pose windows); weights not in the repo",
+      "note": "different test set (pose windows); not deployed, code removed",
       "ci95": null,
       "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
     },

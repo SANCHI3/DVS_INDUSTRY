@@ -171,5 +171,5 @@ export function ClientApp({ onLogout }: { onLogout: () => void }) {
     }
   };
 
-  return <AppShell role="client" activeSection={section} onSectionChange={setSection} onLogout={onLogout} notificationCount={0}>{renderSection()}</AppShell>;
+  return <AppShell role="client" activeSection={section} onSectionChange={setSection} onLogout={onLogout}>{renderSection()}</AppShell>;
 }

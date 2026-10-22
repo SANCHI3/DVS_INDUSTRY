@@ -23,7 +23,9 @@
     "db:reset": "prisma migrate reset",
     "db:seed": "tsx prisma/seed.ts",
     "audit:incidents": "tsx scripts/audit-incidents.ts",
-    "prepare": "husky"
+    "eval:assistant": "tsx scripts/eval-assistant.ts",
+    "prepare": "husky",
+    "docs:api": "tsx scripts/api-reference.ts"
   },
   "keywords": [],
   "author": "",
@@ -88,5 +90,8 @@
     "prisma@6.19.3": true,
     "@prisma/client@6.19.3": true,
     "@prisma/engines@6.19.3": true
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.2"
   }
 }

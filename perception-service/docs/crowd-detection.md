@@ -25,7 +25,7 @@ Add crowd_enabled: true to an existing polygon, or define a zone with
 type: crowd. If no crowd zone exists, the full frame is evaluated.
 
 Important
-- person_count_threshold: 4 is a starter value, not a universal definition.
+- person_count_threshold: 15 (set for this site; was 4) is not a universal definition, not a universal definition.
 - Test against ordinary walking, queues, workers passing through, and actual
   gatherings before changing alert severity.
 - The patch does not alter fight or fire/smoke model files.

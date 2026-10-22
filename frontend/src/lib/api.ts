@@ -20,21 +20,28 @@ import axios, {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 export const API_BASE = '/api/v1';
-// The refresh token lives only in an httpOnly cookie set by the backend.
-const ACCESS_TOKEN_KEY  = 'dvs_access_token';
 
 // ── Token helpers (accessed by auth.ts too) ──────────────────────────────────
+// The access token is kept in memory only, so injected script cannot read it
+// from storage. The refresh token lives in an httpOnly cookie set by the
+// backend; after a reload the first request gets a 401 and is retried with a
+// freshly refreshed token.
+
+let accessToken: string | null = null;
+
+// Tokens stored by earlier versions of the app
+try { localStorage.removeItem('dvs_access_token'); } catch { /* storage blocked */ }
 
 export function getAccessToken(): string | null {
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
+  return accessToken;
 }
 
 export function setAccessToken(token: string): void {
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
+  accessToken = token;
 }
 
 export function clearAccessToken(): void {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  accessToken = null;
 }
 
 // ── Typed API error ───────────────────────────────────────────────────────────
@@ -112,8 +119,9 @@ async function postRefresh(): Promise<string> {
 /**
  * Refresh tokens rotate on every use and a reused one revokes all sessions,
  * so two tabs refreshing at the same moment would log the user out. The Web
- * Locks API serialises refreshes across tabs; a tab that waited simply picks
- * up the token the other tab already stored.
+ * Locks API serialises refreshes across tabs: a tab that waited refreshes
+ * with the cookie the other tab already rotated. Within one tab, requests
+ * that waited pick up the token this tab just stored.
  */
 function refreshAccessToken(staleToken: string | null): Promise<string> {
   refreshPromise ??= (async () => {
@@ -160,7 +168,12 @@ api.interceptors.response.use(
       let newToken: string;
       try {
         newToken = await refreshAccessToken(sentToken);
-      } catch {
+      } catch (refreshError) {
+        // Only a refused refresh ends the session. If the server is down or
+        // still starting, keep it and let the caller report the outage.
+        if (axios.isAxiosError(refreshError) && (!refreshError.response || refreshError.response.status >= 500)) {
+          return Promise.reject(normaliseError(refreshError));
+        }
         endSession();
         return Promise.reject(normaliseError(error));
       }
@@ -174,6 +187,45 @@ api.interceptors.response.use(
 );
 
 export default api;
+
+// ── Server wake-up ────────────────────────────────────────────────────────────
+
+/**
+ * True for failures that mean the API is not up yet rather than a real
+ * answer: no response at all, a gateway error while the host starts it, or
+ * any 5xx without the API's JSON error body (a proxy answered, not the API).
+ * Free hosting plans stop the API when idle and take up to a minute to
+ * start it again.
+ */
+export function isServerStarting(err: unknown): boolean {
+  if (!isApiError(err)) return false;
+  if ([0, 502, 503, 504].includes(err.status)) return true;
+  return err.status >= 500 && err.code === 'NETWORK_ERROR';
+}
+
+async function healthOk(): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/health`, { cache: 'no-store' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Starts the API early (e.g. while the visitor is still on the home page). */
+export function warmUpServer(): void {
+  void healthOk();
+}
+
+/** Resolves true once the API answers its health check, false after `maxMs`. */
+export async function waitForServer(maxMs = 90_000, intervalMs = 3_000): Promise<boolean> {
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    if (await healthOk()) return true;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return false;
+}
 
 // ── Typed response helpers ────────────────────────────────────────────────────
 

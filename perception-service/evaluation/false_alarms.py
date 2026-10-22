@@ -47,8 +47,8 @@ No normal-activity video given. Record one and re-run:
   * 10-15 minutes of ORDINARY activity from the demo camera (CAM-01), at the
     place and angle used in the demo: people walking past, sitting, standing
     and talking, working at a desk/bench, lights on as usual.
-  * No fights, falls, fire/smoke, crowds of 4+ people, or deliberate loitering
-    inside the restricted zone; otherwise those are not false alarms.
+  * No fights, falls, fire/smoke or crowds of 4+ people; otherwise those
+    are not false alarms.
   * Save as MP4 (e.g. with the Windows Camera app) and run:
         python -m evaluation.false_alarms --video <file>.mp4
 """

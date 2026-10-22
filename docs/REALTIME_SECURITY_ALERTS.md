@@ -13,7 +13,7 @@ second, and why each stage exists. Model accuracy is covered separately in
         ▼
  YOLOv8 detection ─► ByteTrack ─► temporal buffer (per-person history)
         │
-        ├─ rule engine ............ loitering, crowd            (geometry over time)
+        ├─ rule engine ............ crowd                      (geometry over time)
         ├─ R3D-18 video model ..... fight                      (gated by a motion check)
         ├─ YOLOv8 + verifier ...... fire / smoke               (learned look-alike filter)
         ├─ pose + BiGRU ........... fall  ──► "still down?" watch (serious fall)
@@ -44,7 +44,7 @@ second, and why each stage exists. Model accuracy is covered separately in
 | Candidate | detector | A model/rule fires on one evaluation window. |
 | PROBABLE | `confirmation/event_confirmation.py` | Persists over N of M windows (per event type). Saved locally with evidence; **not** sent to the ERP. |
 | CONFIRMED | same | Stricter persistence, or corroboration (e.g. fire **and** smoke, or one verified class sustained 3 s). Created in the ERP. |
-| Repeat | `confirmation/incident_dedup.py` | Same camera + event type (+ zone for loitering) within the window (fight 60 s, loitering 120 s, fall 45 s…) updates the open incident instead of creating a new one. |
+| Repeat | `confirmation/incident_dedup.py` | Same camera + event type within the window (fight 60 s, crowd 90 s, fall 45 s…) updates the open incident instead of creating a new one. |
 | Escalation | dedup + `reporting/incident_report.py` | Higher tier, higher severity, or confidence +0.05 or more → `PATCH /escalate`; recorded in the incident history. |
 | Serious fall | `temporal/fall_gru_recognition.py` | After a fall the person is watched; still down (torso not upright) after 20 s → severity CRITICAL on the **same** incident. Standing or sitting up for 2 s cancels. |
 

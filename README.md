@@ -2,7 +2,7 @@
 
 A full-stack ERP for a manufacturing plant (workforce, inventory, orders,
 production, reports, analytics) with an integrated CCTV AI. The AI detects
-fights, falls, fire/smoke, unusual activity, loitering, intrusion and crowding,
+fights, falls, fire/smoke, crowding and unusual activity,
 and turns each event into **one** incident with evidence. The incident appears
 live on every open dashboard.
 
@@ -13,7 +13,8 @@ live on every open dashboard.
 
 - **ERP:** employees, shifts and attendance; materials, stock and scrap;
   client and purchase orders; production work orders; reports; audit trail;
-  role-based access for 8 roles plus a service role.
+  role-based access for 8 roles plus a service role; a **My Profile** page
+  where every user edits their name and phone and changes their password.
 - **Smart Analytics:** demand forecasting (Holt / Croston–SBA), dynamic
   reorder points, ABC-XYZ, stock-anomaly detection, an OEE-style index with SPC
   charts, a supplier scorecard, and a Plant Health Index.
@@ -26,7 +27,7 @@ live on every open dashboard.
   | Fall | YOLOv8-Pose skeletons → temporal CNN + BiGRU |
   | Fire / smoke | Fine-tuned YOLOv8n + flicker/growth check + learned verifier |
   | Unusual activity | Optical flow → denoising autoencoder (unsupervised, per-camera calibration) |
-  | Loitering, intrusion, crowd | Geometric rules on ByteTrack tracks inside camera zones |
+  | Crowd | Geometric rule on ByteTrack tracks (whole frame) |
 
 - **One event = one incident:** N-of-M confirmation (PROBABLE → CONFIRMED),
   rule-based severity with hard caps, and de-duplication.
@@ -38,10 +39,51 @@ live on every open dashboard.
 - **AI summaries:** an optional LLM rewrites the alert in plain language. It
   is validated so that it cannot add facts, and a built-in description is
   used without a key.
-- **AI Models page:** results table, charts, pipeline diagram and speed,
-  served from the evaluation output.
 - **Demo mode:** one command runs the whole chain on recorded clips, without
   a camera.
+- **Ask DVS:** staff ask questions in plain language ("Which materials will
+  run out this week?") and get a short answer from live ERP data.
+
+## Ask DVS assistant
+
+The **Ask DVS** button in the top bar opens a chat panel for admin,
+manager, HR, production, store and sales staff. An LLM picks from twelve
+lookups (stock, stock-out forecast, purchase and client orders, supplier
+scorecard, work orders, production totals, attendance, incidents, plant
+health). It then answers in one to four plain sentences, with a "Based on:
+Inventory, Orders" line.
+
+Safety design:
+
+- **Read-only:** every lookup wraps an existing service and only reads.
+  Requests to create, approve or delete get "use the … page" instead.
+- **Role-based:** the LLM is offered only the lookups your role may use
+  (the same rules as the API routes), and each call is checked again
+  before it runs.
+- **Grounded:** every number in an answer must appear in the data looked
+  up for that question. If it does not, the assistant retries once and
+  otherwise says "I couldn't find a reliable answer to that."
+- **Private:** passwords, tokens, e-mail addresses and phone numbers are
+  removed before anything is sent to the LLM.
+- **Audited and limited:** each question is logged in the audit trail
+  (user, lookups used, grounded or not, time taken), and each user can ask
+  20 questions per 10 minutes.
+
+To turn it on, add an API key for any OpenAI-compatible service with tool
+calling to `backend/.env` (the default is Groq; a free key is available at
+console.groq.com) and restart the backend:
+
+```bash
+ASSISTANT_LLM_API_KEY=<your key>
+# optional overrides
+ASSISTANT_LLM_BASE_URL=https://api.groq.com/openai/v1
+ASSISTANT_LLM_MODEL=openai/gpt-oss-20b
+```
+
+Without a key, the panel says "Assistant not configured" and the rest of
+the system works as usual. `npm run eval:assistant` (in `backend/`) runs 40
+test questions against the database and compares the assistant with a
+no-tools baseline ([results](docs/RESULTS.md#6-ask-dvs-assistant)).
 
 ## Architecture
 
@@ -66,8 +108,8 @@ Detailed diagrams (perception pipeline, ER diagram, incident sequence):
 |---|---|
 | ![Security page with live AI detections](docs/screenshots/security.png) | ![Incident evidence with Grad-CAM](docs/screenshots/evidence.png) |
 | *AI Security: live detections* | *Incident evidence: snapshots, Grad-CAM, explanation* |
-| ![AI Models page](docs/screenshots/ai-models.png) | ![Dashboard](docs/screenshots/dashboard.png) |
-| *AI Models: results and pipeline* | *Operations dashboard* |
+| ![Dashboard](docs/screenshots/dashboard.png) | |
+| *Operations dashboard* | |
 
 ## Setup (Windows, macOS or Linux)
 
@@ -89,12 +131,26 @@ GPU is optional.
 7. Open **AI Security**. Incidents appear as the clips play. For a webcam,
    use `.\start-demo.ps1 -Camera`
 8. Optional: add `LLM_API_KEY` to `perception-service/.env` for AI-written
-   summaries, and draw your restricted zones with
-   `python perception-service/scripts/draw_zones.py --camera CAM-01`
+   summaries.
 
 Running the parts by hand, the environment variables and the deployment
 templates are covered in [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md) and
 [ops/README.md](ops/README.md).
+
+### Live deployment
+
+- Dashboard: https://dvs-industry.vercel.app (Vercel, `frontend/`, see
+  [frontend/vercel.json](frontend/vercel.json))
+- API: https://dvs-industry-api.onrender.com (Render free plan, `backend/`, see
+  [render.yaml](render.yaml)); the dashboard forwards `/api` to it
+- Database: Neon PostgreSQL
+
+Both rebuild on every push to `master`. The CCTV AI needs a GPU and a
+camera, so it runs on a local machine and reports to the API. The free API
+sleeps when idle and takes up to a minute to start: the site wakes it as soon
+as it opens, and a login made meanwhile shows "Starting the server…" and
+completes by itself. Uploaded profile photos are stored in the database,
+because the Render disk is wiped on every deploy.
 
 ## Results
 
@@ -113,17 +169,21 @@ and protocols: [docs/RESULTS.md](docs/RESULTS.md)):
   frame and sustains 9.2 of the 10 target frames/s. On CPU it reaches 6.1
   frames/s.
 - **False-positive fixes:** false alarms seen on a real camera were traced to
-  root causes and fixed, with 26 regression scenarios
+  root causes and fixed, with 18 regression scenarios
   ([details](perception-service/docs/FALSE_POSITIVE_FIXES.md)). False alarms
   per hour on long normal footage have not been measured yet; the script is
   ready (`python -m evaluation.false_alarms`).
-- **Tests:** backend 157, frontend 19, perception 117, all passing. CI runs on
-  every push.
+- **Tests:** backend 207, frontend 52 unit and 11 end-to-end (Playwright: real
+  browser, API and PostgreSQL), perception 117. CI runs them, plus lint,
+  type checks and `npm audit`, on every pull request and push to `master`.
+- **API reference:** [docs/API.md](docs/API.md), all 147 endpoints and the
+  roles allowed to call each, generated from the router.
 
 ## Documentation
 
 | Document | Contents |
 |---|---|
+| [docs/CODE_MAP.md](docs/CODE_MAP.md) | **Start here for the viva:** the ~25 files that matter and how one request, frame or question flows through them |
 | [docs/RESULTS.md](docs/RESULTS.md) | All metrics, charts, speed benchmark, false-alarm measurement |
 | [docs/report/](docs/report/) | Report chapters (abstract to conclusion, with Mermaid diagrams) |
 | [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md) | 5-minute live demo plan with a backup plan |

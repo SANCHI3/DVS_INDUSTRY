@@ -17,7 +17,7 @@ and ByteTrack, then passes the tracks and frames to task-specific models:
 - a YOLOv8-Pose skeleton sequence model (temporal CNN + BiGRU) for falls;
 - a fine-tuned YOLOv8n with a learned verifier for fire and smoke;
 - an unsupervised optical-flow autoencoder for unusual activity;
-- geometric rules for loitering, intrusion and crowding.
+- a geometric rule for crowding.
 
 An event-confirmation stage (N-of-M persistence with PROBABLE and CONFIRMED
 tiers), rule-based severity and de-duplication turn detections into one

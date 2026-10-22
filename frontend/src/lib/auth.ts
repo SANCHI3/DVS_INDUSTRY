@@ -2,7 +2,7 @@
  * Auth store — thin wrapper over the API client.
  *
  * Responsibilities:
- *  - POST /auth/login → store access token + user profile in localStorage
+ *  - POST /auth/login → keep the access token in memory, the user profile in localStorage
  *  - POST /auth/logout → clear tokens
  *  - POST /auth/refresh → get new access token (used by api.ts interceptor too)
  *  - getUser()  → typed user from localStorage (survives page reload)
@@ -142,6 +142,12 @@ export function getStoredFrontendRole(): FrontendRole | null {
 /** Complete a password reset using the token from the emailed link. */
 export async function resetPassword(token: string, newPassword: string): Promise<void> {
   await api.post('/auth/reset-password', { token, newPassword, confirmPassword: newPassword });
+}
+
+/** Backend role name of the signed-in user (e.g. "STORE"), or null. */
+export function getStoredBackendRole(): string | null {
+  const user = loadUser();
+  return user ? getBackendRoleName(user.role).toUpperCase() : null;
 }
 
 /** True when the signed-in user has the backend ADMIN role (not MANAGER/HR). */

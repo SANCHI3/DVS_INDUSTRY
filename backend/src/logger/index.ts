@@ -1,7 +1,15 @@
 import winston from 'winston';
 import { env } from '../config/env';
+import { currentRequestId } from '../lib/requestContext';
 
 const { combine, timestamp, errors, json, colorize, simple } = winston.format;
+
+/** Tags each line with the ID of the request being handled, if any. */
+const requestIdFormat = winston.format((info) => {
+  const requestId = currentRequestId();
+  if (requestId !== undefined) info['requestId'] = requestId;
+  return info;
+});
 
 /**
  * Singleton Winston logger.
@@ -11,7 +19,11 @@ const { combine, timestamp, errors, json, colorize, simple } = winston.format;
  */
 const logger = winston.createLogger({
   level: env.LOG_LEVEL,
-  format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), errors({ stack: true })),
+  format: combine(
+    requestIdFormat(),
+    timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+    errors({ stack: true }),
+  ),
   transports: [
     new winston.transports.Console({
       format:

@@ -1,5 +1,4 @@
-import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { useState } from "react";
 import { AppShell } from "../shared/AppShell";
 import { AdminDashboard } from "./AdminDashboard";
 import { ProductionPage } from "./ProductionPage";
@@ -11,71 +10,8 @@ import { SmartAnalyticsPage } from "./SmartAnalyticsPage";
 import { UserManagementPage } from "./UserManagementPage";
 import { ERPProvider } from "./ERPContext";
 import { PriorityIncidentAlert } from "../shared/PriorityIncidentAlert";
-import { AiModelsPage } from "./AiModelsPage";
-import { Btn, Card, CardHeader } from "../shared/UI";
-import api from "../../../lib/api";
-import { getModelResults } from "../../../lib/services/ai.service";
-
-type SystemStatus = {
-  health: { status: string; database?: string } | null;
-  metrics: { uptimeSeconds: number; nodeVersion: string } | null;
-  models: boolean | null;
-};
-
-/** Live system status only; values come from the running backend. */
-function SettingsPage() {
-  const [status, setStatus] = useState<SystemStatus>({ health: null, metrics: null, models: null });
-  const [loading, setLoading] = useState(true);
-
-  const load = () => {
-    setLoading(true);
-    Promise.allSettled([
-      api.get("/health"),
-      api.get("/metrics"),
-      getModelResults(),
-    ]).then(([health, metrics, models]) => {
-      setStatus({
-        health: health.status === "fulfilled" ? health.value.data : null,
-        metrics: metrics.status === "fulfilled" ? metrics.value.data : null,
-        models: models.status === "fulfilled" ? Boolean(models.value.models) : null,
-      });
-      setLoading(false);
-    });
-  };
-  useEffect(load, []);
-
-  const uptime = status.metrics ? `${Math.floor(status.metrics.uptimeSeconds / 3600)} h ${Math.floor((status.metrics.uptimeSeconds % 3600) / 60)} min` : "Couldn't load";
-  const rows: [string, string, boolean | null][] = [
-    ["API", status.health ? (status.health.status === "ok" ? "Running" : status.health.status) : "Not reachable", status.health ? status.health.status === "ok" : false],
-    ["Database", status.health?.database ? (status.health.database === "ok" ? "Connected" : status.health.database) : "Not reported", status.health?.database === "ok"],
-    ["Server uptime", uptime, null],
-    ["Node.js", status.metrics?.nodeVersion ?? "Couldn't load", null],
-    ["AI model results", status.models === null ? "Couldn't load" : status.models ? "Available (AI Models page)" : "Not generated", status.models],
-  ];
-
-  return (
-    <div className="p-6 max-w-3xl">
-      <div className="mb-6 flex items-start justify-between gap-3">
-        <div>
-          <h1 style={{ fontSize: "1.3rem", fontWeight: 700, color: "#1C1C1C" }}>Settings</h1>
-          <p style={{ fontSize: "0.8375rem", color: "#7A6C6A", marginTop: "0.2rem" }}>System status. Configuration lives in the .env files on the server.</p>
-        </div>
-        <Btn variant="secondary" size="sm" onClick={load}><RefreshCw size={14} /> Refresh</Btn>
-      </div>
-      <Card>
-        <CardHeader title="System Information" subtitle="Read live from the backend" />
-        <div className="p-5 flex flex-col gap-3">
-          {loading ? <p style={{ fontSize: "0.8125rem", color: "#7A6C6A" }}>Checking system status...</p> : rows.map(([k, v, good]) => (
-            <div key={k} className="flex items-center justify-between py-1.5" style={{ borderBottom: "1px solid #F5F0EF" }}>
-              <span style={{ fontSize: "0.8125rem", color: "#7A6C6A" }}>{k}</span>
-              <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: good === null ? "#1C1C1C" : good ? "#2E7D32" : "#C0392B" }}>{v}</span>
-            </div>
-          ))}
-        </div>
-      </Card>
-    </div>
-  );
-}
+import { MyProfilePage } from "../shared/MyProfilePage";
+import { getUser } from "../../../lib/auth";
 
 const productionSections = new Set(["production", "production-performance", "production-workforce", "production-attendance"]);
 const securitySections = new Set(["security", "security-live", "security-incidents", "security-reports"]);
@@ -86,10 +22,12 @@ type UserRole = "admin" | "production" | "store";
 
 interface AdminAppProps {
   onLogout: () => void | Promise<void>;
+  /** The backend ended the session (e.g. after a password change); show this on the login page. */
+  onSessionEnded: (message: string) => void | Promise<void>;
   userRole: UserRole;
 }
 
-export function AdminApp({ onLogout, userRole }: AdminAppProps) {
+export function AdminApp({ onLogout, onSessionEnded, userRole }: AdminAppProps) {
   const getInitialSection = () => {
     if (userRole === "production") return "production";
     if (userRole === "store") return "orders";
@@ -97,19 +35,22 @@ export function AdminApp({ onLogout, userRole }: AdminAppProps) {
   };
 
   const [section, setSection] = useState(getInitialSection());
+  const [userName, setUserName] = useState(() => getUser()?.fullName ?? "");
 
   const renderSection = () => {
+    if (section === "profile") {
+      return <MyProfilePage onNameChange={setUserName} onSessionEnded={onSessionEnded} />;
+    }
+
     if (userRole === "admin") {
       if (section === "dashboard") return <AdminDashboard onNavigate={setSection} />;
       if (productionSections.has(section)) return <ProductionPage />;
       if (securitySections.has(section)) return <SecurityPage />;
-      if (inventorySections.has(section)) return <InventoryPage onNavigate={setSection} />;
+      if (inventorySections.has(section)) return <InventoryPage />;
       if (orderSections.has(section)) return <OrdersPage onNavigate={setSection} />;
       if (section === "reports") return <ReportsPage />;
       if (section === "analytics") return <SmartAnalyticsPage />;
-      if (section === "ai-models") return <AiModelsPage />;
       if (section === "users") return <UserManagementPage />;
-      if (section === "settings") return <SettingsPage />;
       return <AdminDashboard onNavigate={setSection} />;
     }
 
@@ -121,7 +62,7 @@ export function AdminApp({ onLogout, userRole }: AdminAppProps) {
 
   return (
     <ERPProvider>
-      <AppShell role="admin" userRole={userRole} activeSection={section} onSectionChange={setSection} onLogout={onLogout} notificationCount={0}>
+      <AppShell role="admin" userRole={userRole} userName={userName} activeSection={section} onSectionChange={setSection} onOpenProfile={() => setSection("profile")} onLogout={onLogout}>
         {renderSection()}
       </AppShell>
       {/* Security roles get high-priority incidents on every page; the store

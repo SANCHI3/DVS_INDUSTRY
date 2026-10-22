@@ -15,24 +15,13 @@ temporal_buffer:
   window_seconds: 30              # rolling history kept per track
 
 rules:
-  loitering:
-    # Applies to zones of type restricted/loitering (or `loitering: true`).
-    # A zone can override the dwell with `loitering_seconds` in cameras.yaml.
-    dwell_seconds: 10             # time inside a zone before "loitering" candidate fires
-    exit_grace_seconds: 2.0       # brief detector flicker/occlusion shorter than this does not end a visit
-    min_inside_fraction: 0.8      # share of sightings during the visit that must be inside the zone
-    active_track_seconds: 1.0     # a track not seen for longer is ignored (person left / ID switched)
   crowd:
-    person_count_threshold: 4
+    person_count_threshold: 15         # people in one group before it counts as a crowd (site asks for 15-20)
     sustained_seconds: 5
   fall:
     aspect_ratio_flip_seconds: 1.5     # standing->fallen transition must happen within this
     stillness_seconds: 5                # time lying still before PROBABLE
     confirm_stillness_seconds: 8        # time lying still before CONFIRMED
-  intrusion:
-    active_track_seconds: 1.0
-    enabled: false                # restricted zones still feed loitering; true = also raise intrusion incidents
-    min_frames_inside: 3         # frames of continuous presence before confirming (filters flicker)
 
 confirmation:
   # number of positive evaluation windows out of the last N required per tier,
@@ -42,11 +31,6 @@ confirmation:
     probable_window: 5
     confirmed_hits: 4
     confirmed_window: 5
-  intrusion:
-    probable_hits: 1
-    probable_window: 3
-    confirmed_hits: 1
-    confirmed_window: 3
   fall:
     probable_hits: 1
     probable_window: 3
@@ -54,8 +38,7 @@ confirmation:
     confirmed_window: 3
   fight:
     # per design doc: fight needs sustained signal across several clip
-    # evaluations before CONFIRMED, unlike geometry-based events like
-    # intrusion which can confirm almost immediately
+    # evaluations before CONFIRMED
     # RGB detector performs 2-of-3 inference-window persistence internally.
     # Once emitted here, confirm immediately; pipeline cycles without an RGB
     # evaluation must not count as model misses.
@@ -86,9 +69,7 @@ severity:
   base:
     fall: MEDIUM
     accident: HIGH
-    intrusion: MEDIUM
     crowd: LOW
-    loitering: LOW
     ppe_violation: LOW
     theft_probable: LOW
     fight: MEDIUM
@@ -110,18 +91,11 @@ evidence:
 
 fight_detection:
   enabled: true
-  mode: rgb                  # primary RGB R3D-18 classifier; use "model" for pose-LSTM fallback
-  pose_model_path: "yolov8n-pose.pt"
-  model_checkpoint: "models/fight_lstm.pt"
-  use_checkpoint_threshold: false # use stricter alert threshold below
+  # R3D-18 video classifier (temporal/rgb_action_recognition.py)
   gate:
     proximity_px: 300               # permissive compute trigger; classifier and confirmation reject false alerts
     velocity_threshold_px_s: 30     # opens early, then camera-level sequence preserves continuity
-  window_frames: 32                 # runtime value is replaced by checkpoint max_frames in model mode
-  min_frames_for_eval: 12           # scene-level sequence now survives tracker ID switches
-  confidence_threshold: 0.60        # balanced runtime starting point
   gate_hold_seconds: 1.5            # continue evaluating briefly when gate flickers closed
-  pair_stale_after_s: 5.0           # pose-LSTM fallback setting
   rgb:
     # v2: clips sampled at 10 fps of real time (matches detection_fps).
     # Live 2-of-3 rule on 344 test videos: P 0.94, R 0.97, F1 0.96 (v1: F1 0.85).
@@ -209,6 +183,18 @@ fall_detection:
     required_hits: 2                # 2 of the last 3 evaluations above threshold
     cooldown_seconds: 30            # one incident per person per fall
     max_people_for_pose: 12
+    verification:                   # temporal/fall_gru_recognition.py fall_plausibility()
+      # A high model score is only raised as a fall when it is physically
+      # plausible at that moment. Rejected checks are retried at the next
+      # evaluation, so a fall still in progress passes once the person is down.
+      enabled: true
+      bottom_edge: 0.99             # box reaching the bottom edge with no torso found = cut off
+      max_truncated_share: 0.8      # ... for >= 80% of the 4-s window = never fully in view
+                                    # (close desk webcam): not judged. A real fall that ends at
+                                    # the bottom edge passes, because the person was visible before.
+                                    # The same share applies when no torso is found mid-frame
+                                    # (sitting behind a desk or table).
+      require_down: true            # torso tilted (or wide box without a skeleton) right now
     serious:                        # fallen person who does not get back up
       after_seconds: 20             # still down this long -> escalate the fall to CRITICAL
       recovered_after_seconds: 2    # upright (standing or sitting up) this long = got up
@@ -260,13 +246,12 @@ scene_anomaly:
 
 incident_dedup:
   # One ongoing event = one incident. While an event keeps being detected for
-  # the same camera (+ zone, for loitering/intrusion), repeats update the open
+  # the same camera, repeats update the open
   # incident instead of creating new ones. A new incident is raised only after
   # the event has been quiet for this many seconds.
   window_seconds: 60
   per_event_seconds:
     fight: 60
-    loitering: 120
     crowd: 90
     fall: 45                        # must exceed fall_detection.gru.serious.after_seconds
     anomaly: 60

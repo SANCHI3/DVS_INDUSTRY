@@ -1,0 +1,1558 @@
+{
+  "generatedAt": "2026-10-17T10:40:07.594Z",
+  "model": "openai/gpt-oss-20b",
+  "baseUrl": "https://api.groq.com/openai/v1",
+  "questions": {
+    "total": 40,
+    "data": 30,
+    "outOfScope": 5,
+    "writeRequests": 5
+  },
+  "database": {
+    "materials": 1,
+    "purchaseOrders": 3,
+    "clientOrders": 3,
+    "suppliers": 1,
+    "openIncidents": 136,
+    "workOrderOutputsThisWeek": 0,
+    "employeesInAttendance": 0
+  },
+  "summary": {
+    "tools": {
+      "toolSelectionAccuracy": 95,
+      "answerCorrectness": 86.7,
+      "groundedRate": 100,
+      "refusalCorrectness": 100,
+      "outOfScopeCorrect": 5,
+      "writeRequestCorrect": 5,
+      "medianLatencyMs": 1372,
+      "errors": 0,
+      "counts": {
+        "toolSelection": 38,
+        "correct": 26,
+        "grounded": 30,
+        "refusals": 10
+      }
+    },
+    "baseline": {
+      "toolSelectionAccuracy": null,
+      "answerCorrectness": 10,
+      "groundedRate": 96.7,
+      "refusalCorrectness": 100,
+      "outOfScopeCorrect": 5,
+      "writeRequestCorrect": 5,
+      "medianLatencyMs": 692,
+      "errors": 0,
+      "counts": {
+        "toolSelection": 0,
+        "correct": 3,
+        "grounded": 29,
+        "refusals": 10
+      }
+    }
+  },
+  "cases": [
+    {
+      "module": "Inventory",
+      "role": "STORE",
+      "question": "How much stell sheet do we have in stock?",
+      "expectedTools": [
+        "searchMaterials",
+        "getStockOutForecast"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 500
+        }
+      ],
+      "expectedFact": "500 kg",
+      "category": "data",
+      "id": 1,
+      "tools": {
+        "answer": "We have 500 kg of stell sheet in stock.",
+        "toolsUsed": [
+          "searchMaterials"
+        ],
+        "toolArgs": [
+          {
+            "query": "stell sheet"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1163,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 484,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Inventory",
+      "role": "STORE",
+      "question": "What is the reorder level for stell sheet?",
+      "expectedTools": [
+        "searchMaterials"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 200
+        }
+      ],
+      "expectedFact": "200 kg",
+      "category": "data",
+      "id": 2,
+      "tools": {
+        "answer": "Reorder level for stell sheet is 200.",
+        "toolsUsed": [
+          "searchMaterials"
+        ],
+        "toolArgs": [
+          {
+            "query": "stell sheet"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1002,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 923,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Inventory",
+      "role": "STORE",
+      "question": "Where is stell sheet kept?",
+      "expectedTools": [
+        "searchMaterials"
+      ],
+      "checks": [
+        {
+          "kind": "text",
+          "anyOf": [
+            "Wh-A row 1"
+          ]
+        }
+      ],
+      "expectedFact": "Wh-A row 1",
+      "category": "data",
+      "id": 3,
+      "tools": {
+        "answer": "I’m sorry, but I can’t help with that.",
+        "toolsUsed": [],
+        "toolArgs": [],
+        "grounded": true,
+        "latencyMs": 530,
+        "toolSelectionCorrect": false,
+        "correct": false
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 556,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Inventory",
+      "role": "STORE",
+      "question": "Which materials are low on stock?",
+      "expectedTools": [
+        "getLowStockMaterials",
+        "getStockOutForecast"
+      ],
+      "checks": [
+        {
+          "kind": "none"
+        }
+      ],
+      "expectedFact": "none",
+      "category": "data",
+      "id": 4,
+      "tools": {
+        "answer": "No materials are currently at or below their reorder level.",
+        "toolsUsed": [
+          "getLowStockMaterials"
+        ],
+        "toolArgs": [
+          {}
+        ],
+        "grounded": true,
+        "latencyMs": 1029,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I couldn't find any information on materials that are low on stock.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 811,
+        "toolSelectionCorrect": null,
+        "correct": true
+      }
+    },
+    {
+      "module": "Inventory",
+      "role": "STORE",
+      "question": "How many materials are below their reorder level?",
+      "expectedTools": [
+        "getLowStockMaterials"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 0
+        }
+      ],
+      "expectedFact": "0",
+      "category": "data",
+      "id": 5,
+      "tools": {
+        "answer": "There are 0 materials below their reorder level.",
+        "toolsUsed": [
+          "getLowStockMaterials"
+        ],
+        "toolArgs": [
+          {}
+        ],
+        "grounded": true,
+        "latencyMs": 826,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 533,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Smart Analytics",
+      "role": "STORE",
+      "question": "Which materials will run out this week?",
+      "expectedTools": [
+        "getStockOutForecast"
+      ],
+      "checks": [
+        {
+          "kind": "none"
+        }
+      ],
+      "expectedFact": "none",
+      "category": "data",
+      "id": 6,
+      "tools": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [
+          "getStockOutForecast"
+        ],
+        "toolArgs": [
+          {
+            "materialName": ""
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1023,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 313,
+        "toolSelectionCorrect": null,
+        "correct": true
+      }
+    },
+    {
+      "module": "Smart Analytics",
+      "role": "STORE",
+      "question": "When will stell sheet run out?",
+      "expectedTools": [
+        "getStockOutForecast"
+      ],
+      "checks": [
+        {
+          "kind": "text",
+          "anyOf": [
+            "not expected",
+            "no ",
+            "not predicted",
+            "not run out",
+            "won't",
+            "will not",
+            "no stock-out",
+            "not likely",
+            "enough",
+            "no date",
+            "couldn't find",
+            "could not find"
+          ]
+        }
+      ],
+      "expectedFact": "no stock-out predicted",
+      "category": "data",
+      "id": 7,
+      "tools": {
+        "answer": "I couldn’t find a predicted stock-out date for stell sheet.",
+        "toolsUsed": [
+          "searchMaterials",
+          "getStockOutForecast"
+        ],
+        "toolArgs": [
+          {
+            "query": "stell sheet"
+          },
+          {
+            "materialName": "stell sheet"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 2218,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 753,
+        "toolSelectionCorrect": null,
+        "correct": true
+      }
+    },
+    {
+      "module": "Smart Analytics",
+      "role": "STORE",
+      "question": "How many materials are critical right now?",
+      "expectedTools": [
+        "getStockOutForecast"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 0
+        }
+      ],
+      "expectedFact": "0",
+      "category": "data",
+      "id": 8,
+      "tools": {
+        "answer": "There are no critical materials at the moment.",
+        "toolsUsed": [
+          "getStockOutForecast"
+        ],
+        "toolArgs": [
+          {
+            "materialName": ""
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1388,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 488,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Smart Analytics",
+      "role": "STORE",
+      "question": "How much stell sheet should we order?",
+      "expectedTools": [
+        "getStockOutForecast"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 0
+        }
+      ],
+      "expectedFact": "0",
+      "category": "data",
+      "id": 9,
+      "tools": {
+        "answer": "Current stock of stell sheet is 500 kg. The reorder level is 200 kg.",
+        "toolsUsed": [
+          "searchMaterials"
+        ],
+        "toolArgs": [
+          {
+            "query": "stell sheet"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 2164,
+        "toolSelectionCorrect": false,
+        "correct": false
+      },
+      "baseline": {
+        "answer": "You should order 500 stell sheets.",
+        "toolsUsed": [],
+        "grounded": false,
+        "latencyMs": 1154,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Orders",
+      "role": "ADMIN",
+      "question": "Which purchase orders are late?",
+      "expectedTools": [
+        "getPurchaseOrders",
+        "getSupplierScorecard"
+      ],
+      "checks": [
+        {
+          "kind": "allText",
+          "values": [
+            "PO-TEST-002",
+            "PO-TEST-003"
+          ]
+        }
+      ],
+      "expectedFact": "PO-TEST-002, PO-TEST-003",
+      "category": "data",
+      "id": 10,
+      "tools": {
+        "answer": "The late purchase orders are:\n\n- PO-TEST-002 from Maharashtra Precision Metals (Test) – Aluminium Strip, 200 kg, in transit, ordered 2026-09-25, expected 2026-09-25, 22 days late.  \n- PO-TEST-003 from Maharashtra Precision Metals (Test) – Steel Sheet 2mm, 750 kg, pending, ordered 2026-09-25, expected 2026-10-02, 15 days late.",
+        "toolsUsed": [
+          "getPurchaseOrders"
+        ],
+        "toolArgs": [
+          {
+            "status": "OVERDUE"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 2391,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 1032,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Orders",
+      "role": "ADMIN",
+      "question": "How many purchase orders are still open?",
+      "expectedTools": [
+        "getPurchaseOrders"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 2
+        }
+      ],
+      "expectedFact": "2",
+      "category": "data",
+      "id": 11,
+      "tools": {
+        "answer": "There are 2 purchase orders still open.",
+        "toolsUsed": [
+          "getPurchaseOrders"
+        ],
+        "toolArgs": [
+          {
+            "status": "OPEN"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1905,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 966,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Orders",
+      "role": "ADMIN",
+      "question": "What is the status of PO-TEST-001?",
+      "expectedTools": [
+        "getPurchaseOrders"
+      ],
+      "checks": [
+        {
+          "kind": "text",
+          "anyOf": [
+            "delivered",
+            "deliver"
+          ]
+        }
+      ],
+      "expectedFact": "DELIVERED",
+      "category": "data",
+      "id": 12,
+      "tools": {
+        "answer": "PO-TEST-001 is delivered.",
+        "toolsUsed": [
+          "getPurchaseOrders"
+        ],
+        "toolArgs": [
+          {
+            "poNumber": "PO-TEST-001"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1348,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 658,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Orders",
+      "role": "ADMIN",
+      "question": "When is PO-TEST-002 expected to arrive?",
+      "expectedTools": [
+        "getPurchaseOrders"
+      ],
+      "checks": [
+        {
+          "kind": "date",
+          "value": "2026-09-25T00:00:00.000Z"
+        }
+      ],
+      "expectedFact": "2026-09-25",
+      "category": "data",
+      "id": 13,
+      "tools": {
+        "answer": "PO-TEST-002 was expected to arrive on 2026-09-25.",
+        "toolsUsed": [
+          "getPurchaseOrders"
+        ],
+        "toolArgs": [
+          {
+            "poNumber": "PO-TEST-002"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1753,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 296,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Orders",
+      "role": "ADMIN",
+      "question": "How many purchase orders do we have with Maharashtra Precision Metals (Test)?",
+      "expectedTools": [
+        "getPurchaseOrders",
+        "getSupplierScorecard"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 3
+        }
+      ],
+      "expectedFact": "3",
+      "category": "data",
+      "id": 14,
+      "tools": {
+        "answer": "We have 3 purchase orders with Maharashtra Precision Metals (Test).",
+        "toolsUsed": [
+          "getPurchaseOrders"
+        ],
+        "toolArgs": [
+          {
+            "supplierName": "Maharashtra Precision Metals (Test)"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1729,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 527,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Smart Analytics",
+      "role": "ADMIN",
+      "question": "Which suppliers are late?",
+      "expectedTools": [
+        "getSupplierScorecard",
+        "getPurchaseOrders"
+      ],
+      "checks": [
+        {
+          "kind": "allText",
+          "values": [
+            "Maharashtra Precision Metals (Test)"
+          ]
+        }
+      ],
+      "expectedFact": "Maharashtra Precision Metals (Test)",
+      "category": "data",
+      "id": 15,
+      "tools": {
+        "answer": "Maharashtra Precision Metals (Test) has two overdue purchase orders.",
+        "toolsUsed": [
+          "getPurchaseOrders"
+        ],
+        "toolArgs": [
+          {
+            "status": "OVERDUE"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 2420,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 690,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Smart Analytics",
+      "role": "ADMIN",
+      "question": "What is the on-time delivery rate of Maharashtra Precision Metals (Test)?",
+      "expectedTools": [
+        "getSupplierScorecard"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 100
+        }
+      ],
+      "expectedFact": "100%",
+      "category": "data",
+      "id": 16,
+      "tools": {
+        "answer": "The on-time delivery rate for Maharashtra Precision Metals (Test) is 100 %.",
+        "toolsUsed": [
+          "getSupplierScorecard"
+        ],
+        "toolArgs": [
+          {
+            "supplierName": "Maharashtra Precision Metals (Test)"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1355,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 485,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Smart Analytics",
+      "role": "ADMIN",
+      "question": "What grade does Maharashtra Precision Metals (Test) have?",
+      "expectedTools": [
+        "getSupplierScorecard"
+      ],
+      "checks": [
+        {
+          "kind": "text",
+          "anyOf": [
+            "not enough",
+            "no grade",
+            "not been graded",
+            "not graded",
+            "ungraded",
+            "not yet"
+          ]
+        }
+      ],
+      "expectedFact": "not enough deliveries to grade",
+      "category": "data",
+      "id": 17,
+      "tools": {
+        "answer": "Maharashtra Precision Metals (Test) has the grade **“not enough deliveries to grade.”**",
+        "toolsUsed": [
+          "getSupplierScorecard"
+        ],
+        "toolArgs": [
+          {
+            "supplierName": "Maharashtra Precision Metals (Test)"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1260,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "Maharashtra Precision Metals (Test) has grade A.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 722,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Smart Analytics",
+      "role": "ADMIN",
+      "question": "What is our overall on-time delivery percentage?",
+      "expectedTools": [
+        "getSupplierScorecard"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 100
+        }
+      ],
+      "expectedFact": "100%",
+      "category": "data",
+      "id": 18,
+      "tools": {
+        "answer": "Our overall on-time delivery percentage is 100 %.",
+        "toolsUsed": [
+          "getSupplierScorecard"
+        ],
+        "toolArgs": [
+          {
+            "supplierName": ""
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1501,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 635,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Orders",
+      "role": "SALES",
+      "question": "Which customer orders are late?",
+      "expectedTools": [
+        "getClientOrders"
+      ],
+      "checks": [
+        {
+          "kind": "allText",
+          "values": [
+            "ORD-TEST-001"
+          ]
+        }
+      ],
+      "expectedFact": "ORD-TEST-001",
+      "category": "data",
+      "id": 19,
+      "tools": {
+        "answer": "ORD-TEST-001 is late.  \nIt was due 2026-09-30 and is 17 days late.",
+        "toolsUsed": [
+          "getClientOrders"
+        ],
+        "toolArgs": [
+          {
+            "status": "OPEN"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1301,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 729,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Orders",
+      "role": "SALES",
+      "question": "How many client orders are in production?",
+      "expectedTools": [
+        "getClientOrders"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 1
+        }
+      ],
+      "expectedFact": "1",
+      "category": "data",
+      "id": 20,
+      "tools": {
+        "answer": "There is 1 client order in production.",
+        "toolsUsed": [
+          "getClientOrders"
+        ],
+        "toolArgs": [
+          {
+            "status": "IN_PRODUCTION"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 2004,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 1084,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Orders",
+      "role": "SALES",
+      "question": "What is the status of order ORD-TEST-001?",
+      "expectedTools": [
+        "getClientOrders"
+      ],
+      "checks": [
+        {
+          "kind": "text",
+          "anyOf": [
+            "in production",
+            "production"
+          ]
+        }
+      ],
+      "expectedFact": "IN_PRODUCTION",
+      "category": "data",
+      "id": 21,
+      "tools": {
+        "answer": "The order ORD-TEST-001 is in production and is late.",
+        "toolsUsed": [
+          "getClientOrders"
+        ],
+        "toolArgs": [
+          {
+            "orderNumber": "ORD-TEST-001"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1471,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I couldn’t find any information on that order.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 501,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Production",
+      "role": "PRODUCTION",
+      "question": "How many units did we produce today?",
+      "expectedTools": [
+        "getProductionKpis"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 0
+        }
+      ],
+      "expectedFact": "0",
+      "category": "data",
+      "id": 22,
+      "tools": {
+        "answer": "We produced 0 units today.",
+        "toolsUsed": [
+          "getProductionKpis"
+        ],
+        "toolArgs": [
+          {
+            "period": "today"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1918,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I couldn't find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 925,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Production",
+      "role": "PRODUCTION",
+      "question": "How many units did we produce this week?",
+      "expectedTools": [
+        "getProductionKpis"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 0
+        }
+      ],
+      "expectedFact": "0",
+      "category": "data",
+      "id": 23,
+      "tools": {
+        "answer": "We produced 0 units this week.",
+        "toolsUsed": [
+          "getProductionKpis"
+        ],
+        "toolArgs": [
+          {
+            "period": "week"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1884,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I couldn't find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 892,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Production",
+      "role": "PRODUCTION",
+      "question": "Which work orders are overdue?",
+      "expectedTools": [
+        "getWorkOrders",
+        "getProductionKpis"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 0
+        }
+      ],
+      "expectedFact": "0",
+      "category": "data",
+      "id": 24,
+      "tools": {
+        "answer": "I couldn’t find any overdue work orders.",
+        "toolsUsed": [
+          "getWorkOrders"
+        ],
+        "toolArgs": [
+          {
+            "status": "OPEN"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 2277,
+        "toolSelectionCorrect": true,
+        "correct": false
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 752,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Attendance",
+      "role": "HR",
+      "question": "How many people are absent today?",
+      "expectedTools": [
+        "getAttendanceSummary"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 0
+        }
+      ],
+      "expectedFact": "0",
+      "category": "data",
+      "id": 25,
+      "tools": {
+        "answer": "0 people are absent today.",
+        "toolsUsed": [
+          "getAttendanceSummary"
+        ],
+        "toolArgs": [
+          {
+            "date": "2026-10-17"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 2010,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I couldn't find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 1114,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Attendance",
+      "role": "HR",
+      "question": "How many workers came late today?",
+      "expectedTools": [
+        "getAttendanceSummary"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 0
+        }
+      ],
+      "expectedFact": "0",
+      "category": "data",
+      "id": 26,
+      "tools": {
+        "answer": "0 workers were late today.",
+        "toolsUsed": [
+          "getAttendanceSummary"
+        ],
+        "toolArgs": [
+          {
+            "date": "2026-10-17"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 3035,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I couldn't find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 1795,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "AI Security",
+      "role": "MANAGER",
+      "question": "Are there any open safety incidents?",
+      "expectedTools": [
+        "getOpenIncidents",
+        "getIncidentSummary"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 136
+        }
+      ],
+      "expectedFact": "136",
+      "category": "data",
+      "id": 27,
+      "tools": {
+        "answer": "Yes, there are 26 open incidents. All are high severity and located in the Test Room.",
+        "toolsUsed": [
+          "getOpenIncidents"
+        ],
+        "toolArgs": [
+          {
+            "type": "fire_smoke"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 2898,
+        "toolSelectionCorrect": true,
+        "correct": false
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 853,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "AI Security",
+      "role": "MANAGER",
+      "question": "How many falls are still open?",
+      "expectedTools": [
+        "getOpenIncidents"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 27
+        }
+      ],
+      "expectedFact": "27",
+      "category": "data",
+      "id": 28,
+      "tools": {
+        "answer": "There are 27 falls still open.",
+        "toolsUsed": [
+          "getOpenIncidents"
+        ],
+        "toolArgs": [
+          {
+            "type": "fall"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 1825,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 270,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "AI Security",
+      "role": "MANAGER",
+      "question": "How many safety incidents were there in the last 7 days?",
+      "expectedTools": [
+        "getIncidentSummary"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 175
+        }
+      ],
+      "expectedFact": "175",
+      "category": "data",
+      "id": 29,
+      "tools": {
+        "answer": "There were 175 safety incidents in the last 7 days.",
+        "toolsUsed": [
+          "getIncidentSummary"
+        ],
+        "toolArgs": [
+          {
+            "period": "week"
+          }
+        ],
+        "grounded": true,
+        "latencyMs": 2195,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I could not find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 693,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Smart Analytics",
+      "role": "MANAGER",
+      "question": "How is the plant doing overall?",
+      "expectedTools": [
+        "getPlantHealth"
+      ],
+      "checks": [
+        {
+          "kind": "number",
+          "value": 0
+        }
+      ],
+      "expectedFact": "score 0, grade D",
+      "category": "data",
+      "id": 30,
+      "tools": {
+        "answer": "The overall plant health score is 0, giving the plant a grade D.  \nIn the last 30 days there have been 177 safety incidents.",
+        "toolsUsed": [
+          "getPlantHealth"
+        ],
+        "toolArgs": [
+          {}
+        ],
+        "grounded": true,
+        "latencyMs": 3756,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I couldn't find that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 568,
+        "toolSelectionCorrect": null,
+        "correct": false
+      }
+    },
+    {
+      "module": "Out of scope",
+      "category": "out_of_scope",
+      "role": "ADMIN",
+      "question": "What is the capital of France?",
+      "expectedTools": [],
+      "checks": [],
+      "expectedFact": "polite refusal, no tools",
+      "id": 31,
+      "tools": {
+        "answer": "I’m sorry, but I can only provide information about the factory’s own data.",
+        "toolsUsed": [],
+        "toolArgs": [],
+        "grounded": true,
+        "latencyMs": 845,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I’m sorry, but I can’t help with that.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 177,
+        "toolSelectionCorrect": null,
+        "correct": true
+      }
+    },
+    {
+      "module": "Out of scope",
+      "category": "out_of_scope",
+      "role": "ADMIN",
+      "question": "Write me a short poem about steel.",
+      "expectedTools": [],
+      "checks": [],
+      "expectedFact": "polite refusal, no tools",
+      "id": 32,
+      "tools": {
+        "answer": "I’m sorry, but I can’t help with that.",
+        "toolsUsed": [],
+        "toolArgs": [],
+        "grounded": true,
+        "latencyMs": 719,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I’m sorry, but I can’t help with that.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 936,
+        "toolSelectionCorrect": null,
+        "correct": true
+      }
+    },
+    {
+      "module": "Out of scope",
+      "category": "out_of_scope",
+      "role": "ADMIN",
+      "question": "What is Tata Steel's share price today?",
+      "expectedTools": [],
+      "checks": [],
+      "expectedFact": "polite refusal, no tools",
+      "id": 33,
+      "tools": {
+        "answer": "I’m sorry, but I can’t help with that.",
+        "toolsUsed": [],
+        "toolArgs": [],
+        "grounded": true,
+        "latencyMs": 679,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I’m sorry, but I can’t provide that information.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 538,
+        "toolSelectionCorrect": null,
+        "correct": true
+      }
+    },
+    {
+      "module": "Out of scope",
+      "category": "out_of_scope",
+      "role": "ADMIN",
+      "question": "Tell me a joke.",
+      "expectedTools": [],
+      "checks": [],
+      "expectedFact": "polite refusal, no tools",
+      "id": 34,
+      "tools": {
+        "answer": "I’m sorry, but I can only provide information about the factory’s own data.",
+        "toolsUsed": [],
+        "toolArgs": [],
+        "grounded": true,
+        "latencyMs": 656,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I’m sorry, but I can’t help with that.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 644,
+        "toolSelectionCorrect": null,
+        "correct": true
+      }
+    },
+    {
+      "module": "Out of scope",
+      "category": "out_of_scope",
+      "role": "ADMIN",
+      "question": "Who won the cricket match yesterday?",
+      "expectedTools": [],
+      "checks": [],
+      "expectedFact": "polite refusal, no tools",
+      "id": 35,
+      "tools": {
+        "answer": "I’m sorry, but I can’t help with that.",
+        "toolsUsed": [],
+        "toolArgs": [],
+        "grounded": true,
+        "latencyMs": 555,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I’m sorry, but I can’t help with that.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 644,
+        "toolSelectionCorrect": null,
+        "correct": true
+      }
+    },
+    {
+      "module": "Write request",
+      "category": "write",
+      "role": "ADMIN",
+      "question": "Please approve purchase order PO-TEST-002.",
+      "expectedTools": [],
+      "checks": [],
+      "expectedFact": "cannot change data; names the page to use",
+      "id": 36,
+      "tools": {
+        "answer": "I can only look things up, I can't make changes. Please use the Orders & Supply page to do that.",
+        "toolsUsed": [],
+        "toolArgs": [],
+        "grounded": true,
+        "latencyMs": 0,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I can’t approve it for you. Please go to the **Orders & Supply** page to approve the purchase order.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 779,
+        "toolSelectionCorrect": null,
+        "correct": true
+      }
+    },
+    {
+      "module": "Write request",
+      "category": "write",
+      "role": "ADMIN",
+      "question": "Delete the material stell sheet.",
+      "expectedTools": [],
+      "checks": [],
+      "expectedFact": "cannot change data; names the page to use",
+      "id": 37,
+      "tools": {
+        "answer": "I can only look things up, I can't make changes. Please use the Inventory page to do that.",
+        "toolsUsed": [],
+        "toolArgs": [],
+        "grounded": true,
+        "latencyMs": 0,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I can’t delete it. Use the Inventory page to manage materials.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 401,
+        "toolSelectionCorrect": null,
+        "correct": true
+      }
+    },
+    {
+      "module": "Write request",
+      "category": "write",
+      "role": "ADMIN",
+      "question": "Create a work order for 500 brackets.",
+      "expectedTools": [],
+      "checks": [],
+      "expectedFact": "cannot change data; names the page to use",
+      "id": 38,
+      "tools": {
+        "answer": "I can only look things up, I can't make changes. Please use the Production page to do that.",
+        "toolsUsed": [],
+        "toolArgs": [],
+        "grounded": true,
+        "latencyMs": 0,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I can’t create it directly. Please use the **Production** page to create a new work order.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 611,
+        "toolSelectionCorrect": null,
+        "correct": true
+      }
+    },
+    {
+      "module": "Write request",
+      "category": "write",
+      "role": "ADMIN",
+      "question": "Mark Ravi as present today.",
+      "expectedTools": [],
+      "checks": [],
+      "expectedFact": "cannot change data; names the page to use",
+      "id": 39,
+      "tools": {
+        "answer": "I can only look things up, I can't make changes. Please use the Production (Attendance tab) page to do that.",
+        "toolsUsed": [],
+        "toolArgs": [],
+        "grounded": true,
+        "latencyMs": 0,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I’m sorry, but I can’t mark attendance. Please use the **User Management** page to update Mark Ravi’s status.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 730,
+        "toolSelectionCorrect": null,
+        "correct": true
+      }
+    },
+    {
+      "module": "Write request",
+      "category": "write",
+      "role": "ADMIN",
+      "question": "Can you close all open fire incidents?",
+      "expectedTools": [],
+      "checks": [],
+      "expectedFact": "cannot change data; names the page to use",
+      "id": 40,
+      "tools": {
+        "answer": "I can only look things up, I can't make changes. Please use the AI Security page to do that.",
+        "toolsUsed": [],
+        "toolArgs": [],
+        "grounded": true,
+        "latencyMs": 0,
+        "toolSelectionCorrect": true,
+        "correct": true
+      },
+      "baseline": {
+        "answer": "I can’t close incidents. Use the Production page to manage them.",
+        "toolsUsed": [],
+        "grounded": true,
+        "latencyMs": 1045,
+        "toolSelectionCorrect": null,
+        "correct": true
+      }
+    }
+  ]
+}

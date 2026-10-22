@@ -93,12 +93,12 @@ def collect() -> list[dict]:
     rows.append(row("Fight", "R3D-18 v2, 3-clip mean", "final", "test split, mean of 3 clips per video",
                     "fight_r3d18_v2.metrics.json test", v2["test"], v2["test"].get("auc")))
     lstm, lstm2 = load("fight_lstm.metrics.json"), load("fight_lstm_v2.metrics.json")
-    rows.append(row("Fight", "Pose-LSTM v1 (fallback)", "alternative", "test split of pose windows",
+    rows.append(row("Fight", "Pose-LSTM v1 (not deployed)", "alternative", "test split of pose windows",
                     "fight_lstm.metrics.json test", lstm["test"],
-                    note="different test set (pose windows); weights not in the repo"))
+                    note="different test set (pose windows); not deployed, code removed"))
     rows.append(row("Fight", "Pose-LSTM v2", "alternative", "test split of pose windows",
                     "fight_lstm_v2.metrics.json test", lstm2["test"],
-                    note="different test set (pose windows); weights not in the repo"))
+                    note="different test set (pose windows); not deployed, code removed"))
 
     # ── Fall ───────────────────────────────────────────────────────────────
     gru, rf = load("fall_gru_v1.metrics.json"), load("fall_rf_v1.metrics.json")

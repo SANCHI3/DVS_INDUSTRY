@@ -23,7 +23,7 @@ Browser
   -> PostgreSQL database on port 5433
 ```
 
-There is no Supabase, Firebase, cloud database, or third-party authentication service in the current implementation.
+Locally the database is your own PostgreSQL; the live deployment uses Neon (managed PostgreSQL), with the API on Render and the frontend on Vercel. There is no Supabase, Firebase, or third-party authentication service.
 
 ## 2. Current Local URLs
 
@@ -53,7 +53,7 @@ backend/
   prisma/schema.prisma       Database model definitions
   prisma/migrations/         Versioned database migrations
   prisma/seed.ts             Initial roles and administrator seed
-  uploads/profiles/          Uploaded profile images
+  uploads/profiles/          Profile images uploaded before they moved into the database
   ecosystem.config.cjs       PM2 production process configuration
   scripts/provision-security.ts  Creates app DB role and rotates admin password
 
@@ -82,12 +82,18 @@ ops/
 5. The backend creates a refresh-token record in `RefreshToken`.
 6. The backend returns an access JWT and user profile.
 7. The refresh token is placed in a secure HttpOnly cookie.
-8. The frontend stores the access token in browser `localStorage` under `dvs_access_token`.
+8. The frontend keeps the access token in memory only (never in browser storage). After a page reload the first API call gets a 401 and the client silently refreshes it using the cookie.
 9. The frontend stores the safe user profile under `dvs_user`.
 10. The user's backend role is mapped to a frontend dashboard role.
 11. Axios attaches the access token to API calls and silently refreshes it after a 401 when possible.
 
 The backend role is an object such as `{ name: "ADMIN" }`. The frontend auth adapter extracts the role name before selecting the dashboard.
+
+### My Profile
+
+Every admin, production and store user can open **My Profile** from the sidebar menu (admin) or by clicking their name at the bottom of the sidebar (all three roles). It shows name, email, role, phone and last login from `GET /api/v1/auth/me`, saves name and phone with `PATCH /api/v1/auth/me`, and changes the password with `PATCH /api/v1/auth/change-password`. A password change revokes every refresh session, so the user is sent back to the login page with "Password changed. Please log in again."
+
+This page replaced the earlier technical Settings page (API, database, uptime, Node.js version). The `/api/v1/health` and `/api/v1/metrics` endpoints are still served for deployment checks and the start scripts; the frontend no longer calls them.
 
 ### Roles
 
@@ -119,7 +125,7 @@ Passwords are stored only as bcrypt hashes. Plain passwords are never returned b
 
 Access JWTs are not stored in PostgreSQL. They are short-lived browser tokens. Refresh tokens are stored in PostgreSQL and also sent to the browser as an HttpOnly cookie.
 
-Uploaded profile images are stored on disk under `backend/uploads/profiles/`. They are served by Express at `/uploads/...`. They are not stored inside PostgreSQL.
+Uploaded profile images are stored in PostgreSQL (the `StoredFile` table), because hosts such as Render wipe the server's disk on every deploy. They are served at `/uploads/profiles/<file>` as before; images uploaded earlier to `backend/uploads/profiles/` are still served from disk. The upload checks the file's actual bytes, so only real JPEG, PNG and WebP images are accepted (5 MB max).
 
 Password-reset tokens are currently kept in backend memory. They expire after 15 minutes but are lost if the backend restarts. A database table or Redis should be added before using password reset in production.
 
@@ -239,16 +245,22 @@ npm run lint
 npm run format:check
 npm test
 npm run db:migrate:deploy
+npm run docs:api          # regenerate docs/API.md after changing routes
 
 cd ..\frontend
+npm run typecheck
+npm run lint
+npm test
 npm run build
+# End-to-end (needs the backend database migrated and seeded):
+$env:E2E_ADMIN_PASSWORD = "<SEED_ADMIN_PASSWORD>"; npm run test:e2e
 ```
 
 A healthy local installation should have:
 
 - Backend build passing
 - Backend lint passing
-- All backend tests passing (157 at the time of writing)
+- All backend tests passing (207 at the time of writing)
 - Frontend production build passing
 - No pending Prisma migrations
 - `GET /api/v1/health` returning `{ "status": "ok", "database": "ok" }`
@@ -279,7 +291,7 @@ The local project is not the same thing as a production deployment. DNS, certifi
 ### Working
 
 - Backend API modules and Prisma repositories
-- PostgreSQL schema and 9 migrations
+- PostgreSQL schema and 15 migrations
 - Database seed roles and administrator
 - JWT login, refresh, logout, and RBAC middleware
 - Real persistence for requested business models
@@ -294,6 +306,7 @@ The local project is not the same thing as a production deployment. DNS, certifi
 
 ### Done since the first handoff
 
+- The technical Settings page was replaced by **My Profile** (see section 4)
 - Password-reset tokens are stored in PostgreSQL (`PasswordResetToken`); reset
   emails are sent over SMTP when `SMTP_HOST` is set (logged in development)
 - Real-time security alerts: SSE stream, live Security page, priority popup on
@@ -301,19 +314,25 @@ The local project is not the same thing as a production deployment. DNS, certifi
 - One-command fresh-clone setup (`scripts/setup.mjs`) and demo logins for every role
 - Frontend unit tests (Vitest) for the alert rules and stream parser
 - Frontend dependency audit: 0 vulnerabilities
+- End-to-end tests (Playwright, `frontend/e2e/`) for sign-in, session restore,
+  role routing and every admin section, run in CI against PostgreSQL
+- Profile photos stored in the database; the login waits for a sleeping API
+- Request IDs (`X-Request-Id`) on every response and log line
+- Generated API reference: `docs/API.md`
 - Demo mode and one-command start (`start-demo.ps1` / `start-demo.sh`), evaluation
-  scripts and `docs/RESULTS.md`, AI Models page, incident evidence view;
+  scripts and `docs/RESULTS.md`, incident evidence view;
   placeholder "Unavailable" cards replaced with live data or removed
 
 ### Important remaining work
 
 - Configure a real SMTP provider (`SMTP_*` in `backend/.env`) for production reset emails
-- End-to-end browser tests for the main forms and the alert flow
+- End-to-end tests for the create/edit forms and the live alert flow (sign-in,
+  navigation and role routing are covered)
 - Use a real production domain, TLS, backup destination, monitoring service, and centralized logs
-- Backend dependency audit: 11 *high* advisories remain, all inside Prisma CLI
-  tooling and pm2. npm's only offered fixes are major-version **downgrades**
-  (prisma 6.12, pm2 5.3), so they were reviewed and not applied; re-check when
-  Prisma 7 / a new pm2 release is adopted. The unused `ts-node-dev` was removed.
+- Backend dependency audit: production dependencies have 0 advisories
+  (`deepmerge-ts` is pinned to 8.x through `overrides`). 8 *high* advisories
+  remain in development-only tooling, where npm's fixes are breaking upgrades;
+  Dependabot now proposes updates weekly.
 - Add backup restore drills and disaster-recovery documentation
 
 ## 14. How to Understand a New Feature

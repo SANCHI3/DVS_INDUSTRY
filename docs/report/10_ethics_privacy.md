@@ -39,15 +39,15 @@ built-in description is used.
 Safety monitoring and worker surveillance use the same camera. The system is
 designed for the first:
 
-- it raises **safety events** (fall, fight, fire/smoke, crowding, a person
-  in a restricted area, unusual activity), not productivity measures. It does
+- it raises **safety events** (fall, fight, fire/smoke, crowding, unusual
+  activity), not productivity measures. It does
   not measure time at a workstation, breaks or speed of work;
 - the unusual-activity detector is capped at MEDIUM severity and described to
   staff as "something unusual, please look", because it cannot name what it
   saw (`severity.hard_cap.anomaly`);
 - every alert goes to a person, who decides what to do (9.5).
 
-The same data could be misused, for example by using loitering alerts to
+The same data could be misused, for example by using camera alerts to
 discipline workers who take breaks, or by keeping clips to build a case
 against an individual. The technical design cannot prevent this on its own.
 A deploying company should therefore adopt a written policy stating the
@@ -165,10 +165,8 @@ and shift, and reviewed false-alarm rates per incident type.
 
 1. Written purpose policy (safety and security only), shared with workers.
 2. Notices at camera locations; DPDP notice to employees and visitors.
-3. Redraw zones around the real restricted areas (placeholder zones flag
-   ordinary work).
-4. Implement a false-alarm review label and the retention job (9.4).
-5. Encrypt the evidence folder; keep evidence access role-limited and logged.
-6. Breach-response and grievance contacts.
-7. Measure false alarms and misses on the plant's own footage, including per
+3. Implement a false-alarm review label and the retention job (9.4).
+4. Encrypt the evidence folder; keep evidence access role-limited and logged.
+5. Breach-response and grievance contacts.
+6. Measure false alarms and misses on the plant's own footage, including per
    shift and camera, before relying on the alerts.

@@ -27,9 +27,8 @@ The perception tests run without a camera or GPU. They cover:
 - demo playlist and fail-soft model loading;
 - the results collector, bootstrap intervals, McNemar test and ablation summaries.
 
-`test_false_positives.py` alone runs 26 scenarios: normal activity that must
-*not* alert (a person who left the zone, boundary flicker, people talking
-close together, one person with two track IDs, a static orange object,
+`test_false_positives.py` alone runs 18 scenarios: normal activity that must
+*not* alert (people talking close together, one person with two track IDs, a static orange object,
 auto-exposure change, a high fight-model score without interaction) and
 genuine events that must still alert.
 
@@ -131,14 +130,14 @@ pipeline (details in `perception-service/docs/FALSE_POSITIVE_FIXES.md`):
 
 | Incident type | Root cause (before) | Fix (after) |
 |---|---|---|
-| Lingering / intrusion | Ghost tracks kept for 15 s after a person left; dwell measured from a never-cleared first sighting; confidence = `0.5 + dwell/40` (a made-up number that rose with time); placeholder zone covering 31 % of the view | Only tracks seen in the last 1 s; dwell from observations inside the zone with 2 s exit grace; ≥ 80 % inside; confidence = detector confidence × inside fraction; start-up warning for oversized zones |
+| Lingering | Ghost tracks kept for 15 s after a person left; a made-up confidence formula; placeholder zone covering 31 % of the view | Lingering and restricted-area detection removed (no floor plan or zone data available) |
 | Fight | Motion gate paired a person's old and new track IDs; speed from 2 samples (jitter opened the gate); incident from the clip score alone | Interaction check (two distinct people, close ≥ 1 s, agitated); speed over 0.5 s; duplicates by IoU ≥ 0.7 |
 | Fire / smoke | Static look-alikes persisted frame after frame; verifier kept old approvals forever | Static-region check (in-box change ≥ 2× the scene); verifier reset when persistence ends; confidence = mean, not peak |
 | Unusual activity | Threshold from training footage of another site: normal movement here was always above it | 5-minute per-camera calibration (99th percentile) without alerting; score `ratio/(ratio+1)`, labelled as a score, not a probability |
 
 All records now carry `validation_version: 2` and a `confidence_basis`.
 
-**What is measured and what is not.** The 26 regression scenarios pass, and
+**What is measured and what is not.** The 18 regression scenarios pass, and
 the demo clips raise their incidents. The fixes were also compared stage by
 stage on 472 held-out and public clips (section 6.8). A rate of false alarms
 per hour on the **deployment camera's** own normal footage has still **not**

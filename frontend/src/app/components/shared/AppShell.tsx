@@ -1,11 +1,13 @@
 import type { LucideIcon } from "lucide-react";
-import { useState, ReactNode } from "react";
+import type { ReactNode } from "react";
+import { useState } from "react";
 import { useERP } from "../admin/ERPContext";
+import { AskDvs } from "./AskDvs";
+import { getStoredBackendRole } from "../../../lib/auth";
 import {
-  LayoutDashboard, Factory, Users, Shield, Package, ShoppingCart, BarChart3,
-  Settings, LogOut, Menu, X, Bell, Search, ChevronDown, ChevronRight,
-  Cpu, Building2, Truck, UserCheck, FileText, MessageSquare, Star,
-  ShoppingBag, MapPin, Headphones, Sparkles, BrainCircuit,
+  LayoutDashboard, Factory, Shield, Package, ShoppingCart, BarChart3, UserCircle, LogOut,
+  Menu, X, Bell, Search, Cpu, Building2, Truck, UserCheck, FileText, MessageSquare, Star,
+  ShoppingBag, MapPin, Headphones, Sparkles,
 } from "lucide-react";
 
 export type UserRole = "admin" | "supplier" | "client";
@@ -27,9 +29,8 @@ const adminNavFlat: NavItem[] = [
   { id: "orders", label: "Orders & Supply", icon: ShoppingCart },
   { id: "reports", label: "Reports Center", icon: BarChart3 },
   { id: "analytics", label: "Smart Analytics", icon: Sparkles },
-  { id: "ai-models", label: "AI Models", icon: BrainCircuit },
   { id: "users", label: "User Management", icon: UserCheck },
-  { id: "settings", label: "Settings", icon: Settings },
+  { id: "profile", label: "My Profile", icon: UserCircle },
 ];
 
 // Production role navigation (only production module)
@@ -82,17 +83,25 @@ const roleColors: Record<UserRole, string> = {
   client: "#1565C0",
 };
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+}
+
 interface AppShellProps {
   role: UserRole;
   userRole?: SystemUserRole;
+  /** Signed-in user's name for the sidebar card (admin, production and store). */
+  userName?: string;
   activeSection: string;
   onSectionChange: (section: string) => void;
+  /** When set, the sidebar user card opens the user's profile. */
+  onOpenProfile?: () => void;
   onLogout: () => void;
   children: ReactNode;
-  notificationCount?: number;
 }
 
-export function AppShell({ role, userRole, activeSection, onSectionChange, onLogout, children, notificationCount = 3 }: AppShellProps) {
+export function AppShell({ role, userRole, userName, activeSection, onSectionChange, onOpenProfile, onLogout, children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -176,24 +185,38 @@ export function AppShell({ role, userRole, activeSection, onSectionChange, onLog
 
       {/* User + Logout */}
       <div className="px-3 py-4" style={{ borderTop: "1px solid #E8E2E0" }}>
-        {sidebarOpen && (
-          <div className="flex items-center gap-3 px-3 py-2 mb-2 rounded-md" style={{ background: "#F5F0EF" }}>
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: accentColor }}
-            >
-              <span style={{ fontSize: "0.75rem", color: "#fff", fontWeight: 600 }}>
-                {role === "admin" ? "AD" : role === "supplier" ? "SP" : "CL"}
-              </span>
-            </div>
-            <div>
-              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "#1C1C1C" }}>
-                {role === "admin" ? "Vikram Sharma" : role === "supplier" ? "Steel Corp Ltd" : "Reliance Eng."}
+        {sidebarOpen && (() => {
+          const cardName = role === "admin" ? (userName || "My account") : role === "supplier" ? "Steel Corp Ltd" : "Reliance Eng.";
+          const badge = role === "admin" ? (initials(userName ?? "") || "AD") : role === "supplier" ? "SP" : "CL";
+          const content = (
+            <>
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: accentColor }}
+              >
+                <span style={{ fontSize: "0.75rem", color: "#fff", fontWeight: 600 }}>{badge}</span>
               </div>
-              <div style={{ fontSize: "0.7rem", color: "#7A6C6A" }}>{roleLabels[role]}</div>
-            </div>
-          </div>
-        )}
+              <div className="min-w-0 text-left">
+                <div className="truncate" style={{ fontSize: "0.8rem", fontWeight: 600, color: "#1C1C1C" }}>{cardName}</div>
+                <div style={{ fontSize: "0.7rem", color: "#7A6C6A" }}>{onOpenProfile ? "View my profile" : displayRoleLabel}</div>
+              </div>
+            </>
+          );
+          return onOpenProfile ? (
+            <button
+              onClick={() => { onOpenProfile(); setMobileSidebarOpen(false); }}
+              title="Open My Profile"
+              className="w-full flex items-center gap-3 px-3 py-2 mb-2 rounded-md transition-all duration-150"
+              style={{ background: activeSection === "profile" ? "#EFE4E1" : "#F5F0EF", border: "none", cursor: "pointer" }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#EFE4E1"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = activeSection === "profile" ? "#EFE4E1" : "#F5F0EF"; }}
+            >
+              {content}
+            </button>
+          ) : (
+            <div className="flex items-center gap-3 px-3 py-2 mb-2 rounded-md" style={{ background: "#F5F0EF" }}>{content}</div>
+          );
+        })()}
         <button
           onClick={onLogout}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-150"
@@ -290,6 +313,9 @@ export function AppShell({ role, userRole, activeSection, onSectionChange, onLog
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
+            {/* Ask DVS assistant: staff apps only (admin, production, store) */}
+            {role === "admin" && <AskDvs backendRole={getStoredBackendRole() ?? "STORE"} />}
+
             {/* Notifications */}
             <div className="relative">
               <button

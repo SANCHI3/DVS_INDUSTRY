@@ -1,0 +1,43 @@
+# Render Blueprint for the backend API (https://render.com/docs/blueprint-spec).
+# The frontend is on Vercel (frontend/vercel.json) and forwards /api and
+# /uploads here, so the browser only ever talks to one origin.
+# The database is Neon PostgreSQL: paste its URLs when Render asks for them.
+services:
+  - type: web
+    name: dvs-industry-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && node dist/server.js
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: HUSKY
+        value: "0"
+      # Neon: pooled URL for the app, direct URL for migrations.
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: REFRESH_TOKEN_SECRET
+        generateValue: true
+      # Vercel proxy + Render's load balancer.
+      - key: TRUST_PROXY
+        value: "2"
+      # The Vercel site URL, e.g. https://dvs-industry.vercel.app
+      - key: CORS_ORIGINS
+        sync: false
+      - key: APP_URL
+        sync: false
+      # At least 16 characters; required in production.
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: ASSISTANT_LLM_API_KEY
+        sync: false

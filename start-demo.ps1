@@ -40,11 +40,20 @@ function Read-EnvValue($file, $name) {
 }
 
 function Test-Port($hostName, $port) {
-    $client = New-Object System.Net.Sockets.TcpClient
-    try {
-        $task = $client.ConnectAsync($hostName, [int]$port)
-        return ($task.Wait(1500) -and $client.Connected)
-    } catch { return $false } finally { $client.Close() }
+    # "localhost" can be IPv4 or IPv6 (Vite listens on ::1 only on some
+    # machines), and a default TcpClient is IPv4-only, so try both.
+    $targets = if ($hostName -eq "localhost") { @("127.0.0.1", "::1") } else { @($hostName) }
+    foreach ($target in $targets) {
+        $ip = $null
+        $client = if ([System.Net.IPAddress]::TryParse($target, [ref]$ip)) {
+            New-Object System.Net.Sockets.TcpClient($ip.AddressFamily)
+        } else { New-Object System.Net.Sockets.TcpClient }
+        try {
+            $task = $client.ConnectAsync($target, [int]$port)
+            if ($task.Wait(1500) -and $client.Connected) { return $true }
+        } catch { } finally { $client.Close() }
+    }
+    return $false
 }
 
 function Get-Health($url) {

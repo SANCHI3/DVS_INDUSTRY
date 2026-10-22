@@ -5,7 +5,7 @@ Wires together: StreamReader -> YoloDetector -> ByteTracker -> TemporalBuffer
 -> RuleEngine + learned detectors -> EventConfirmation -> SeverityRules -> IncidentReporter.
 
 Learned detectors (each optional, configured in thresholds.yaml):
-  fight        R3D-18 video classifier (or pose-LSTM)      temporal/rgb_action_recognition.py
+  fight        R3D-18 video classifier                     temporal/rgb_action_recognition.py
   fire_smoke   YOLOv8 + colour/flicker verifier             temporal/fire_smoke_recognition.py
   fall         YOLOv8-Pose + GRU (or Random Forest)         temporal/fall_gru_recognition.py, pose_fall_recognition.py
   anomaly      optical-flow autoencoder (unsupervised)      temporal/scene_anomaly.py
@@ -52,12 +52,10 @@ from ingestion.demo_playlist import DemoPlaylistReader, find_demo_videos
 from ingestion.stream_reader import StreamReader
 from reporting.incident_report import IncidentReporter
 from severity.severity_rules import compute_severity
-from temporal.action_recognition import FightDetector
 from temporal.fire_smoke_recognition import FireSmokeDetector
 from temporal.rgb_action_recognition import RgbFightDetector
 from temporal.rule_engine import RuleEngine
 from temporal.temporal_buffer import TemporalBuffer
-from temporal.zones import zone_warnings
 from tracking.byte_tracker import ByteTracker
 
 TIER_COLOR = {
@@ -276,21 +274,14 @@ def run(
         )
 
     tracker, buffer, rule_engine = new_scene_state()
-    for warning in zone_warnings(cam_cfg.get("zones", []), perception_cfg["process_width"],
-                                 perception_cfg["process_height"]):
-        print(f"[{camera_id}] WARNING {warning}")
     run_fight = fight_cfg.get("enabled", True) and (
         only_events is None or "fight" in only_events
     )
     fight_detector = None
     if run_fight:
-        if fight_cfg.get("mode") == "rgb":
-            fight_detector = start_optional(
-                camera_id, "fight", lambda: RgbFightDetector(camera_id, fight_cfg),
-                checkpoint=fight_cfg["rgb"]["checkpoint"])
-        else:
-            fight_detector = start_optional(
-                camera_id, "fight", lambda: FightDetector(camera_id, fight_cfg))
+        fight_detector = start_optional(
+            camera_id, "fight", lambda: RgbFightDetector(camera_id, fight_cfg),
+            checkpoint=fight_cfg["rgb"]["checkpoint"])
     fire_smoke_cfg = thresholds_cfg.get("fire_smoke_detection", {})
     run_fire_smoke = fire_smoke_cfg.get("enabled", False) and (
         only_events is None or "fire_smoke" in only_events
@@ -460,9 +451,9 @@ def run(
                 candidates = rule_engine.evaluate(buffer)
             if only_events is not None:
                 candidates = [c for c in candidates if c.event_type in only_events]
-            # fight detection is the expensive, gated path -- only actually runs
-            # pose estimation when the motion-of-interest gate finds a pair worth
-            # checking (see temporal/motion_gate.py and action_recognition.py)
+            # fight detection is the expensive, gated path -- the video model only
+            # runs when the motion-of-interest gate finds a pair worth checking
+            # (see temporal/motion_gate.py and rgb_action_recognition.py)
             if fight_detector is not None:
                 with timer.stage("fight"):
                     candidates += fight_detector.evaluate(buffer, frame)
@@ -646,7 +637,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--only-events",
         nargs="+",
-        choices=["intrusion", "loitering", "crowd", "fall", "fight", "fire_smoke", "anomaly"],
+        choices=["crowd", "fall", "fight", "fire_smoke", "anomaly"],
         default=None,
         help="run/report only selected event modules (useful for isolated testing)",
     )
