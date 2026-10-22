@@ -285,11 +285,11 @@ def _fire_cfg():
     return cfg
 
 
-def _run_fire(frames, script, fps=FPS):
+def _run_fire(frames, script, fps=FPS, person_boxes=None):
     det = FireSmokeDetector("CAM-T", _fire_cfg(), model=_FakeYolo(script))
     out = []
     for i, frame in enumerate(frames):
-        out += det.evaluate(frame, now=T0 + i / fps)
+        out += det.evaluate(frame, now=T0 + i / fps, person_boxes=person_boxes)
     return det, out
 
 
@@ -378,6 +378,38 @@ def test_slowly_growing_smoke_is_detected():
     _, out = _run_fire(frames, lambda i: [(1, 0.65, boxes[i])] if boxes[i] else [])
     assert out, "growing smoke must be reported"
     assert out[0].detail["detected_classes"] == ["smoke"]
+
+
+def _growing_smoke():
+    rng = np.random.default_rng(4)
+    frames, boxes = [], []
+    for i in range(200):
+        frame = _room(rng)
+        if i >= 100:
+            r = 10 + (i - 100) // 2
+            cv2.circle(frame, (160, 90), r, (170, 170, 170), -1)
+            boxes.append((160 - r, 90 - r, 160 + r, 90 + r))
+        else:
+            boxes.append(None)
+        frames.append(frame)
+    return frames, boxes
+
+
+def test_smoke_detected_on_a_person_close_to_the_camera_is_ignored():
+    """Dark hair / clothes blurred close to a webcam look like smoke to the
+    model; such a box lies inside the person's box."""
+    frames, boxes = _growing_smoke()
+    person = (80, 0, 260, 240)   # head and shoulders filling the middle of the frame
+    det, out = _run_fire(frames, lambda i: [(1, 0.65, boxes[i])] if boxes[i] else [], person_boxes=[person])
+    assert out == []
+    assert det.diagnostics()["smoke_boxes_on_person"] > 0
+
+
+def test_smoke_next_to_a_person_is_still_detected():
+    frames, boxes = _growing_smoke()
+    person = (240, 60, 300, 230)  # someone standing beside the smoke
+    _, out = _run_fire(frames, lambda i: [(1, 0.65, boxes[i])] if boxes[i] else [], person_boxes=[person])
+    assert out and out[0].detail["detected_classes"] == ["smoke"]
 
 
 def test_learned_verifier_forgets_old_approvals():

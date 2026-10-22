@@ -138,6 +138,10 @@ fire_smoke_detection:
   evaluation_stride_frames: 2
   fire_threshold: 0.50
   smoke_threshold: 0.50
+  smoke_person_overlap: 0.6         # a smoke box >= 60% inside a person box is the person
+                                    # (dark hair / clothes / motion blur close to a webcam),
+                                    # not smoke: ignored. On the 13 FIRESENSE smoke clips
+                                    # 0-1% of real smoke boxes are that far inside a person.
   persistence_window: 5
   required_hits: 3
   # Fire + smoke together -> CONFIRMED at once. A single verified class

@@ -459,7 +459,8 @@ def run(
                     candidates += fight_detector.evaluate(buffer, frame)
             if fire_smoke_detector is not None:
                 with timer.stage("fire_smoke"):
-                    candidates += fire_smoke_detector.evaluate(frame)
+                    people_now = [t.states[-1].bbox for t in buffer.active_tracks_by_class("person", 0.5)]
+                    candidates += fire_smoke_detector.evaluate(frame, person_boxes=people_now)
             if fall_detector is not None:
                 # the learned pose model supersedes the bbox aspect-ratio fall rule
                 candidates = [c for c in candidates if c.event_type != "fall"]
