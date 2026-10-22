@@ -24,7 +24,7 @@ How the data is used
   the held-out blocks so overlapping windows never leak. Every second of
   footage is tested exactly once, by a model that never saw it.
 - Model size (hidden units, bottleneck, input noise) is chosen on the average
-  validation loss over the folds (smallest model within 2 % of the best), so
+  validation loss over the folds (smallest model within 5 % of the best), so
   the model is neither too small to learn normal activity (underfitting) nor
   big enough to copy it (overfitting); training stops early when validation
   loss stops improving.

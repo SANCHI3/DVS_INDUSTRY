@@ -344,11 +344,15 @@ chosen on the validation blocks only. The live per-camera calibration is
 simulated (camera threshold = p99 of that camera's other blocks). v2 is
 scored on exactly the same windows with the same calibration.
 
-**Fit (no over- or underfitting).** Chosen size 24-6 (hidden-bottleneck),
-input noise 0.1. Median window error is the same on training and held-out
-blocks (0.00045 vs 0.00046); smaller models have higher held-out
-error (16-6: 0.00059, 8-4: 0.00104), so the model is not too small. Mean error is higher on held-out blocks
-because a few windows of busy scenes are rare spikes.
+**Fit (not underfitting; some overfitting on rare activity).** Chosen size 24-6
+(hidden-bottleneck), input noise 0.1. Typical windows fit equally well on
+training and held-out blocks (median error 0.00045 vs 0.00046), and smaller
+models have higher held-out error (16-6: 0.00059, 8-4: 0.00104), so the model
+is not too small. The mean error, which the busy, less common windows
+dominate, is 0.025 on training blocks but 0.165 on held-out blocks (6.6×):
+the model reconstructs the activity it saw better than similar activity it
+did not see. With 6 minutes of footage that is expected; it is also where
+the false alerts below come from.
 
 | On 6.25 min of held-out normal footage | v3 (factory) | v2 (public videos) |
 |---|---|---|
