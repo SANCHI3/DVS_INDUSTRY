@@ -41,7 +41,10 @@
    cross-validation was used instead of a single test split.
 9. **Unusual-activity detector.** It is silent for the first 5 minutes on each
    camera while calibrating, and an incident during calibration raises the
-   threshold. Recall is moderate (0.67).
+   threshold. Recall is moderate (0.67). A version trained on 6 minutes of the
+   factory's own footage (v3) raised more false alerts than v2 in
+   cross-validation, so it needs 20–60 minutes of footage per camera before
+   it can replace v2 (results chapter, section 7 of RESULTS.md).
 10. **Single-process event bus.** The SSE stream uses an in-process bus, so
    running several backend workers (PM2 cluster) needs a shared bus such as
    Redis or PostgreSQL LISTEN/NOTIFY.

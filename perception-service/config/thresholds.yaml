@@ -223,6 +223,10 @@ scene_anomaly:
   # NORMAL footage from each camera:  python -m anomaly.train_autoencoder --normal <folder>
   enabled: true
   checkpoint: "models/scene_anomaly_ae_v2.npz"   # v2: event-grouped split, F1 0.79 / AUC 0.84
+  # v3 (models/scene_anomaly_ae_v3_factory.npz) was trained on 6 min of this
+  # factory's own footage (python -m anomaly.train_factory). On held-out factory
+  # footage it raised more false alerts than v2, so v2 stays live until there
+  # are 20-60 min of normal footage per camera (docs/RESULTS.md, section 7).
   evaluation_stride_frames: 2       # windows between evaluations (after resampling to model FPS)
   threshold_scale: 1.0              # >1 = fewer alerts, <1 = more sensitive
   persistence_window: 3

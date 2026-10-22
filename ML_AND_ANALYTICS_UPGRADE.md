@@ -112,6 +112,12 @@ v2 removes that leakage and is evaluated on twice as many abnormal videos.
 camera's own normal footage. The supervised models remain the primary detectors; this one is a
 safety net for events nobody labelled.
 
+**Factory footage (v3).** `anomaly/train_factory.py` trains the same model on the
+company's own camera recordings with blocked 5-fold cross-validation in time.
+With 6 minutes of usable footage it did not beat v2 on held-out factory footage
+(more false alerts, same synthetic detections), so v2 stays live; see
+`docs/RESULTS.md` section 7.
+
 ```bash
 cd perception-service
 python -m anomaly.train_autoencoder --normal data/fall_videos/not_fall --abnormal data/fall_videos/fall \

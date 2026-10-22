@@ -98,7 +98,7 @@ Settings for all of this are in `perception-service/config/thresholds.yaml`
 | Folder | What it is |
 |---|---|
 | `*/__tests__/`, `perception-service/test_*.py`, `frontend/e2e/` | Automated tests (say: "300+ tests run on every push") |
-| `rgb_fight_model/`, `fall_gru/`, `fall_rf/`, `fire_verifier/train.py`, `anomaly/train_autoencoder.py` | **Training** scripts: used once to create the model files in `models/` |
+| `rgb_fight_model/`, `fall_gru/`, `fall_rf/`, `fire_verifier/train.py`, `anomaly/train_autoencoder.py`, `anomaly/train_factory.py` | **Training** scripts: used once to create the model files in `models/` |
 | `perception-service/evaluation/` | Scripts that produced the numbers in `docs/RESULTS.md` |
 | `temporal/pose_fall_recognition.py`, `temporal/fire_verifier.py` | Backup detectors, used only if a model file is missing |
 | `backend/scripts/`, `scripts/`, `ops/`, `start-demo.*` | Setup, demo, backup and deployment helpers |
