@@ -229,8 +229,10 @@ def compact(record: dict, set_name: str) -> dict:
         detail = r.get("detail") or {}
         incidents.append({
             "event_type": r["event_type"], "tier": r["confidence_tier"], "dashboard": alert,
-            # a fight sent for operator review (interaction check in review mode) and never confirmed
-            "review": not alert and r["confidence_tier"] == "PROBABLE" and detail.get("interaction_passed") is False,
+            # a fight sent for operator review (interaction check failed or score below the
+            # alarm threshold) and never confirmed
+            "review": (not alert and r["event_type"] == "fight" and r["confidence_tier"] == "PROBABLE"
+                       and (detail.get("review") is True or detail.get("interaction_passed") is False)),
             "validation_version": detail.get("validation_version")})
     path = Path(record["clip"])
     return {"set": set_name, "clip": rel(path), "minutes": round(clip_minutes(path), 4),

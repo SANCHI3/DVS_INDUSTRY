@@ -55,16 +55,29 @@ def _crowd(location: str, d: dict) -> str:
     return f"A crowd of {people} has gathered in {location}."
 
 
+def is_review_fight(detail: dict) -> bool:
+    """A fight reported for operator review instead of as an alarm: the
+    interaction check failed, or the model was not sure enough for an alarm.
+    (Records before the alarm threshold only carry interaction_passed.)"""
+    return detail.get("review") is True or detail.get("interaction_passed") is False
+
+
+def _fight(loc: str, d: dict) -> str:
+    if d.get("review_kind") == "low_score":
+        return (f"Possible fight in {loc}, please check the camera: the fight model and the "
+                "camera tracks both point to a fight, but the model is not sure enough to raise "
+                "an alarm.")
+    if is_review_fight(d):
+        return (f"Possible fight in {loc}, please check the camera: the fight model fired, but the "
+                "camera does not clearly show two people close together and moving roughly.")
+    return f"Two or more people in {loc} seem to be fighting or pushing each other."
+
+
 WHAT_HAPPENED: Dict[str, Callable[[str, dict], str]] = {
     "fall": _fall,
     "fire_smoke": _fire_smoke,
     "crowd": _crowd,
-    "fight": lambda loc, d: (
-        f"Possible fight in {loc}, please check the camera: the fight model fired, but the "
-        "camera does not clearly show two people close together and moving roughly."
-        if d.get("interaction_passed") is False
-        else f"Two or more people in {loc} seem to be fighting or pushing each other."
-    ),
+    "fight": _fight,
     "anomaly": lambda loc, d: (f"The camera in {loc} picked up sudden, unusual movement that does "
                                "not look like normal activity, for example someone running, falling "
                                "or something being thrown. The system cannot tell exactly what it is."),

@@ -16,6 +16,7 @@ from typing import Dict, Optional
 from reporting.dashboard_client import DashboardClient, DashboardClientError
 from reporting.description_generator import (
     generate_description,
+    is_review_fight,
     recommended_action,
 )
 from schemas.incident_schema import IncidentRecord
@@ -34,12 +35,13 @@ REVIEW_FIGHT_TITLE = "Possible fight — please check"
 
 
 def is_dashboard_review(report: dict) -> bool:
-    """A PROBABLE fight whose interaction check failed: shown on the dashboard
-    for an operator to check, unlike other PROBABLE events."""
+    """A PROBABLE fight sent for operator review (interaction check failed, or
+    model score below the alarm threshold): shown on the dashboard for an
+    operator to check, unlike other PROBABLE events."""
     return (
         str(report.get("event_type")).lower() == "fight"
         and str(report.get("confidence_tier")).upper() == "PROBABLE"
-        and (report.get("detail") or {}).get("interaction_passed") is False
+        and is_review_fight(report.get("detail") or {})
     )
 
 # How the confidence score was obtained, for events whose detector does not

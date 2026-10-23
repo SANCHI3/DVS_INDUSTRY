@@ -122,7 +122,7 @@ def test_agitation_scale():
     assert max(values[:3]) < limit < values[3], values
 
 
-def _rgb_detector(score, mode=None):
+def _rgb_detector(score, mode=None, alarm=None):
     """RgbFightDetector with a fake clip classifier that always returns `score`."""
     fake = types.ModuleType("rgb_fight_model.infer")
 
@@ -144,6 +144,8 @@ def _rgb_detector(score, mode=None):
     cfg["rgb"].update({"evaluation_stride_frames": 1, "explain": False})
     if mode is not None:
         cfg["interaction"]["mode"] = mode
+    if alarm is not None:
+        cfg["rgb"]["alarm_threshold"] = alarm
     return RgbFightDetector("CAM-T", cfg)
 
 
@@ -197,6 +199,29 @@ def test_high_model_score_with_interaction_is_confirmed():
     assert abs(out[0].raw_confidence - 0.9) < 1e-9 and out[0].detail["interaction"]["agitated"]
     assert out[0].detail["interaction_passed"] is True
     assert "requested_tier" not in out[0].detail
+    assert _tiers(out)[0] == "CONFIRMED"
+
+
+def test_agitated_pair_below_the_alarm_threshold_goes_to_review():
+    """Two-level rule: the 2-of-3 rule fired and the tracks show a fight, but
+    the scores are below the alarm threshold: reported for review, no pop-up."""
+    from reporting.description_generator import generate_description, is_review_fight
+    from reporting.incident_report import is_dashboard_review
+    detector = _rgb_detector(0.65, alarm=0.75)
+    out = _feed_rgb(detector, _fighting_pair)
+    assert out and out[0].detail["interaction_passed"] is True
+    assert out[0].detail["review"] is True and out[0].detail["review_kind"] == "low_score"
+    assert out[0].detail["requested_tier"] == "PROBABLE"
+    assert _tiers(out)[0] == "PROBABLE"
+    assert is_review_fight(out[0].detail)
+    assert is_dashboard_review({"event_type": "fight", "confidence_tier": "PROBABLE", "detail": out[0].detail})
+    assert "not sure enough to raise an alarm" in generate_description("fight", "Hall", out[0].detail)
+    assert detector.diagnostics()["review_low_score"] > 0
+
+
+def test_agitated_pair_at_the_alarm_threshold_is_confirmed():
+    out = _feed_rgb(_rgb_detector(0.8, alarm=0.75), _fighting_pair)
+    assert out and "review" not in out[0].detail
     assert _tiers(out)[0] == "CONFIRMED"
 
 

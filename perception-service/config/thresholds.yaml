@@ -108,6 +108,12 @@ fight_detection:
     confirmed_threshold: 0.55       # alert threshold chosen on validation
     persistence_window: 3
     required_confirmed: 2
+    alarm_threshold: 0.75           # pop-up alarm needs 2 of 3 clips >= 0.75 (and the interaction
+                                    # check); between 0.55 and 0.75 the fight is still reported,
+                                    # for operator review. Chosen on the validation split (live
+                                    # replay, 344 videos); on the 344 test videos false fight
+                                    # alarms on normal videos 11 -> 6, fights reaching an operator
+                                    # unchanged (0.73), fight pop-up recall 0.49 -> 0.48.
   interaction:
     # Track evidence that two people are physically interacting (temporal/interaction.py).
     # The R3D model scores whole clips and can fire on normal activity; a fight

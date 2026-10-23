@@ -43,8 +43,8 @@ def compute_severity(event_type: str, confirmed_event, severity_cfg: dict) -> st
     elif event_type == "fight":
         # sustained signal (long duration above threshold) or a high score
         # bumps severity; still deterministic/explainable, no learned scoring here.
-        # A fight sent for review (interaction check failed, PROBABLE) stays at
-        # the base level until it is confirmed.
+        # A fight sent for review (interaction check failed or score below the
+        # alarm threshold, PROBABLE) stays at the base level until it is confirmed.
         if confirmed_event.tier == "CONFIRMED" and (duration >= 5.0 or detail.get("score", 0) >= 0.85):
             level = _bump(level, 1)
     elif event_type == "anomaly":

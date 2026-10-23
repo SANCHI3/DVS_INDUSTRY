@@ -50,6 +50,7 @@ from detection.yolo_detector import YoloDetector
 from evidence.clip_extractor import EvidenceBuffer
 from ingestion.demo_playlist import DemoPlaylistReader, find_demo_videos
 from ingestion.stream_reader import StreamReader
+from reporting.description_generator import is_review_fight
 from reporting.incident_report import IncidentReporter
 from severity.severity_rules import compute_severity
 from temporal.fire_smoke_recognition import FireSmokeDetector
@@ -476,10 +477,11 @@ def run(
                 severity = compute_severity(event.event_type, event, thresholds_cfg["severity"])
                 # A probable crowd is an operator-facing signal, not a separate
                 # persisted incident; persist only once confirmed. A fight is
-                # PROBABLE only when the interaction check (review mode) did not
-                # see an interaction: that one is reported for operator review.
+                # PROBABLE when the interaction check (review mode) did not see
+                # an interaction or the score is below the alarm threshold: it
+                # is reported for operator review.
                 review_fight = (event.event_type == "fight"
-                                and event.candidate.detail.get("interaction_passed") is False)
+                                and is_review_fight(event.candidate.detail))
                 if event.event_type in ("fight", "crowd") and event.tier == "PROBABLE" and not review_fight:
                     print(
                         f"[{camera_id}] PROBABLE {event.event_type} candidate "

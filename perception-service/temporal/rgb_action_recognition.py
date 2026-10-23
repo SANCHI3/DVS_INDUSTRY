@@ -40,7 +40,12 @@ class RgbFightDetector:
         self.confirmed_threshold = float(rgb_cfg.get("confirmed_threshold", 0.92))
         self.persistence_window = int(rgb_cfg.get("persistence_window", 3))
         self.required_confirmed = int(rgb_cfg.get("required_confirmed", 2))
+        # Pop-up alarm needs the same N-of-M rule at this higher score; below
+        # it the fight is still reported, for operator review. Default: same
+        # as confirmed_threshold (every candidate can be an alarm).
+        self.alarm_threshold = float(rgb_cfg.get("alarm_threshold", self.confirmed_threshold))
         self.confirmed_history = deque(maxlen=self.persistence_window)
+        self.alarm_history = deque(maxlen=self.persistence_window)
         self.score_history = deque(maxlen=self.persistence_window)
         # Track-level evidence (temporal/interaction.py): two distinct people,
         # close, agitated. mode decides what a failed check does:
@@ -85,7 +90,7 @@ class RgbFightDetector:
         self._stats = {"cycles": 0, "gate_open": 0, "scored": 0,
                        "review_signals": 0, "high_score_windows": 0,
                        "confirmed_candidates": 0, "max_score": 0.0,
-                       "rejected_no_interaction": 0, "review_no_interaction": 0}
+                       "rejected_no_interaction": 0, "review_no_interaction": 0, "review_low_score": 0}
         print(
             f"[{camera_id}] RGB fight model loaded: {rgb_cfg['checkpoint']} "
             f"probable={self.probable_threshold:.2f} confirmed={self.confirmed_threshold:.2f}"
@@ -118,6 +123,7 @@ class RgbFightDetector:
         self._stats["max_score"] = max(self._stats["max_score"], score)
         high_score = score >= self.confirmed_threshold
         self.confirmed_history.append(high_score)
+        self.alarm_history.append(score >= self.alarm_threshold)
         self.score_history.append(score)
         if score < self.probable_threshold:
             return []
@@ -150,8 +156,10 @@ class RgbFightDetector:
                 print(f"[{self.camera_id}] fight rejected despite model score {score:.2f}: "
                       f"{evidence.get('reason')} {evidence}")
             return []
-        review = not interacting
-        self._stats["review_no_interaction" if review else "confirmed_candidates"] += 1
+        strong = score >= self.alarm_threshold and sum(self.alarm_history) >= self.required_confirmed
+        review_kind = None if interacting and strong else ("no_interaction" if not interacting else "low_score")
+        review = review_kind is not None
+        self._stats[f"review_{review_kind}" if review else "confirmed_candidates"] += 1
         # Confidence = mean model score of the high-scoring clips in the
         # persistence window (not the single latest clip).
         high_scores = [s for s, h in zip(self.score_history, self.confirmed_history) if h]
@@ -169,12 +177,19 @@ class RgbFightDetector:
         if self.interaction_mode != "off":
             detail["interaction_passed"] = interacting
         if review:
-            # The model's 2-of-3 rule fired but the tracks show no interaction:
-            # an operator should look before anyone is sent (PROBABLE tier).
+            # The model's 2-of-3 rule fired, but the tracks show no interaction
+            # or the scores did not reach the alarm threshold: an operator
+            # should look before anyone is sent (PROBABLE tier, no pop-up).
             detail["requested_tier"] = "PROBABLE"
+            detail["review"] = True
+            detail["review_kind"] = review_kind
             detail["review_reason"] = (
                 "the fight model fired, but the camera tracks do not show two people "
                 f"close together with agitated motion ({evidence.get('reason')})"
+                if review_kind == "no_interaction" else
+                f"the fight model fired, but its scores did not reach the alarm threshold "
+                f"{self.alarm_threshold:.2f} in {self.required_confirmed} of the last "
+                f"{self.persistence_window} clips"
             )
         return [EventCandidate(
             event_type="fight",
@@ -239,4 +254,5 @@ class RgbFightDetector:
                     persistence_hits=sum(self.confirmed_history),
                     persistence_window=self.persistence_window,
                     probable_threshold=self.probable_threshold,
-                    confirmed_threshold=self.confirmed_threshold)
+                    confirmed_threshold=self.confirmed_threshold,
+                    alarm_threshold=self.alarm_threshold)
