@@ -11,8 +11,9 @@
 2. **False-alarm rate not measured on site.** The per-hour rate on the
    deployment camera is still unknown. The ablation (chapter 6.8) used 472
    held-out and public clips from many other cameras as a proxy. On those
-   clips the deployed system still raised 71 false alarms per hour on normal
-   activity, and 16 per hour on fire look-alike scenes.
+   clips the deployed system still raised 38 false alarms per hour on normal
+   activity (plus 23 "please check" review items), and 16 per hour on fire
+   look-alike scenes.
 3. **The fight interaction check is weak evidence, so it no longer vetoes.**
    As a veto it cut fight recall from 0.73 to 0.48 (42 of 172 fights lost)
    to remove 26 false alarms per hour on normal clips. Closeness of a pair
@@ -20,9 +21,10 @@
    separates them only weakly (AUC 0.55, chapter 6.7); tracking cannot see
    the interaction when grappling people merge into one box or lose their
    tracks. It is now a review signal: a fight that fails it is shown as
-   "Possible fight — please check" without a pop-up, so 0.75 of fights reach
-   an operator, at the cost of about 11 review items per hour of normal
-   clips. Only 0.48 of fights raise a pop-up, and the check has still not
+   "Possible fight — please check" without a pop-up, and so is a fight whose
+   scores stay below the alarm threshold (0.75), so 0.76 of fights reach an
+   operator, at the cost of about 23 review items per hour of normal clips.
+   Only 0.47 of fights raise a pop-up, and the check has still not
    been validated on the deployment room's footage.
 4. **Anomaly calibration can silence the detector.** Calibrated on short
    clips from other cameras, the threshold rose 8.7×. The detector then
@@ -32,12 +34,13 @@
 5. **Region dynamics is untested by data.** No FIRESENSE look-alike
    triggered the fire detector, so the ablation could not show an effect
    either way. It is supported only by the unit-test scenarios.
-6. **The fight model is the largest source of false alarms.** It produced 11
-   of the 19 false alarms on normal clips in the deployed configuration;
-   falls produced 6. The fall plausibility checks cut fall false alarms
-   (5–6 of 15–19, down from 23 of 42 before the fixes), but fall recall
-   fell from 0.75 to 0.63, and it was measured on clips the fall model was
-   trained on.
+6. **The fight model is the largest source of false alarms.** It produced 6
+   of the 10 false alarms on normal clips in the deployed configuration;
+   falls produced 3 (down from 23 of 42 before the fixes). Fall recall fell
+   from 0.75 to 0.62 with the plausibility checks, and it was measured on
+   clips the fall model was trained on; no separate fall validation set
+   exists, so a stricter fall rule chosen on other footage could not be
+   confirmed (chapter 6.8).
 7. **Persistence trades recall for quiet.** Requiring N of M windows removes
    53 false alarms per hour on normal clips. It also costs 0.15 fall recall
    and 0.31 smoke recall, and fire loses detections too (8 vs 10 of 11),
