@@ -8,7 +8,7 @@
 | System under test | DVS Industry ERP + Perception Service (commit `b799e8e`, branch `master`) |
 | Repository | https://github.com/SANCHI3/DVS_INDUSTRY |
 | Test standard followed | Structure after IEEE 829 / ISO/IEC/IEEE 29119-3 (Test Summary Report) |
-| Overall verdict | **PASS** — 397 / 397 automated tests pass; 3 defects found and closed |
+| Overall verdict | **PASS** — 397 / 397 automated tests pass; 4 defects found and closed |
 
 ---
 
@@ -70,6 +70,7 @@ Full history: https://github.com/SANCHI3/DVS_INDUSTRY/actions
 | Frontend — tests | `npm test` | ✅ **55 / 55 passed** (9 files) |
 | Frontend — production build | `npm run build` | ✅ Built in 14.2 s |
 | Perception — tests | `cd perception-service && python -m pytest -q` | ❌ → ✅ 1 failed (DEF-002), fixed → **130 / 130 passed** |
+| Backend — dependency audit | `npm audit --omit=dev --audit-level=high` | ❌ → ✅ 3 high / 2 moderate (DEF-004), fixed → 0 vulnerabilities |
 | Model metrics consistency | `python -m evaluation.run_all` | ❌ → ✅ exited with error (DEF-003), fixed → 21 result rows regenerated, all stored metrics consistent with confusion counts |
 
 ## 4. Summary of results
@@ -107,6 +108,7 @@ their 95 % confidence intervals are wide (see `RESULTS.md` §1).
 | DEF-001 | Low | backend (tests) | `npm run format:check` failed on 4 test files: `assistant.service.test.ts`, `tools.test.ts`, `assistant.routes.test.ts`, `security.kpis.test.ts` | CI did not run the Prettier check, so unformatted code was merged without failing the build | Files reformatted with Prettier; `npm run format:check` added to the backend CI job so it cannot happen again | ✅ Closed — re-test passed (212/212, style clean) |
 | DEF-002 | Medium | perception-service (evaluation) | `evaluation/ablation.py` line 558 raised `SyntaxError: f-string: unmatched '['` on Python 3.11; `test_evaluation.py::test_ablation_overrides_and_summary` failed | Same quote character reused inside an f-string (`{cal["clips"]}`), which is legal only on Python ≥ 3.12; the README supports 3.10–3.12, but CI tests only 3.12 | Inner quotes changed to `{cal['clips']}`; all perception modules compile on 3.11 | ✅ Closed — re-test passed (130/130) |
 | DEF-003 | Low | perception-service (evaluation) | `python -m evaluation.run_all` exited with `metrics files neither used nor excluded: ['scene_anomaly_ae_v3_factory.metrics.json']`, so `RESULTS.md` could not be regenerated | The v3 factory-footage model (added 2026-10) is reported in `RESULTS.md` §7 by its own script but was not registered with the collector | File registered in the collector's exclusion list with its reason; outputs regenerated, no metric changed | ✅ Closed — re-run passed (21 rows) |
+| DEF-004 | High | backend (dependencies) | CI `audit` job failed on 24 Oct 2026: new advisories published for production dependencies — `multer` 2.4.0 (DoS, GHSA-q7qp-rjg7-q26m), `zod` < 4.6.6 (memory exhaustion, GHSA-mrhx-c7xc-m3w5), `nodemailer` ≤ 10.1.3 (address parsing, 3 advisories) | Advisories disclosed after the previous green run; no code change on our side | `npm audit fix` (within semver ranges): multer 2.5.0, zod 4.6.7, nodemailer 10.2.1; full backend suite re-run | ✅ Closed — 0 production vulnerabilities, 212/212 tests pass |
 
 No defect affected the live system or the reported model metrics.
 
@@ -137,9 +139,10 @@ No defect affected the live system or the reported model metrics.
 
 ## 9. Conclusion
 
-All automated test suites pass locally and in GitHub Actions. Three defects were found
+All automated test suites pass locally and in GitHub Actions. Four defects were found
 and fixed (backend code style; a Python 3.11 syntax error in the ablation
-report; a results-collector error); a CI step was added so the style defect
+report; a results-collector error; newly disclosed vulnerabilities in three
+backend dependencies); a CI step was added so the style defect
 cannot recur. Recommendation: add Python 3.10/3.11 to the CI matrix, since
 the README claims support for them. The deployed AI models meet or beat their baselines
 on held-out data, with the limitations listed in §8. The build is **released
