@@ -5,7 +5,7 @@
 | Document ID | DVS-QA-TR-001 |
 | Revision | 1.0 |
 | Date of execution | 24 October 2026 |
-| System under test | DVS Industry ERP + Perception Service (commit `b799e8e`, branch `master`) |
+| System under test | DVS Industry ERP + Perception Service, branch `master` — baseline `b799e8e`, verified after fixes at `792e48c` |
 | Repository | https://github.com/SANCHI3/DVS_INDUSTRY |
 | Test standard followed | Structure after IEEE 829 / ISO/IEC/IEEE 29119-3 (Test Summary Report) |
 | Overall verdict | **PASS** — 397 / 397 automated tests pass; 4 defects found and closed |
@@ -41,17 +41,26 @@ Out of scope: long-duration field trials on the deployment camera (see §8).
 
 Workflow: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) — runs on every push to `master` and on every pull request.
 
-**Run for the commit under test (`b799e8e`, 23 Oct 2026): [Run #39976459749](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/39976459749) — SUCCESS**
+**Final verification run — commit `792e48c` (24 Oct 2026, after all fixes): [Run #40078158730](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/40078158730) — ✅ SUCCESS (5 / 5 jobs)**
 
 | Job | Result | Duration | Link |
 |---|---|---|---|
-| backend | ✅ Pass | 37 s | [job log](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/39976459749/job/120492219765) |
-| frontend | ✅ Pass | 24 s | [job log](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/39976459749/job/120492220185) |
-| e2e (Playwright + PostgreSQL) | ✅ Pass | 1 min 27 s | [job log](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/39976459749/job/120492220213) |
-| perception-service (pytest) | ✅ Pass | 1 min 36 s | [job log](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/39976459749/job/120492220351) |
-| audit (npm, production deps) | ✅ Pass | 7 s | [job log](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/39976459749/job/120492220446) |
+| backend (typecheck, lint, format, 212 tests) | ✅ Pass | 52 s | [job log](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/40078158730/job/120825905183) |
+| frontend (typecheck, lint, 55 tests, build) | ✅ Pass | 29 s | [job log](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/40078158730/job/120825905080) |
+| e2e (Playwright + PostgreSQL 16) | ✅ Pass | 1 min 40 s | [job log](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/40078158730/job/120825904963) |
+| perception-service (pytest, 130 tests) | ✅ Pass | 1 min 25 s | [job log](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/40078158730/job/120825905162) |
+| audit (npm, production deps) | ✅ Pass | 7 s | [job log](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/40078158730/job/120825905208) |
 
-Previous runs (all successful): [39963165846](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/39963165846),
+Run history during this test cycle:
+
+| Run | Commit | Result | Note |
+|---|---|---|---|
+| [39976459749](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/39976459749) | `b799e8e` (baseline, 23 Oct) | ✅ Success | Before this test cycle |
+| [40077004703](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/40077004703) | `2908ff7` | ❌ audit failed | DEF-001…003 fixed; new advisories found (DEF-004) |
+| [40077665767](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/40077665767) | `00b3ad9` | ❌ backend, e2e failed | Lockfile written by npm 11, rejected by npm 10 (DEF-004) |
+| [40078158730](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/40078158730) | `792e48c` | ✅ Success | All defects closed |
+
+Earlier successful runs: [39963165846](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/39963165846),
 [39949564310](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/39949564310),
 [39825397831](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/39825397831),
 [39822663506](https://github.com/SANCHI3/DVS_INDUSTRY/actions/runs/39822663506).
@@ -80,7 +89,7 @@ Full history: https://github.com/SANCHI3/DVS_INDUSTRY/actions
 | Backend (Vitest + Supertest) | 212 | 212 | 0 | 100 % |
 | Frontend (Vitest) | 55 | 55 | 0 | 100 % |
 | Perception (pytest) | 130 | 130 | 0 | 100 % |
-| End-to-end (Playwright, CI) | 2 spec files | ✅ | 0 | 100 % |
+| End-to-end (Playwright, CI) | 2 spec files | ✅ all | 0 | 100 % |
 | **Total (unit + integration)** | **397** | **397** | **0** | **100 %** |
 
 ## 5. AI model performance (held-out test data)
