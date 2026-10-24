@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-15T17:56:11+00:00",
+  "generated_at": "2026-10-24T08:09:07+00:00",
   "generated_by": "perception-service/evaluation/run_all.py",
   "rows": [
     {
@@ -20,7 +20,7 @@
       "source": "fight_r3d18_v2.runtime.json compared_with.test_live_rule",
       "note": "",
       "ci95": null,
-      "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
+      "ci_note": "the metrics files store only aggregate confusion counts, no per-video predictions"
     },
     {
       "task": "Fight",
@@ -40,7 +40,7 @@
       "source": "fight_r3d18_v2.runtime.json model.test_live_rule",
       "note": "",
       "ci95": null,
-      "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
+      "ci_note": "the metrics files store only aggregate confusion counts, no per-video predictions"
     },
     {
       "task": "Fight",
@@ -60,7 +60,7 @@
       "source": "fight_r3d18_v1.metrics.json test",
       "note": "",
       "ci95": null,
-      "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
+      "ci_note": "the metrics files store only aggregate confusion counts, no per-video predictions"
     },
     {
       "task": "Fight",
@@ -80,7 +80,7 @@
       "source": "fight_r3d18_v2.metrics.json test",
       "note": "",
       "ci95": null,
-      "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
+      "ci_note": "the metrics files store only aggregate confusion counts, no per-video predictions"
     },
     {
       "task": "Fight",
@@ -100,7 +100,7 @@
       "source": "fight_lstm.metrics.json test",
       "note": "different test set (pose windows); not deployed, code removed",
       "ci95": null,
-      "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
+      "ci_note": "the metrics files store only aggregate confusion counts, no per-video predictions"
     },
     {
       "task": "Fight",
@@ -120,7 +120,7 @@
       "source": "fight_lstm_v2.metrics.json test",
       "note": "different test set (pose windows); not deployed, code removed",
       "ci95": null,
-      "ci_note": "only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py)"
+      "ci_note": "the metrics files store only aggregate confusion counts, no per-video predictions"
     },
     {
       "task": "Fall",
@@ -530,6 +530,7 @@
     "fight_lstm_baseline_v1.metrics.json": "identical copy of fight_lstm.metrics.json",
     "fight_lstm_v1_window_model.metrics.json": "identical copy of fight_lstm.metrics.json",
     "fight_lstm_v2_baseline.metrics.json": "identical copy of fight_lstm_v2.metrics.json",
-    "fire_smoke_video_eval_baseline.summary.json": "same YOLO-only evaluation as the verifier file's yolo_only rows (identical counts)"
+    "fire_smoke_video_eval_baseline.summary.json": "same YOLO-only evaluation as the verifier file's yolo_only rows (identical counts)",
+    "scene_anomaly_ae_v3_factory.metrics.json": "factory-footage model, reported in section 7 by anomaly.train_factory (different protocol)"
   }
 }

@@ -172,7 +172,11 @@ describe('executeTool', () => {
 
   it('validates the arguments the LLM sends', async () => {
     await expect(
-      executeTool('getProductionKpis', { period: 'year' }, { id: 1, email: 'a@t.com', role: 'ADMIN' }),
+      executeTool(
+        'getProductionKpis',
+        { period: 'year' },
+        { id: 1, email: 'a@t.com', role: 'ADMIN' },
+      ),
     ).rejects.toThrow();
   });
 });

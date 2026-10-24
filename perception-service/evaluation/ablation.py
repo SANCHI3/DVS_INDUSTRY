@@ -555,7 +555,7 @@ def markdown(results: dict, figure: str | None) -> str:
     cal = results.get("calibration")
     if cal:
         out += ["", f"Scene-anomaly calibration used by the calibrated configurations: {cal['windows']} windows "
-                    f"pooled from {cal["clips"]} normal clips disjoint from the evaluation sets "
+                    f"pooled from {cal['clips']} normal clips disjoint from the evaluation sets "
                     f"(fight-dataset validation split); 99th-percentile ratio {cal['observed_percentile_ratio']} "
                     f"→ camera threshold {cal['camera_scale']}× the model's."]
     out += ["", "Caveats: one run per configuration (the pipeline is timing-dependent, so a re-run can differ "

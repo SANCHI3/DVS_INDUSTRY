@@ -56,7 +56,9 @@ describe('SecurityRepository.getKPIs', () => {
       const where = args.where;
       if (isToday(where)) return 9;
       if (where.severity === 'CRITICAL') {
-        return JSON.stringify(where.status) === JSON.stringify({ in: ['OPEN', 'INVESTIGATING'] }) ? 2 : 5;
+        return JSON.stringify(where.status) === JSON.stringify({ in: ['OPEN', 'INVESTIGATING'] })
+          ? 2
+          : 5;
       }
       if (where.status === 'OPEN') return 4;
       if (where.status === 'INVESTIGATING') return 3;
@@ -101,7 +103,7 @@ describe('SecurityRepository.getKPIs', () => {
     expect(todayCount).toMatchObject({ deletedAt: null, occurredAt: { gte: MIDNIGHT } });
   });
 
-  it('breaks today\'s incidents down by type', async () => {
+  it("breaks today's incidents down by type", async () => {
     const kpis = await new SecurityRepository().getKPIs();
 
     expect(kpis.incidentsTodayByType).toEqual([

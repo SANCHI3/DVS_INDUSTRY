@@ -35,7 +35,14 @@ vi.mock('../../lib/prismaClient', () => ({
 }));
 
 vi.mock('../../logger', () => ({
-  logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn(), http: vi.fn(), debug: vi.fn(), log: vi.fn() },
+  logger: {
+    info: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn(),
+    http: vi.fn(),
+    debug: vi.fn(),
+    log: vi.fn(),
+  },
 }));
 
 const USERS: Record<string, { id: number; role: string }> = {
@@ -60,15 +67,29 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
-  vi.mocked(prisma.user.findUnique).mockImplementation((async ({ where }: { where: { id: number } }) => {
+  vi.mocked(prisma.user.findUnique).mockImplementation((async ({
+    where,
+  }: {
+    where: { id: number };
+  }) => {
     const u = Object.values(USERS).find((x) => x.id === where.id);
-    return u && { id: u.id, email: `${u.role.toLowerCase()}@test.com`, fullName: u.role, isActive: true, role: { name: u.role } };
+    return (
+      u && {
+        id: u.id,
+        email: `${u.role.toLowerCase()}@test.com`,
+        fullName: u.role,
+        isActive: true,
+        role: { name: u.role },
+      }
+    );
   }) as never);
 });
 
 describe('Ask DVS routes', () => {
   it('reports not configured on the status endpoint', async () => {
-    const res = await request(app).get('/api/v1/assistant/status').set('Authorization', 'Bearer store');
+    const res = await request(app)
+      .get('/api/v1/assistant/status')
+      .set('Authorization', 'Bearer store');
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ configured: false });
   });

@@ -43,6 +43,8 @@ EXCLUDED = {
     "fight_lstm_v2_baseline.metrics.json": "identical copy of fight_lstm_v2.metrics.json",
     "fire_smoke_video_eval_baseline.summary.json":
         "same YOLO-only evaluation as the verifier file's yolo_only rows (identical counts)",
+    "scene_anomaly_ae_v3_factory.metrics.json":
+        "factory-footage model, reported in section 7 by anomaly.train_factory (different protocol)",
 }
 
 

@@ -92,6 +92,7 @@ Files not used:
 - `fight_lstm_v1_window_model.metrics.json`: identical copy of fight_lstm.metrics.json
 - `fight_lstm_v2_baseline.metrics.json`: identical copy of fight_lstm_v2.metrics.json
 - `fire_smoke_video_eval_baseline.summary.json`: same YOLO-only evaluation as the verifier file's yolo_only rows (identical counts)
+- `scene_anomaly_ae_v3_factory.metrics.json`: factory-footage model, reported in section 7 by anomaly.train_factory (different protocol)
 
 ### Bootstrap 95% confidence intervals
 
@@ -106,12 +107,12 @@ Percentile bootstrap, 1000 resamples over test videos, fixed seed (`evaluation/s
 
 No interval (per-video predictions not stored; not approximated):
 
-- Fight / R3D-18 v1: only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py).
-- Fight / R3D-18 v2 (deployed): only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py).
-- Fight / R3D-18 v1, single clip: only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py).
-- Fight / R3D-18 v2, 3-clip mean: only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py).
-- Fight / Pose-LSTM v1 (not deployed): only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py).
-- Fight / Pose-LSTM v2: only aggregate counts are stored (no per-video scores saved by train.py / calibrate_runtime.py).
+- Fight / R3D-18 v1: the metrics files store only aggregate confusion counts, no per-video predictions.
+- Fight / R3D-18 v2 (deployed): the metrics files store only aggregate confusion counts, no per-video predictions.
+- Fight / R3D-18 v1, single clip: the metrics files store only aggregate confusion counts, no per-video predictions.
+- Fight / R3D-18 v2, 3-clip mean: the metrics files store only aggregate confusion counts, no per-video predictions.
+- Fight / Pose-LSTM v1 (not deployed): the metrics files store only aggregate confusion counts, no per-video predictions.
+- Fight / Pose-LSTM v2: the metrics files store only aggregate confusion counts, no per-video predictions.
 - Fall / Box rule, as deployed (5 s still): only aggregate out-of-fold counts are stored.
 - Fall / Box rule, relaxed (1 s): only aggregate out-of-fold counts are stored.
 - Fall / Pose + BiGRU (deployed): only aggregate out-of-fold counts are stored.
