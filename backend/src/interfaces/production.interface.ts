@@ -182,3 +182,59 @@ export interface ProductionTrendEntry {
 export interface WorkOrderDetail extends WorkOrderDto {
   outputs: WorkOrderOutputDto[];
 }
+
+// ── Monthly target & KPI thresholds (entered by management) ──────────────────
+
+export interface ProductionTargetDto {
+  id: number;
+  month: string; // "2026-10"
+  periodStart: Date;
+  outputTarget: number;
+  unit: string;
+  targetCompletionRate: number | null; // %
+  maxRejectionRate: number | null; // %
+  targetEmployeeEfficiency: number | null; // %
+  notes: string | null;
+  updatedById: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SaveProductionTargetData {
+  outputTarget: number;
+  unit: string;
+  targetCompletionRate: number | null;
+  maxRejectionRate: number | null;
+  targetEmployeeEfficiency: number | null;
+  notes: string | null;
+  updatedById: number | null;
+}
+
+export interface MonthOutputTotals {
+  goodQty: number;
+  rejectedQty: number;
+  scrapQty: number;
+  outputRecords: number;
+}
+
+/** A month's target next to what was actually recorded. */
+export interface MonthlyPerformance {
+  month: string;
+  target: ProductionTargetDto | null;
+  actual: MonthOutputTotals & {
+    rejectionRate: number | null; // rejected / (good + rejected) %
+    employeeEfficiency: number | null; // from per-employee daily output
+    employeeRecords: number;
+  };
+  progress: {
+    daysInMonth: number;
+    daysElapsed: number;
+    progressPct: number | null;
+    expectedToDate: number | null;
+    pace: 'NOT_STARTED' | 'ON_TRACK' | 'BEHIND' | 'MET' | null;
+  };
+  checks: {
+    rejection: 'MET' | 'MISSED' | null;
+    employeeEfficiency: 'MET' | 'MISSED' | null;
+  };
+}

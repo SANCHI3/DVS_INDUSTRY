@@ -12,15 +12,18 @@ const profileImagePath = z
 
 const employeeCodeField = z
   .string()
+  .trim()
   .min(1, 'Employee code is required')
   .max(20, 'Employee code must be at most 20 characters')
   .regex(
     /^[A-Z0-9_-]+$/,
     'Employee code must contain only uppercase letters, digits, hyphens, or underscores',
-  )
-  .trim();
+  );
 
 const nameField = (label: string) => z.string().min(1, `${label} is required`).max(100).trim();
+
+// Many workers have a single name; an empty last name is stored as ''.
+const lastNameField = z.string().max(100).trim();
 
 const emailField = z
   .string()
@@ -42,6 +45,15 @@ const salaryField = z
   .optional()
   .nullable();
 
+const dailyWageRateField = z
+  .string()
+  .regex(/^\d{1,8}(\.\d{1,2})?$/, 'Daily wage rate must be a non-negative amount (e.g. 650.00)')
+  .optional()
+  .nullable();
+
+// TERMINATED is set only by deleting the employee
+const editableStatusField = z.enum(['ACTIVE', 'INACTIVE', 'ON_LEAVE']);
+
 const optionalNullableString = (max = 255) => z.string().max(max).trim().optional().nullable();
 
 const optionalPositiveInt = z.coerce.number().int().positive().optional().nullable();
@@ -51,7 +63,7 @@ const optionalPositiveInt = z.coerce.number().int().positive().optional().nullab
 export const createEmployeeSchema = z.object({
   employeeCode: employeeCodeField,
   firstName: nameField('First name'),
-  lastName: nameField('Last name'),
+  lastName: lastNameField.optional().default(''),
   email: emailField,
   phone: phoneField,
 
@@ -70,6 +82,8 @@ export const createEmployeeSchema = z.object({
     .default('FULL_TIME'),
 
   salary: salaryField,
+  dailyWageRate: dailyWageRateField,
+  status: editableStatusField.optional().default('ACTIVE'),
 
   departmentId: optionalPositiveInt,
   shiftId: optionalPositiveInt,
@@ -98,8 +112,9 @@ export const createEmployeeSchema = z.object({
 
 export const updateEmployeeSchema = z
   .object({
+    employeeCode: employeeCodeField.optional(),
     firstName: z.string().min(1).max(100).trim().optional(),
-    lastName: z.string().min(1).max(100).trim().optional(),
+    lastName: lastNameField.optional(),
     email: emailField,
     phone: phoneField,
     gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional().nullable(),
@@ -108,6 +123,8 @@ export const updateEmployeeSchema = z
     designation: z.string().min(1).max(100).trim().optional(),
     employmentType: z.enum(['FULL_TIME', 'PART_TIME', 'CONTRACT', 'INTERN']).optional(),
     salary: salaryField,
+    dailyWageRate: dailyWageRateField,
+    status: editableStatusField.optional(),
     address: optionalNullableString(500),
     city: optionalNullableString(100),
     state: optionalNullableString(100),

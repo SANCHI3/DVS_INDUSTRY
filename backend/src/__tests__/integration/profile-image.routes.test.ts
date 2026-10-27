@@ -79,6 +79,7 @@ const employee = {
   designation: 'Operator',
   employmentType: 'FULL_TIME',
   salary: null,
+  dailyWageRate: null,
   departmentId: null,
   department: null,
   shiftId: null,

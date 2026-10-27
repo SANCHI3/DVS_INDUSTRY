@@ -84,6 +84,7 @@ const mockEmployee = {
   designation: 'Sr. Operator',
   employmentType: 'FULL_TIME',
   salary: null,
+  dailyWageRate: null,
   departmentId: 1,
   department: { id: 1, name: 'Cutting', code: 'CUT' },
   shiftId: 1,

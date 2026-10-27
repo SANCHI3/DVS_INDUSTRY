@@ -1,7 +1,7 @@
 // ── Shift & Attendance domain interfaces ─────────────────────────────────────
 // Pure domain objects — zero Prisma imports.
 
-export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LATE' | 'LEAVE';
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LATE' | 'LEAVE' | 'WEEK_OFF';
 
 // ── Shift ─────────────────────────────────────────────────────────────────────
 
@@ -55,6 +55,7 @@ export interface AttendanceEmployeeRef {
   lastName: string;
   designation: string;
   department: { id: number; name: string } | null;
+  shift: { id: number; name: string } | null;
 }
 
 export interface AttendanceDto {
@@ -118,6 +119,7 @@ export interface ClockOutData {
 // ── Filters ───────────────────────────────────────────────────────────────────
 
 export interface AttendanceFilters {
+  search?: string | undefined; // employee code or name
   employeeId?: number | undefined;
   departmentId?: number | undefined;
   status?: AttendanceStatus | 'all' | undefined;
@@ -139,11 +141,14 @@ export interface DailyAttendanceSummary {
   halfDay: number;
   late: number;
   onLeave: number;
-  attendanceRate: string; // e.g. "96.4%"
+  weekOff: number;
+  attendanceRate: string; // e.g. "96.4%"; week-offs are not counted as working days
   byDepartment: Array<{
     departmentId: number;
     departmentName: string;
     present: number;
+    attended: number; // present + late + half day
+    weekOff: number;
     total: number;
   }>;
 }
@@ -151,8 +156,77 @@ export interface DailyAttendanceSummary {
 // ── Attendance trend (7-day / 30-day) ─────────────────────────────────────────
 
 export interface AttendanceTrendEntry {
-  date: string; // "Mon", "12 Jun" etc.
+  date: string; // ISO date, e.g. "2026-10-26"
   present: number;
   absent: number;
   late: number;
+  halfDay: number;
+  onLeave: number;
+  weekOff: number;
+}
+
+// ── Employee daily output (per-employee performance) ─────────────────────────
+// Separate from work-order output; never added to company production totals.
+
+export interface EmployeeDailyOutputDto {
+  id: number;
+  employeeId: number;
+  employee: AttendanceEmployeeRef;
+  date: Date;
+  workingHours: number | null;
+  expectedParts: number | null;
+  producedParts: number | null;
+  operationsCount: number | null;
+  efficiency: number | null; // produced / expected × 100; null when expected is 0 or missing
+  remarks: string | null;
+  recordedById: number | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface EmployeeDailyOutputListResult {
+  data: EmployeeDailyOutputDto[];
+  total: number;
+}
+
+export interface CreateEmployeeDailyOutputData {
+  employeeId: number;
+  date: Date;
+  workingHours?: number | null | undefined;
+  expectedParts?: number | null | undefined;
+  producedParts?: number | null | undefined;
+  operationsCount?: number | null | undefined;
+  remarks?: string | null | undefined;
+  recordedById?: number | null | undefined;
+}
+
+export interface UpdateEmployeeDailyOutputData {
+  workingHours?: number | null | undefined;
+  expectedParts?: number | null | undefined;
+  producedParts?: number | null | undefined;
+  operationsCount?: number | null | undefined;
+  remarks?: string | null | undefined;
+}
+
+export interface EmployeeDailyOutputFilters {
+  search?: string | undefined;
+  employeeId?: number | undefined;
+  departmentId?: number | undefined;
+  date?: Date | undefined;
+  fromDate?: Date | undefined;
+  toDate?: Date | undefined;
+  sortOrder?: 'asc' | 'desc' | undefined;
+  page?: number | undefined;
+  pageSize?: number | undefined;
+}
+
+export interface EmployeeOutputSummary {
+  fromDate: string;
+  toDate: string;
+  employeesRecorded: number;
+  records: number;
+  totalExpectedParts: number;
+  totalProducedParts: number;
+  totalOperations: number;
+  efficiency: number | null; // over records that have expected > 0
 }

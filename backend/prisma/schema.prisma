@@ -135,6 +135,7 @@ model Employee {
   designation    String
   employmentType EmploymentType @default(FULL_TIME)
   salary         Decimal?       @db.Decimal(10, 2)
+  dailyWageRate  Decimal?       @db.Decimal(10, 2)
 
   // Department
   departmentId Int?
@@ -176,6 +177,7 @@ model Employee {
 
   attendances       Attendance[]
   attendancePunches AttendancePunch[]
+  dailyOutputs      EmployeeDailyOutput[]
 
   @@index([employeeCode])
   @@index([email])
@@ -207,6 +209,33 @@ model Attendance {
 
   @@unique([employeeId, date])
   @@index([employeeId])
+}
+
+// Per-employee daily output entered by supervisors. Kept apart from
+// WorkOrderOutput so company production totals never count it twice.
+model EmployeeDailyOutput {
+  id Int @id @default(autoincrement())
+
+  employeeId Int
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+
+  // Midnight UTC, like Attendance.date
+  date DateTime
+
+  workingHours    Float?
+  expectedParts   Decimal? @db.Decimal(12, 3)
+  producedParts   Decimal? @db.Decimal(12, 3)
+  operationsCount Int?
+
+  remarks String?
+
+  recordedById Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([date])
 }
 
 model AttendancePunch {
@@ -514,6 +543,31 @@ model WorkOrderOutput {
 // Security
 // ───────────────────────────────────────────────────────────────
 
+// Company-wide monthly production target and KPI thresholds, entered by
+// management. Actual output always comes from WorkOrderOutput; these values
+// are only what it is compared against.
+model ProductionMonthlyTarget {
+  id Int @id @default(autoincrement())
+
+  // First day of the month, midnight UTC
+  periodStart DateTime @unique
+
+  outputTarget Decimal @db.Decimal(14, 3)
+  unit         String  @default("pcs")
+
+  // Thresholds in percent; null = not set
+  targetCompletionRate     Decimal? @db.Decimal(5, 2)
+  maxRejectionRate         Decimal? @db.Decimal(5, 2)
+  targetEmployeeEfficiency Decimal? @db.Decimal(5, 2)
+
+  notes String?
+
+  updatedById Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model SecurityIncident {
   id             Int    @id @default(autoincrement())
   incidentNumber String @unique // e.g. INC-0001
@@ -688,6 +742,7 @@ enum AttendanceStatus {
   HALF_DAY
   LATE
   LEAVE
+  WEEK_OFF
 }
 
 enum StockTransactionType {

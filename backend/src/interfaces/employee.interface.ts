@@ -45,6 +45,7 @@ export interface EmployeeDto {
   designation: string;
   employmentType: EmploymentType;
   salary: string | null; // Decimal serialised as string
+  dailyWageRate: string | null; // Decimal serialised as string
   status: EmployeeStatus;
   profileImage: string | null;
   address: string | null;
@@ -134,6 +135,8 @@ export interface CreateEmployeeData {
   designation: string;
   employmentType?: EmploymentType | undefined;
   salary?: string | null | undefined; // decimal as string
+  dailyWageRate?: string | null | undefined;
+  status?: EmployeeStatus | undefined;
   departmentId?: number | null | undefined;
   shiftId?: number | null | undefined;
   managerId?: number | null | undefined;
@@ -149,6 +152,7 @@ export interface CreateEmployeeData {
 }
 
 export interface UpdateEmployeeData {
+  employeeCode?: string | undefined;
   firstName?: string | undefined;
   lastName?: string | undefined;
   email?: string | null | undefined;
@@ -159,6 +163,8 @@ export interface UpdateEmployeeData {
   designation?: string | undefined;
   employmentType?: EmploymentType | undefined;
   salary?: string | null | undefined;
+  dailyWageRate?: string | null | undefined;
+  status?: EmployeeStatus | undefined;
   address?: string | null | undefined;
   city?: string | null | undefined;
   state?: string | null | undefined;

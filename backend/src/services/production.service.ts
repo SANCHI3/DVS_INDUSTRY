@@ -1,4 +1,12 @@
 import { ProductionRepository } from '../repositories/production.repository';
+import { WorkforceRepository } from '../repositories/workforce.repository';
+import {
+  checkThreshold,
+  computeTargetProgress,
+  monthStart,
+  nextMonthStart,
+  percent,
+} from '../utils/targetProgress';
 import type {
   WorkOrderDto,
   WorkOrderDetail,
@@ -14,8 +22,11 @@ import type {
   ProductionKPIs,
   ProductionTrendEntry,
   WorkOrderStatus,
+  ProductionTargetDto,
+  SaveProductionTargetData,
+  MonthlyPerformance,
 } from '../interfaces';
-import { NotFoundError, BadRequestError } from '../errors';
+import { NotFoundError, BadRequestError, ConflictError } from '../errors';
 import { logger } from '../logger';
 
 /**
@@ -34,6 +45,11 @@ import { logger } from '../logger';
  *  8. Output can only be added to a WO that is RELEASED or IN_PROGRESS
  *  9. Output belongs to the WO it was created under (ownership check on update/delete)
  * 10. Deleting an output is always allowed (corrections)
+ *
+ * Monthly targets:
+ * 11. One target per month; a save that started from an older version of the
+ *     record is refused (409) rather than overwriting someone else's change
+ * 12. Targets never change recorded output — they are only compared with it
  */
 
 // Valid forward transitions
@@ -48,6 +64,7 @@ const ALLOWED_TRANSITIONS: Record<WorkOrderStatus, WorkOrderStatus[]> = {
 
 export class ProductionService {
   private readonly repo: ProductionRepository;
+  private readonly workforceRepo = new WorkforceRepository();
 
   constructor() {
     this.repo = new ProductionRepository();
@@ -208,7 +225,94 @@ export class ProductionService {
     return this.repo.getProductionTrend(days, departmentId);
   }
 
+  // ══ MONTHLY TARGETS ══════════════════════════════════════════════════════
+
+  async getTargetsForYear(year: number): Promise<ProductionTargetDto[]> {
+    return this.repo.findTargetsBetween(
+      new Date(Date.UTC(year, 0, 1)),
+      new Date(Date.UTC(year + 1, 0, 1)),
+    );
+  }
+
+  async getMonthlyPerformance(month: string, now: Date = new Date()): Promise<MonthlyPerformance> {
+    const start = this.monthOrThrow(month);
+    const [target, totals, employee] = await Promise.all([
+      this.repo.findTarget(start),
+      this.repo.getMonthOutputTotals(start),
+      this.workforceRepo.getEmployeeOutputSummary(
+        start,
+        new Date(nextMonthStart(start).getTime() - 86_400_000),
+      ),
+    ]);
+    const rejectionRate = percent(totals.rejectedQty, totals.goodQty + totals.rejectedQty);
+    return {
+      month,
+      target,
+      actual: {
+        ...totals,
+        rejectionRate,
+        employeeEfficiency: employee.efficiency,
+        employeeRecords: employee.records,
+      },
+      progress: computeTargetProgress(target?.outputTarget ?? null, totals.goodQty, start, now),
+      checks: {
+        rejection: checkThreshold(rejectionRate, target?.maxRejectionRate ?? null, 'atMost'),
+        employeeEfficiency: checkThreshold(
+          employee.efficiency,
+          target?.targetEmployeeEfficiency ?? null,
+          'atLeast',
+        ),
+      },
+    };
+  }
+
+  async saveTarget(
+    month: string,
+    data: SaveProductionTargetData,
+    expectedUpdatedAt: string | null,
+  ): Promise<{ target: ProductionTargetDto; created: boolean }> {
+    const start = this.monthOrThrow(month);
+    const existing = await this.repo.findTarget(start);
+
+    // Rule 11
+    if (existing === null && expectedUpdatedAt !== null) {
+      throw new ConflictError(
+        `The target for ${month} was removed by someone else. Reload the page and enter it again.`,
+      );
+    }
+    if (existing !== null) {
+      const sameVersion =
+        expectedUpdatedAt !== null &&
+        new Date(expectedUpdatedAt).getTime() === existing.updatedAt.getTime();
+      if (!sameVersion) {
+        throw new ConflictError(
+          `The target for ${month} was changed after you opened it (last saved ` +
+            `${existing.updatedAt.toISOString()}). Reload the page to see the current values, then edit again.`,
+        );
+      }
+      const target = await this.repo.updateTarget(existing.id, data);
+      logger.info('Production target updated', { month, id: target.id });
+      return { target, created: false };
+    }
+    const target = await this.repo.createTarget(start, data);
+    logger.info('Production target created', { month, id: target.id });
+    return { target, created: true };
+  }
+
+  async deleteTarget(month: string): Promise<void> {
+    const existing = await this.repo.findTarget(this.monthOrThrow(month));
+    if (existing === null) throw new NotFoundError(`No target is set for ${month}`);
+    await this.repo.deleteTarget(existing.id);
+    logger.info('Production target deleted', { month });
+  }
+
   // ── Private helpers ───────────────────────────────────────────────────────
+
+  private monthOrThrow(month: string): Date {
+    const start = monthStart(month);
+    if (start === null) throw new BadRequestError('Month must look like 2026-10');
+    return start;
+  }
 
   private async getWorkOrderOrThrow(id: number): Promise<WorkOrderDto> {
     const wo = await this.repo.findWorkOrderById(id);

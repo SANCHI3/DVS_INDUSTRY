@@ -227,6 +227,52 @@ export async function waitForServer(maxMs = 90_000, intervalMs = 3_000): Promise
   return false;
 }
 
+// One shared health poll however many requests are waiting on it
+let wakePromise: Promise<boolean> | null = null;
+
+/**
+ * Runs `request`; if it failed because the API is still starting, waits for
+ * the health check and runs it once more. Any other failure is rethrown.
+ * `onWaiting` lets the caller say "server is starting" meanwhile.
+ */
+export async function withServerWake<T>(request: () => Promise<T>, onWaiting?: () => void): Promise<T> {
+  try {
+    return await request();
+  } catch (err) {
+    if (!isServerStarting(err)) throw err;
+    onWaiting?.();
+    wakePromise ??= waitForServer().finally(() => { wakePromise = null; });
+    if (!(await wakePromise)) throw err;
+    return request();
+  }
+}
+
+// ── Error messages for people ─────────────────────────────────────────────────
+
+/**
+ * One sentence a factory user can act on, e.g.
+ * "Could not load attendance: your role does not have access to this."
+ */
+export function describeApiError(err: unknown, action: string): string {
+  let reason: string;
+  if (!isApiError(err)) {
+    reason = err instanceof Error ? err.message : "an unexpected error occurred";
+  } else if (isServerStarting(err)) {
+    reason = "the server did not respond in time (it may still be starting after being idle). Wait a minute and try again";
+  } else if (err.status === 401) {
+    reason = "your session has expired. Please sign in again";
+  } else if (err.status === 403) {
+    reason = "your role does not have access to this";
+  } else if (Array.isArray(err.details) && err.details.length > 0) {
+    reason = (err.details as { field?: string; message?: string }[])
+      .map((d) => (d.field ? `${d.field}: ${d.message ?? "invalid"}` : d.message ?? "invalid"))
+      .join("; ");
+  } else {
+    reason = err.status >= 500 ? `${err.message} (server error ${err.status})` : err.message;
+  }
+  return `Could not ${action}: ${reason.replace(/\.$/, "")}.`;
+}
+
 // ── Typed response helpers ────────────────────────────────────────────────────
 
 export interface PaginatedMeta {
@@ -251,4 +297,23 @@ export function unwrap<T>(res: AxiosResponse<ApiResponse<T>>): T {
 /** Unwrap both data and pagination meta */
 export function unwrapPaged<T>(res: AxiosResponse<ApiResponse<T>>): { data: T; meta: PaginatedMeta } {
   return { data: res.data.data, meta: res.data.meta! };
+}
+
+/**
+ * Reads every page of a list endpoint (for CSV exports, so a file is never
+ * just the visible page). Stops with an error past `maxRecords`.
+ */
+export async function fetchAllPages<T>(
+  fetchPage: (page: number) => Promise<{ data: T[]; meta: PaginatedMeta }>,
+  maxRecords = 50_000,
+): Promise<T[]> {
+  const first = await fetchPage(1);
+  const rows = [...first.data];
+  for (let page = 2; page <= first.meta.totalPages; page++) {
+    if (rows.length >= maxRecords) {
+      throw new Error(`more than ${maxRecords} records match. Narrow the filters and export again`);
+    }
+    rows.push(...(await fetchPage(page)).data);
+  }
+  return rows;
 }

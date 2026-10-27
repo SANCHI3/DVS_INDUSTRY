@@ -1,7 +1,9 @@
 import type { Request, Response } from 'express';
 import { EmployeeService } from '../services/employee.service';
+import type { AuthenticatedRequest } from '../types';
+import { ROLES } from '../constants';
 import { sendSuccess, sendCreated, sendNoContent } from '../utils/response';
-import { BadRequestError } from '../errors';
+import { BadRequestError, ForbiddenError } from '../errors';
 import { saveProfileImage, deleteProfileImage } from '../utils/upload';
 import type {
   CreateEmployeeInput,
@@ -11,9 +13,31 @@ import type {
   AssignManagerInput,
   AssignShiftInput,
 } from '../validators/employee.validator';
-import type { EmployeeFilters, UpdateEmployeeData } from '../interfaces';
+import type { EmployeeDto, EmployeeFilters, UpdateEmployeeData } from '../interfaces';
 
 const employeeService = new EmployeeService();
+
+// Salary and wage rate are visible only to the roles that manage them
+const PAY_ROLES: readonly string[] = [ROLES.ADMIN, ROLES.HR];
+
+export function canViewPay(req: Request): boolean {
+  const role = (req as AuthenticatedRequest).user?.role;
+  return role !== undefined && PAY_ROLES.includes(role);
+}
+
+function withoutPay(employee: EmployeeDto): EmployeeDto {
+  return { ...employee, salary: null, dailyWageRate: null };
+}
+
+/** Pay may only be written by the roles that may read it. */
+function assertMayWritePay(
+  req: Request,
+  body: { salary?: unknown; dailyWageRate?: unknown },
+): void {
+  if ((body.salary !== undefined || body.dailyWageRate !== undefined) && !canViewPay(req)) {
+    throw new ForbiddenError('Your role may not set salary or wage rates');
+  }
+}
 
 /** Safely extract an integer route param already validated by Zod. */
 function parseId(raw: string | string[] | undefined): number {
@@ -24,6 +48,7 @@ function parseId(raw: string | string[] | undefined): number {
 
 export async function createEmployee(req: Request, res: Response): Promise<void> {
   const body = req.body as CreateEmployeeInput;
+  assertMayWritePay(req, body);
 
   const employee = await employeeService.create({
     employeeCode: body.employeeCode,
@@ -37,6 +62,8 @@ export async function createEmployee(req: Request, res: Response): Promise<void>
     designation: body.designation,
     employmentType: body.employmentType,
     salary: body.salary ?? null,
+    dailyWageRate: body.dailyWageRate ?? null,
+    status: body.status,
     departmentId: body.departmentId ?? null,
     shiftId: body.shiftId ?? null,
     managerId: body.managerId ?? null,
@@ -75,7 +102,8 @@ export async function getAllEmployees(req: Request, res: Response): Promise<void
   if (query.shiftId !== undefined) filters.shiftId = query.shiftId;
   if (query.managerId !== undefined) filters.managerId = query.managerId;
 
-  const { data, total } = await employeeService.getAll(filters);
+  const { data: rows, total } = await employeeService.getAll(filters);
+  const data = canViewPay(req) ? rows : rows.map(withoutPay);
 
   const page = query.page ?? 1;
   const pageSize = query.pageSize ?? 20;
@@ -93,7 +121,7 @@ export async function getAllEmployees(req: Request, res: Response): Promise<void
 export async function getEmployeeById(req: Request, res: Response): Promise<void> {
   const id = parseId(req.params['id']);
   const employee = await employeeService.getById(id);
-  sendSuccess(res, employee);
+  sendSuccess(res, canViewPay(req) ? employee : withoutPay(employee));
 }
 
 // ── Update ─────────────────────────────────────────────────────────────────
@@ -101,8 +129,10 @@ export async function getEmployeeById(req: Request, res: Response): Promise<void
 export async function updateEmployee(req: Request, res: Response): Promise<void> {
   const id = parseId(req.params['id']);
   const body = req.body as UpdateEmployeeInput;
+  assertMayWritePay(req, body);
 
   const data: UpdateEmployeeData = {};
+  if (body.employeeCode !== undefined) data.employeeCode = body.employeeCode;
   if (body.firstName !== undefined) data.firstName = body.firstName;
   if (body.lastName !== undefined) data.lastName = body.lastName;
   if (body.email !== undefined) data.email = body.email;
@@ -113,6 +143,8 @@ export async function updateEmployee(req: Request, res: Response): Promise<void>
   if (body.designation !== undefined) data.designation = body.designation;
   if (body.employmentType !== undefined) data.employmentType = body.employmentType;
   if (body.salary !== undefined) data.salary = body.salary;
+  if (body.dailyWageRate !== undefined) data.dailyWageRate = body.dailyWageRate;
+  if (body.status !== undefined) data.status = body.status;
   if (body.address !== undefined) data.address = body.address;
   if (body.city !== undefined) data.city = body.city;
   if (body.state !== undefined) data.state = body.state;

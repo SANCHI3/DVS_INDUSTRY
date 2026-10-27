@@ -168,6 +168,42 @@ export const productionTrendQuerySchema = z.object({
 
 // ── Inferred types ────────────────────────────────────────────────────────────
 
+// ── Monthly target & KPI thresholds ────────────────────────────────────────────
+
+const percentField = (label: string) =>
+  z
+    .number({ message: `${label} must be a number` })
+    .min(0, `${label} cannot be negative`)
+    .max(100, `${label} cannot exceed 100%`)
+    .nullable()
+    .optional();
+
+export const targetMonthParamSchema = z.object({
+  month: z
+    .string()
+    .regex(/^(20\d{2})-(0[1-9]|1[0-2])$/, 'Month must look like 2026-10 (years 2000–2099)'),
+});
+
+export const targetYearQuerySchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2099).optional(),
+});
+
+export const saveTargetSchema = z.object({
+  outputTarget: z
+    .string()
+    .trim()
+    .regex(/^\d{1,11}(\.\d{1,3})?$/, 'Output target must be a number with up to 3 decimals')
+    .refine((v) => parseFloat(v) > 0, 'Output target must be greater than 0'),
+  unit: z.string().trim().min(1, 'Unit is required').max(20).optional().default('pcs'),
+  targetCompletionRate: percentField('Target completion rate'),
+  maxRejectionRate: percentField('Maximum rejection rate'),
+  targetEmployeeEfficiency: percentField('Target employee efficiency'),
+  notes: z.string().trim().max(500).optional().nullable(),
+  // updatedAt of the record the user edited (null when creating). A mismatch
+  // means someone else changed it, so the save is refused instead of overwriting.
+  expectedUpdatedAt: z.string().datetime({ offset: true }).nullable(),
+});
+
 export type CreateWorkOrderInput = z.infer<typeof createWorkOrderSchema>;
 export type UpdateWorkOrderInput = z.infer<typeof updateWorkOrderSchema>;
 export type WorkOrderQueryInput = z.infer<typeof workOrderQuerySchema>;
@@ -177,3 +213,4 @@ export type UpdateOutputInput = z.infer<typeof updateOutputSchema>;
 export type OutputQueryInput = z.infer<typeof outputQuerySchema>;
 export type ProductionKpiQueryInput = z.infer<typeof productionKpiQuerySchema>;
 export type ProductionTrendQueryInput = z.infer<typeof productionTrendQuerySchema>;
+export type SaveTargetInput = z.infer<typeof saveTargetSchema>;

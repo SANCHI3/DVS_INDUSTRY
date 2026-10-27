@@ -1,5 +1,7 @@
 import api, { unwrap, unwrapPaged, type PaginatedMeta } from '../api';
 
+export type EmployeeStatus = 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE' | 'TERMINATED';
+
 export interface EmployeeDto {
   id:             number;
   employeeCode:   string;
@@ -10,8 +12,10 @@ export interface EmployeeDto {
   gender:         string | null;
   designation:    string;
   employmentType: string;
+  /** Null for roles that may not see pay (only ADMIN and HR do). */
   salary:         string | null;
-  status:         string;
+  dailyWageRate:  string | null;
+  status:         EmployeeStatus;
   departmentId:   number | null;
   department:     { id: number; name: string; code: string } | null;
   shiftId:        number | null;

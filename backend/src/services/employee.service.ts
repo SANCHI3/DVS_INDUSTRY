@@ -15,7 +15,7 @@ import { logger } from '../logger';
  * EmployeeService — all business rules live here.
  *
  * Rules enforced:
- *  1. employeeCode must be unique across ALL records (incl. deleted)
+ *  1. employeeCode must be unique across ALL records (incl. deleted), ignoring case
  *  2. email must be unique if provided (incl. deleted)
  *  3. departmentId must reference an existing, non-deleted department
  *  4. managerId must reference an existing employee (not themselves)
@@ -36,10 +36,13 @@ export class EmployeeService {
   // ── Create ────────────────────────────────────────────────────────────────
 
   async create(data: CreateEmployeeData): Promise<EmployeeDto> {
-    // Rule 1 — unique employeeCode
-    const codeExists = await this.repo.findByEmployeeCode(data.employeeCode);
+    // Rule 1 — unique employeeCode, ignoring case
+    const codeExists = await this.repo.findByEmployeeCodeInsensitive(data.employeeCode);
     if (codeExists !== null) {
-      throw new ConflictError(`Employee with code "${data.employeeCode}" already exists`);
+      throw new ConflictError(
+        `Employee ID "${data.employeeCode}" is already used by ${codeExists.employeeCode}` +
+          `${codeExists.deletedAt !== null ? ' (a removed employee)' : ''}`,
+      );
     }
 
     // Rule 2 — unique email
@@ -85,6 +88,16 @@ export class EmployeeService {
 
     if (existing.deletedAt !== null) {
       throw new BadRequestError('Cannot update a deleted employee. Restore them first.');
+    }
+
+    // Rule 1 — a changed code must still be unique (incl. deleted)
+    if (data.employeeCode !== undefined && data.employeeCode !== existing.employeeCode) {
+      const codeConflict = await this.repo.findByEmployeeCodeInsensitive(data.employeeCode);
+      if (codeConflict !== null && codeConflict.id !== id) {
+        throw new ConflictError(
+          `Employee ID "${data.employeeCode}" is already used by ${codeConflict.employeeCode}`,
+        );
+      }
     }
 
     // Unique email check (skip if unchanged)

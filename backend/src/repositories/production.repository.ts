@@ -17,7 +17,11 @@ import type {
   ProductionTrendEntry,
   WorkOrderStatus,
   WorkOrderPriority,
+  ProductionTargetDto,
+  SaveProductionTargetData,
+  MonthOutputTotals,
 } from '../interfaces';
+import { monthKey, nextMonthStart } from '../utils/targetProgress';
 
 // ── Select shapes ─────────────────────────────────────────────────────────────
 
@@ -527,4 +531,74 @@ export class ProductionRepository {
 
     return trend;
   }
+
+  // ══ MONTHLY TARGETS ══════════════════════════════════════════════════════
+
+  async findTarget(periodStart: Date): Promise<ProductionTargetDto | null> {
+    const raw = await prisma.productionMonthlyTarget.findUnique({ where: { periodStart } });
+    return raw ? toTargetDto(raw) : null;
+  }
+
+  async findTargetsBetween(from: Date, to: Date): Promise<ProductionTargetDto[]> {
+    const rows = await prisma.productionMonthlyTarget.findMany({
+      where: { periodStart: { gte: from, lt: to } },
+      orderBy: { periodStart: 'asc' },
+    });
+    return rows.map(toTargetDto);
+  }
+
+  async createTarget(
+    periodStart: Date,
+    data: SaveProductionTargetData,
+  ): Promise<ProductionTargetDto> {
+    const raw = await prisma.productionMonthlyTarget.create({ data: { periodStart, ...data } });
+    return toTargetDto(raw);
+  }
+
+  async updateTarget(id: number, data: SaveProductionTargetData): Promise<ProductionTargetDto> {
+    const raw = await prisma.productionMonthlyTarget.update({ where: { id }, data });
+    return toTargetDto(raw);
+  }
+
+  async deleteTarget(id: number): Promise<void> {
+    await prisma.productionMonthlyTarget.delete({ where: { id } });
+  }
+
+  /** Output recorded during the month (by recordedAt), on work orders that are not deleted. */
+  async getMonthOutputTotals(periodStart: Date): Promise<MonthOutputTotals> {
+    const agg = await prisma.workOrderOutput.aggregate({
+      where: {
+        recordedAt: { gte: periodStart, lt: nextMonthStart(periodStart) },
+        workOrder: { deletedAt: null },
+      },
+      _sum: { goodQty: true, rejectedQty: true, scrapQty: true },
+      _count: { _all: true },
+    });
+    return {
+      goodQty: agg._sum.goodQty?.toNumber() ?? 0,
+      rejectedQty: agg._sum.rejectedQty?.toNumber() ?? 0,
+      scrapQty: agg._sum.scrapQty?.toNumber() ?? 0,
+      outputRecords: agg._count._all,
+    };
+  }
+}
+
+type PrismaTarget = Prisma.ProductionMonthlyTargetGetPayload<object>;
+
+function toTargetDto(r: PrismaTarget): ProductionTargetDto {
+  const num = (d: Prisma.Decimal | null) => (d === null ? null : d.toNumber());
+  return {
+    id: r.id,
+    month: monthKey(r.periodStart),
+    periodStart: r.periodStart,
+    outputTarget: r.outputTarget.toNumber(),
+    unit: r.unit,
+    targetCompletionRate: num(r.targetCompletionRate),
+    maxRejectionRate: num(r.maxRejectionRate),
+    targetEmployeeEfficiency: num(r.targetEmployeeEfficiency),
+    notes: r.notes,
+    updatedById: r.updatedById,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  };
 }

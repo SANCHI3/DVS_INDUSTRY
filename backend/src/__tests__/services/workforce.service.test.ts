@@ -150,7 +150,8 @@ describe('WorkforceService', () => {
   describe('createAttendance', () => {
     it('creates attendance record successfully', async () => {
       (prisma.employee.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(mockEmployee);
-      (prisma.attendance.upsert as ReturnType<typeof vi.fn>).mockResolvedValue(mockAttendance);
+      (prisma.attendance.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (prisma.attendance.create as ReturnType<typeof vi.fn>).mockResolvedValue(mockAttendance);
 
       const result = await svc.createAttendance({
         employeeId: 1,

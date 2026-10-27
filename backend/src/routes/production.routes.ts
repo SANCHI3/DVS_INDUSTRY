@@ -16,6 +16,9 @@ import {
   outputQuerySchema,
   productionKpiQuerySchema,
   productionTrendQuerySchema,
+  targetMonthParamSchema,
+  targetYearQuerySchema,
+  saveTargetSchema,
 } from '../validators/production.validator';
 import { ROLES } from '../constants';
 
@@ -26,6 +29,8 @@ router.use(authenticate);
 const PROD_WRITE = [ROLES.ADMIN, ROLES.PRODUCTION] as const;
 const PROD_MANAGE = [ROLES.ADMIN, ROLES.MANAGER, ROLES.PRODUCTION] as const;
 const PROD_READ = [ROLES.ADMIN, ROLES.MANAGER, ROLES.PRODUCTION, ROLES.HR] as const;
+// Company-wide targets are a management decision
+const TARGET_EDIT = [ROLES.ADMIN, ROLES.MANAGER] as const;
 
 // ════════════════════════════════════════════════════════════════
 // KPIs & TREND  (before parameterised routes to avoid conflicts)
@@ -55,6 +60,42 @@ router.get(
   authorize(...PROD_READ),
   validateRequest({ query: productionTrendQuerySchema }),
   asyncHandler(ProductionController.getProductionTrend),
+);
+
+// ════════════════════════════════════════════════════════════════
+// MONTHLY TARGETS & KPI THRESHOLDS
+// ════════════════════════════════════════════════════════════════
+
+/** GET /api/v1/production/targets?year=2026 — targets set for each month of a year */
+router.get(
+  '/targets',
+  authorize(...PROD_READ),
+  validateRequest({ query: targetYearQuerySchema }),
+  asyncHandler(ProductionController.getTargets),
+);
+
+/** GET /api/v1/production/targets/:month/performance — target vs recorded output */
+router.get(
+  '/targets/:month/performance',
+  authorize(...PROD_READ),
+  validateRequest({ params: targetMonthParamSchema }),
+  asyncHandler(ProductionController.getMonthlyPerformance),
+);
+
+/** PUT /api/v1/production/targets/:month — create or update (409 if changed meanwhile) */
+router.put(
+  '/targets/:month',
+  authorize(...TARGET_EDIT),
+  validateRequest({ params: targetMonthParamSchema, body: saveTargetSchema }),
+  asyncHandler(ProductionController.saveTarget),
+);
+
+/** DELETE /api/v1/production/targets/:month */
+router.delete(
+  '/targets/:month',
+  authorize(ROLES.ADMIN),
+  validateRequest({ params: targetMonthParamSchema }),
+  asyncHandler(ProductionController.deleteTarget),
 );
 
 // ════════════════════════════════════════════════════════════════

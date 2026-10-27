@@ -28,6 +28,7 @@ const employeeSelect = {
   designation: true,
   employmentType: true,
   salary: true,
+  dailyWageRate: true,
   status: true,
   profileImage: true,
   address: true,
@@ -70,6 +71,7 @@ function toDto(raw: PrismaEmployeeResult): EmployeeDto {
   return {
     ...raw,
     salary: raw.salary !== null ? raw.salary.toString() : null,
+    dailyWageRate: raw.dailyWageRate !== null ? raw.dailyWageRate.toString() : null,
     gender: raw.gender as Gender | null,
     employmentType: raw.employmentType as EmploymentType,
     status: raw.status as EmployeeDto['status'],
@@ -111,6 +113,8 @@ export class EmployeeRepository implements IEmployeeRepository {
         designation: data.designation,
         employmentType: data.employmentType ?? 'FULL_TIME',
         salary: data.salary ?? null,
+        dailyWageRate: data.dailyWageRate ?? null,
+        status: data.status ?? 'ACTIVE',
         departmentId: data.departmentId ?? null,
         shiftId: data.shiftId ?? null,
         managerId: data.managerId ?? null,
@@ -134,6 +138,7 @@ export class EmployeeRepository implements IEmployeeRepository {
   async update(id: number, data: UpdateEmployeeData): Promise<EmployeeDto> {
     const updateData: Prisma.EmployeeUpdateInput = {};
 
+    if (data.employeeCode !== undefined) updateData.employeeCode = data.employeeCode;
     if (data.firstName !== undefined) updateData.firstName = data.firstName;
     if (data.lastName !== undefined) updateData.lastName = data.lastName;
     if (data.email !== undefined) updateData.email = data.email;
@@ -144,6 +149,8 @@ export class EmployeeRepository implements IEmployeeRepository {
     if (data.designation !== undefined) updateData.designation = data.designation;
     if (data.employmentType !== undefined) updateData.employmentType = data.employmentType;
     if (data.salary !== undefined) updateData.salary = data.salary;
+    if (data.dailyWageRate !== undefined) updateData.dailyWageRate = data.dailyWageRate;
+    if (data.status !== undefined) updateData.status = data.status;
     if (data.address !== undefined) updateData.address = data.address;
     if (data.city !== undefined) updateData.city = data.city;
     if (data.state !== undefined) updateData.state = data.state;
@@ -176,6 +183,15 @@ export class EmployeeRepository implements IEmployeeRepository {
   async findByEmployeeCode(code: string): Promise<EmployeeDto | null> {
     const raw = await prisma.employee.findUnique({
       where: { employeeCode: code },
+      select: employeeSelect,
+    });
+    return raw !== null ? toDto(raw) : null;
+  }
+
+  /** Any employee (incl. deleted) whose code matches ignoring case, e.g. legacy "emp-1". */
+  async findByEmployeeCodeInsensitive(code: string): Promise<EmployeeDto | null> {
+    const raw = await prisma.employee.findFirst({
+      where: { employeeCode: { equals: code, mode: 'insensitive' } },
       select: employeeSelect,
     });
     return raw !== null ? toDto(raw) : null;

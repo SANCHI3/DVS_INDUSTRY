@@ -14,7 +14,14 @@ import type {
   DailyAttendanceSummary,
   AttendanceTrendEntry,
   AttendanceStatus,
+  EmployeeDailyOutputDto,
+  EmployeeDailyOutputListResult,
+  EmployeeDailyOutputFilters,
+  CreateEmployeeDailyOutputData,
+  UpdateEmployeeDailyOutputData,
+  EmployeeOutputSummary,
 } from '../interfaces';
+import { calculateEfficiency } from '../utils/efficiency';
 
 // ── Select shapes ─────────────────────────────────────────────────────────────
 
@@ -49,14 +56,33 @@ const attendanceSelect = {
       lastName: true,
       designation: true,
       department: { select: { id: true, name: true } },
+      shift: { select: { id: true, name: true } },
     },
   },
+} as const;
+
+const employeeOutputSelect = {
+  id: true,
+  employeeId: true,
+  date: true,
+  workingHours: true,
+  expectedParts: true,
+  producedParts: true,
+  operationsCount: true,
+  remarks: true,
+  recordedById: true,
+  createdAt: true,
+  updatedAt: true,
+  employee: attendanceSelect.employee,
 } as const;
 
 // ── Converters ────────────────────────────────────────────────────────────────
 
 type PrismaShift = Prisma.ShiftGetPayload<{ select: typeof shiftSelect }>;
 type PrismaAttendance = Prisma.AttendanceGetPayload<{ select: typeof attendanceSelect }>;
+type PrismaEmployeeOutput = Prisma.EmployeeDailyOutputGetPayload<{
+  select: typeof employeeOutputSelect;
+}>;
 
 function toShiftDto(r: PrismaShift): ShiftDto {
   return { ...r };
@@ -81,7 +107,52 @@ function toAttendanceDto(r: PrismaAttendance): AttendanceDto {
       lastName: r.employee.lastName,
       designation: r.employee.designation,
       department: r.employee.department ?? null,
+      shift: r.employee.shift ?? null,
     },
+  };
+}
+
+function decimalToNumber(d: Prisma.Decimal | null): number | null {
+  return d === null ? null : Number(d.toString());
+}
+
+function toEmployeeOutputDto(r: PrismaEmployeeOutput): EmployeeDailyOutputDto {
+  const expectedParts = decimalToNumber(r.expectedParts);
+  const producedParts = decimalToNumber(r.producedParts);
+  return {
+    id: r.id,
+    employeeId: r.employeeId,
+    date: r.date,
+    workingHours: r.workingHours,
+    expectedParts,
+    producedParts,
+    operationsCount: r.operationsCount,
+    efficiency: calculateEfficiency(expectedParts, producedParts),
+    remarks: r.remarks,
+    recordedById: r.recordedById,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+    employee: {
+      id: r.employee.id,
+      employeeCode: r.employee.employeeCode,
+      firstName: r.employee.firstName,
+      lastName: r.employee.lastName,
+      designation: r.employee.designation,
+      department: r.employee.department ?? null,
+      shift: r.employee.shift ?? null,
+    },
+  };
+}
+
+/** Employee code / first / last name match, shared by attendance and output lists. */
+function employeeSearchWhere(search: string): Prisma.EmployeeWhereInput {
+  const q = search.trim();
+  return {
+    OR: [
+      { employeeCode: { contains: q, mode: 'insensitive' } },
+      { firstName: { contains: q, mode: 'insensitive' } },
+      { lastName: { contains: q, mode: 'insensitive' } },
+    ],
   };
 }
 
@@ -262,6 +333,7 @@ export class WorkforceRepository {
 
   async findAllAttendance(f: AttendanceFilters): Promise<AttendanceListResult> {
     const {
+      search,
       employeeId,
       departmentId,
       status = 'all',
@@ -287,15 +359,19 @@ export class WorkforceRepository {
       if (toDate) where.date.lte = this.normaliseDate(toDate);
     }
 
-    if (departmentId !== undefined) {
-      where.employee = { departmentId };
+    const employeeWhere: Prisma.EmployeeWhereInput = {};
+    if (departmentId !== undefined) employeeWhere.departmentId = departmentId;
+    if (search !== undefined && search.trim() !== '') {
+      Object.assign(employeeWhere, employeeSearchWhere(search));
     }
+    if (Object.keys(employeeWhere).length > 0) where.employee = employeeWhere;
 
     const [raws, total] = await prisma.$transaction([
       prisma.attendance.findMany({
         where,
         select: attendanceSelect,
-        orderBy: { date: sortOrder },
+        // id keeps the order stable across pages (exports read every page)
+        orderBy: [{ date: sortOrder }, { id: 'asc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
@@ -308,9 +384,13 @@ export class WorkforceRepository {
     await prisma.attendance.delete({ where: { id } });
   }
 
-  // ── Bulk upsert ─────────────────────────────────────────────────────────────
+  // ── Bulk insert (never overwrites) ──────────────────────────────────────────
 
-  async bulkUpsert(
+  /**
+   * Inserts one record per entry; employees who already have a record for
+   * the date are skipped and left unchanged. Edit those individually.
+   */
+  async bulkCreate(
     date: Date,
     entries: Array<{
       employeeId: number;
@@ -319,39 +399,30 @@ export class WorkforceRepository {
       clockOut?: Date | null;
       remarks?: string | null;
     }>,
-  ): Promise<{ created: number; updated: number }> {
+  ): Promise<{ created: number; updated: number; skippedEmployeeIds: number[] }> {
     const normDate = this.normaliseDate(date);
-    // Use a transaction for atomicity
-    await prisma.$transaction(
-      entries.map((e) => {
-        let wh: number | null = null;
-        if (e.clockIn && e.clockOut) wh = calcWorkingHours(e.clockIn, e.clockOut);
+    const existing = await prisma.attendance.findMany({
+      where: { date: normDate, employeeId: { in: entries.map((e) => e.employeeId) } },
+      select: { employeeId: true },
+    });
+    const taken = new Set(existing.map((r) => r.employeeId));
+    const fresh = entries.filter((e) => !taken.has(e.employeeId));
 
-        return prisma.attendance.upsert({
-          where: { employeeId_date: { employeeId: e.employeeId, date: normDate } },
-          create: {
-            employeeId: e.employeeId,
-            date: normDate,
-            status: e.status,
-            clockIn: e.clockIn ?? null,
-            clockOut: e.clockOut ?? null,
-            workingHours: wh,
-            remarks: e.remarks ?? null,
-          },
-          update: {
-            status: e.status,
-            clockIn: e.clockIn ?? null,
-            clockOut: e.clockOut ?? null,
-            workingHours: wh,
-            remarks: e.remarks ?? null,
-          },
-          select: { id: true },
-        });
-      }),
-    );
+    // skipDuplicates also covers a record written between the read and the insert
+    const result = await prisma.attendance.createMany({
+      data: fresh.map((e) => ({
+        employeeId: e.employeeId,
+        date: normDate,
+        status: e.status,
+        clockIn: e.clockIn ?? null,
+        clockOut: e.clockOut ?? null,
+        workingHours: e.clockIn && e.clockOut ? calcWorkingHours(e.clockIn, e.clockOut) : null,
+        remarks: e.remarks ?? null,
+      })),
+      skipDuplicates: true,
+    });
 
-    // Approximate counts (upsert doesn't distinguish create/update easily)
-    return { created: entries.length, updated: 0 };
+    return { created: result.count, updated: 0, skippedEmployeeIds: [...taken] };
   }
 
   // ── Clock-in (upserts today's record with PRESENT status) ────────────────────
@@ -429,8 +500,11 @@ export class WorkforceRepository {
       }),
     ]);
 
-    const counts = { present: 0, absent: 0, halfDay: 0, late: 0, onLeave: 0 };
+    const counts = { present: 0, absent: 0, halfDay: 0, late: 0, onLeave: 0, weekOff: 0 };
     const deptPresentMap = new Map<number, number>();
+    const deptAttendedMap = new Map<number, number>();
+    const deptWeekOffMap = new Map<number, number>();
+    const bump = (m: Map<number, number>, id: number) => m.set(id, (m.get(id) ?? 0) + 1);
 
     for (const r of records) {
       if (r.status === 'PRESENT') {
@@ -443,13 +517,17 @@ export class WorkforceRepository {
         counts.late++;
       } else if (r.status === 'LEAVE') {
         counts.onLeave++;
+      } else if (r.status === 'WEEK_OFF') {
+        counts.weekOff++;
       }
 
-      if (r.status === 'PRESENT' && r.employee.departmentId !== null) {
-        deptPresentMap.set(
-          r.employee.departmentId,
-          (deptPresentMap.get(r.employee.departmentId) ?? 0) + 1,
-        );
+      const deptId = r.employee.departmentId;
+      if (deptId !== null) {
+        if (r.status === 'PRESENT') bump(deptPresentMap, deptId);
+        if (r.status === 'PRESENT' || r.status === 'LATE' || r.status === 'HALF_DAY') {
+          bump(deptAttendedMap, deptId);
+        }
+        if (r.status === 'WEEK_OFF') bump(deptWeekOffMap, deptId);
       }
     }
 
@@ -470,12 +548,16 @@ export class WorkforceRepository {
       departmentId: id,
       departmentName: deptNameMap.get(id) ?? 'Unknown',
       present: deptPresentMap.get(id) ?? 0,
+      attended: deptAttendedMap.get(id) ?? 0,
+      weekOff: deptWeekOffMap.get(id) ?? 0,
       total,
     }));
 
+    // A week-off is not a working day, so it is left out of the rate
     const attended = counts.present + counts.late + counts.halfDay;
+    const workingHeadcount = totalEmployees - counts.weekOff;
     const attendanceRate =
-      totalEmployees > 0 ? ((attended / totalEmployees) * 100).toFixed(1) + '%' : '0.0%';
+      workingHeadcount > 0 ? ((attended / workingHeadcount) * 100).toFixed(1) + '%' : '0.0%';
 
     return {
       date: normDate.toISOString().split('T')[0]!,
@@ -485,40 +567,205 @@ export class WorkforceRepository {
       halfDay: counts.halfDay,
       late: counts.late,
       onLeave: counts.onLeave,
+      weekOff: counts.weekOff,
       attendanceRate,
       byDepartment,
     };
   }
 
-  async getAttendanceTrend(days: number, departmentId?: number): Promise<AttendanceTrendEntry[]> {
-    const trend: AttendanceTrendEntry[] = [];
+  async getAttendanceTrend(
+    days: number,
+    departmentId?: number,
+    endDate: Date = new Date(),
+  ): Promise<AttendanceTrendEntry[]> {
+    const end = this.normaliseDate(endDate);
+    const start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - (days - 1));
 
-    for (let i = days - 1; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const normDate = this.normaliseDate(d);
+    const records = await prisma.attendance.findMany({
+      where: {
+        date: { gte: start, lte: end },
+        ...(departmentId ? { employee: { departmentId } } : {}),
+      },
+      select: { date: true, status: true },
+    });
 
-      const records = await prisma.attendance.findMany({
-        where: {
-          date: normDate,
-          ...(departmentId ? { employee: { departmentId } } : {}),
-        },
-        select: { status: true },
-      });
-
-      const present = records.filter((r) => r.status === 'PRESENT').length;
-      const absent = records.filter((r) => r.status === 'ABSENT').length;
-      const late = records.filter((r) => r.status === 'LATE').length;
-
-      trend.push({
-        date: d.toLocaleDateString('en-IN', { weekday: 'short' }),
-        present,
-        absent,
-        late,
+    const byDay = new Map<string, AttendanceTrendEntry>();
+    for (let i = 0; i < days; i++) {
+      const d = new Date(start);
+      d.setUTCDate(d.getUTCDate() + i);
+      const key = d.toISOString().slice(0, 10);
+      byDay.set(key, {
+        date: key,
+        present: 0,
+        absent: 0,
+        late: 0,
+        halfDay: 0,
+        onLeave: 0,
+        weekOff: 0,
       });
     }
 
-    return trend;
+    const field: Record<AttendanceStatus, keyof Omit<AttendanceTrendEntry, 'date'>> = {
+      PRESENT: 'present',
+      ABSENT: 'absent',
+      LATE: 'late',
+      HALF_DAY: 'halfDay',
+      LEAVE: 'onLeave',
+      WEEK_OFF: 'weekOff',
+    };
+    for (const r of records) {
+      const entry = byDay.get(this.normaliseDate(r.date).toISOString().slice(0, 10));
+      if (entry !== undefined) entry[field[r.status as AttendanceStatus]]++;
+    }
+
+    return [...byDay.values()];
+  }
+
+  // ══ EMPLOYEE DAILY OUTPUT ═════════════════════════════════════════════════
+
+  async findEmployeeOutputById(id: number): Promise<EmployeeDailyOutputDto | null> {
+    const raw = await prisma.employeeDailyOutput.findUnique({
+      where: { id },
+      select: employeeOutputSelect,
+    });
+    return raw ? toEmployeeOutputDto(raw) : null;
+  }
+
+  async findEmployeeOutputByEmployeeAndDate(
+    employeeId: number,
+    date: Date,
+  ): Promise<EmployeeDailyOutputDto | null> {
+    const raw = await prisma.employeeDailyOutput.findUnique({
+      where: { employeeId_date: { employeeId, date: this.normaliseDate(date) } },
+      select: employeeOutputSelect,
+    });
+    return raw ? toEmployeeOutputDto(raw) : null;
+  }
+
+  async createEmployeeOutput(data: CreateEmployeeDailyOutputData): Promise<EmployeeDailyOutputDto> {
+    const raw = await prisma.employeeDailyOutput.create({
+      data: {
+        employeeId: data.employeeId,
+        date: this.normaliseDate(data.date),
+        workingHours: data.workingHours ?? null,
+        expectedParts: data.expectedParts ?? null,
+        producedParts: data.producedParts ?? null,
+        operationsCount: data.operationsCount ?? null,
+        remarks: data.remarks ?? null,
+        recordedById: data.recordedById ?? null,
+      },
+      select: employeeOutputSelect,
+    });
+    return toEmployeeOutputDto(raw);
+  }
+
+  async updateEmployeeOutput(
+    id: number,
+    data: UpdateEmployeeDailyOutputData,
+  ): Promise<EmployeeDailyOutputDto> {
+    const up: Prisma.EmployeeDailyOutputUpdateInput = {};
+    if (data.workingHours !== undefined) up.workingHours = data.workingHours;
+    if (data.expectedParts !== undefined) up.expectedParts = data.expectedParts;
+    if (data.producedParts !== undefined) up.producedParts = data.producedParts;
+    if (data.operationsCount !== undefined) up.operationsCount = data.operationsCount;
+    if (data.remarks !== undefined) up.remarks = data.remarks;
+
+    const raw = await prisma.employeeDailyOutput.update({
+      where: { id },
+      data: up,
+      select: employeeOutputSelect,
+    });
+    return toEmployeeOutputDto(raw);
+  }
+
+  async deleteEmployeeOutput(id: number): Promise<void> {
+    await prisma.employeeDailyOutput.delete({ where: { id } });
+  }
+
+  private employeeOutputWhere(
+    f: Pick<EmployeeDailyOutputFilters, 'search' | 'employeeId' | 'departmentId'>,
+    from?: Date,
+    to?: Date,
+  ): Prisma.EmployeeDailyOutputWhereInput {
+    const where: Prisma.EmployeeDailyOutputWhereInput = {};
+    if (f.employeeId !== undefined) where.employeeId = f.employeeId;
+    if (from !== undefined || to !== undefined) {
+      where.date = {
+        ...(from !== undefined ? { gte: this.normaliseDate(from) } : {}),
+        ...(to !== undefined ? { lte: this.normaliseDate(to) } : {}),
+      };
+    }
+    const employeeWhere: Prisma.EmployeeWhereInput = {};
+    if (f.departmentId !== undefined) employeeWhere.departmentId = f.departmentId;
+    if (f.search !== undefined && f.search.trim() !== '') {
+      Object.assign(employeeWhere, employeeSearchWhere(f.search));
+    }
+    if (Object.keys(employeeWhere).length > 0) where.employee = employeeWhere;
+    return where;
+  }
+
+  async findAllEmployeeOutputs(
+    f: EmployeeDailyOutputFilters,
+  ): Promise<EmployeeDailyOutputListResult> {
+    const { date, fromDate, toDate, sortOrder = 'desc', page = 1, pageSize = 20 } = f;
+    const where =
+      date !== undefined
+        ? this.employeeOutputWhere(f, date, date)
+        : this.employeeOutputWhere(f, fromDate, toDate);
+
+    const [raws, total] = await prisma.$transaction([
+      prisma.employeeDailyOutput.findMany({
+        where,
+        select: employeeOutputSelect,
+        orderBy: [{ date: sortOrder }, { id: 'asc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      prisma.employeeDailyOutput.count({ where }),
+    ]);
+    return { data: raws.map(toEmployeeOutputDto), total };
+  }
+
+  async getEmployeeOutputSummary(
+    fromDate: Date,
+    toDate: Date,
+    departmentId?: number,
+  ): Promise<EmployeeOutputSummary> {
+    const where = this.employeeOutputWhere({ departmentId }, fromDate, toDate);
+    const rows = await prisma.employeeDailyOutput.findMany({
+      where,
+      select: { employeeId: true, expectedParts: true, producedParts: true, operationsCount: true },
+    });
+
+    let totalExpectedParts = 0;
+    let totalProducedParts = 0;
+    let totalOperations = 0;
+    // Efficiency only over rows where it can be calculated
+    let ratedExpected = 0;
+    let ratedProduced = 0;
+    for (const r of rows) {
+      const expected = decimalToNumber(r.expectedParts);
+      const produced = decimalToNumber(r.producedParts);
+      totalExpectedParts += expected ?? 0;
+      totalProducedParts += produced ?? 0;
+      totalOperations += r.operationsCount ?? 0;
+      if (expected !== null && produced !== null && expected > 0) {
+        ratedExpected += expected;
+        ratedProduced += produced;
+      }
+    }
+
+    return {
+      fromDate: this.normaliseDate(fromDate).toISOString().slice(0, 10),
+      toDate: this.normaliseDate(toDate).toISOString().slice(0, 10),
+      employeesRecorded: new Set(rows.map((r) => r.employeeId)).size,
+      records: rows.length,
+      totalExpectedParts,
+      totalProducedParts,
+      totalOperations,
+      efficiency: calculateEfficiency(ratedExpected, ratedProduced),
+    };
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────

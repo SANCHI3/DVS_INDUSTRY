@@ -45,7 +45,14 @@ export const shiftQuerySchema = z.object({
 // ATTENDANCE
 // ════════════════════════════════════════════════════════════
 
-const attendanceStatusEnum = z.enum(['PRESENT', 'ABSENT', 'HALF_DAY', 'LATE', 'LEAVE']);
+export const attendanceStatusEnum = z.enum([
+  'PRESENT',
+  'ABSENT',
+  'HALF_DAY',
+  'LATE',
+  'LEAVE',
+  'WEEK_OFF',
+]);
 
 export const createAttendanceSchema = z.object({
   employeeId: z.coerce.number().int().positive('employeeId is required'),
@@ -104,10 +111,11 @@ export const attendanceIdParamSchema = z.object({
 export const attendanceQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional().default(1),
   pageSize: z.coerce.number().int().positive().max(100).optional().default(20),
+  search: z.string().max(100).trim().optional(),
   employeeId: z.coerce.number().int().positive().optional(),
   departmentId: z.coerce.number().int().positive().optional(),
   status: z
-    .enum(['PRESENT', 'ABSENT', 'HALF_DAY', 'LATE', 'LEAVE', 'all'])
+    .enum(['PRESENT', 'ABSENT', 'HALF_DAY', 'LATE', 'LEAVE', 'WEEK_OFF', 'all'])
     .optional()
     .default('all'),
   date: z.coerce.date().optional(),
@@ -125,7 +133,93 @@ export const attendanceSummarySchema = z.object({
 // Trend endpoint — number of days
 export const attendanceTrendSchema = z.object({
   days: z.coerce.number().int().min(7).max(30).optional().default(7),
+  endDate: z.coerce.date().optional(), // defaults to today
   departmentId: z.coerce.number().int().positive().optional(),
+});
+
+// ════════════════════════════════════════════════════════════
+// EMPLOYEE DAILY OUTPUT (per-employee performance)
+// ════════════════════════════════════════════════════════════
+
+const partsField = z.coerce
+  .number({ message: 'Must be a number' })
+  .min(0, 'Cannot be negative')
+  .max(1_000_000_000, 'Value is too large')
+  .refine((n) => Math.abs(Math.round(n * 1000) - n * 1000) < 1e-6, 'At most 3 decimal places')
+  .nullable()
+  .optional();
+
+const outputFields = {
+  workingHours: z.coerce
+    .number({ message: 'Must be a number' })
+    .min(0, 'Cannot be negative')
+    .max(24, 'Cannot exceed 24 hours in a day')
+    .nullable()
+    .optional(),
+  expectedParts: partsField,
+  producedParts: partsField,
+  operationsCount: z.coerce
+    .number({ message: 'Must be a whole number' })
+    .int('Must be a whole number')
+    .min(0, 'Cannot be negative')
+    .max(1_000_000, 'Value is too large')
+    .nullable()
+    .optional(),
+  remarks: z.string().max(500).trim().optional().nullable(),
+};
+
+const hasMeasurement = (d: Record<string, unknown>): boolean =>
+  ['workingHours', 'expectedParts', 'producedParts', 'operationsCount'].some(
+    (k) => d[k] !== undefined && d[k] !== null,
+  );
+
+export const createEmployeeOutputSchema = z
+  .object({
+    employeeId: z.coerce.number().int().positive('employeeId is required'),
+    date: z.coerce.date({ message: 'A valid date is required' }),
+    ...outputFields,
+  })
+  .refine(hasMeasurement, {
+    message: 'Enter at least one of working hours, expected parts, produced parts or operations',
+  });
+
+export const updateEmployeeOutputSchema = z
+  .object(outputFields)
+  .refine((d) => Object.values(d).some((v) => v !== undefined), {
+    message: 'At least one field must be provided for update',
+  });
+
+export const employeeOutputIdParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
+export const employeeOutputQuerySchema = z.object({
+  page: z.coerce.number().int().positive().optional().default(1),
+  pageSize: z.coerce.number().int().positive().max(100).optional().default(20),
+  search: z.string().max(100).trim().optional(),
+  employeeId: z.coerce.number().int().positive().optional(),
+  departmentId: z.coerce.number().int().positive().optional(),
+  date: z.coerce.date().optional(),
+  fromDate: z.coerce.date().optional(),
+  toDate: z.coerce.date().optional(),
+  sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
+});
+
+export const employeeOutputSummarySchema = z.object({
+  date: z.coerce.date().optional(), // defaults to today
+  fromDate: z.coerce.date().optional(),
+  toDate: z.coerce.date().optional(),
+  departmentId: z.coerce.number().int().positive().optional(),
+});
+
+// Excel attendance upload — multipart form field next to the file
+export const attendanceImportSchema = z.object({
+  date: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Select the attendance date (YYYY-MM-DD)'),
+  // The uploader's offset from UTC in minutes, to place punch times (IST = 330)
+  utcOffset: z.coerce.number().int().min(-720).max(840).default(330),
 });
 
 // ── Inferred types ─────────────────────────────────────────────────────────────
@@ -141,3 +235,8 @@ export type BulkAttendanceInput = z.infer<typeof bulkAttendanceSchema>;
 export type AttendanceQueryInput = z.infer<typeof attendanceQuerySchema>;
 export type AttendanceSummaryInput = z.infer<typeof attendanceSummarySchema>;
 export type AttendanceTrendInput = z.infer<typeof attendanceTrendSchema>;
+export type CreateEmployeeOutputInput = z.infer<typeof createEmployeeOutputSchema>;
+export type UpdateEmployeeOutputInput = z.infer<typeof updateEmployeeOutputSchema>;
+export type EmployeeOutputQueryInput = z.infer<typeof employeeOutputQuerySchema>;
+export type EmployeeOutputSummaryInput = z.infer<typeof employeeOutputSummarySchema>;
+export type AttendanceImportInput = z.infer<typeof attendanceImportSchema>;

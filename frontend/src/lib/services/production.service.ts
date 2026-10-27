@@ -115,3 +115,63 @@ export async function getProductionTrend(params?: { days?: number; departmentId?
   const res = await api.get<{ success: true; data: ProductionTrendEntry[] }>('/production/trend', { params });
   return unwrap(res);
 }
+
+// ── Monthly target & KPI thresholds ───────────────────────────────────────────
+// Entered by management; actual figures always come from recorded output.
+
+export interface ProductionTargetDto {
+  id:                       number;
+  month:                    string;   // "2026-10"
+  periodStart:              string;
+  outputTarget:             number;
+  unit:                     string;
+  targetCompletionRate:     number | null;
+  maxRejectionRate:         number | null;
+  targetEmployeeEfficiency: number | null;
+  notes:                    string | null;
+  updatedById:              number | null;
+  createdAt:                string;
+  updatedAt:                string;
+}
+
+export type TargetPace = 'NOT_STARTED' | 'ON_TRACK' | 'BEHIND' | 'MET';
+export type ThresholdCheck = 'MET' | 'MISSED' | null;
+
+export interface MonthlyPerformance {
+  month: string;
+  target: ProductionTargetDto | null;
+  actual: {
+    goodQty: number; rejectedQty: number; scrapQty: number; outputRecords: number;
+    rejectionRate: number | null; employeeEfficiency: number | null; employeeRecords: number;
+  };
+  progress: {
+    daysInMonth: number; daysElapsed: number;
+    progressPct: number | null; expectedToDate: number | null; pace: TargetPace | null;
+  };
+  checks: { rejection: ThresholdCheck; employeeEfficiency: ThresholdCheck };
+}
+
+export interface SaveTargetPayload {
+  outputTarget:             string;
+  unit:                     string;
+  targetCompletionRate:     number | null;
+  maxRejectionRate:         number | null;
+  targetEmployeeEfficiency: number | null;
+  notes:                    string | null;
+  /** updatedAt of the version being edited; null when creating */
+  expectedUpdatedAt:        string | null;
+}
+
+export async function getMonthlyPerformance(month: string): Promise<MonthlyPerformance> {
+  const res = await api.get<{ success: true; data: MonthlyPerformance }>(`/production/targets/${month}/performance`);
+  return unwrap(res);
+}
+
+export async function saveProductionTarget(month: string, payload: SaveTargetPayload): Promise<ProductionTargetDto> {
+  const res = await api.put<{ success: true; data: ProductionTargetDto }>(`/production/targets/${month}`, payload);
+  return unwrap(res);
+}
+
+export async function deleteProductionTarget(month: string): Promise<void> {
+  await api.delete(`/production/targets/${month}`);
+}

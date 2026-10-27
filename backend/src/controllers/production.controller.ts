@@ -12,6 +12,7 @@ import type {
   OutputQueryInput,
   ProductionKpiQueryInput,
   ProductionTrendQueryInput,
+  SaveTargetInput,
 } from '../validators/production.validator';
 import type {
   CreateWorkOrderData,
@@ -207,4 +208,40 @@ export async function getKPIs(req: Request, res: Response): Promise<void> {
 export async function getProductionTrend(req: Request, res: Response): Promise<void> {
   const q = req.query as unknown as ProductionTrendQueryInput;
   sendSuccess(res, await svc.getProductionTrend(q.days ?? 7, q.departmentId));
+}
+
+// ══ MONTHLY TARGETS ══════════════════════════════════════════════════════════
+
+export async function getTargets(req: Request, res: Response): Promise<void> {
+  const { year } = req.query as unknown as { year?: number };
+  sendSuccess(res, await svc.getTargetsForYear(year ?? new Date().getUTCFullYear()));
+}
+
+export async function getMonthlyPerformance(req: Request, res: Response): Promise<void> {
+  sendSuccess(res, await svc.getMonthlyPerformance(String(req.params['month'])));
+}
+
+export async function saveTarget(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const month = String(req.params['month']);
+  const body = req.body as SaveTargetInput;
+  const { target, created } = await svc.saveTarget(
+    month,
+    {
+      outputTarget: Number(body.outputTarget),
+      unit: body.unit,
+      targetCompletionRate: body.targetCompletionRate ?? null,
+      maxRejectionRate: body.maxRejectionRate ?? null,
+      targetEmployeeEfficiency: body.targetEmployeeEfficiency ?? null,
+      notes: body.notes ?? null,
+      updatedById: req.user?.id ?? null,
+    },
+    body.expectedUpdatedAt,
+  );
+  if (created) sendCreated(res, target, `Target for ${month} saved`);
+  else sendSuccess(res, target, 200, `Target for ${month} updated`);
+}
+
+export async function deleteTarget(req: Request, res: Response): Promise<void> {
+  await svc.deleteTarget(String(req.params['month']));
+  sendNoContent(res);
 }

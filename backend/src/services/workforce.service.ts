@@ -14,9 +14,19 @@ import type {
   DailyAttendanceSummary,
   AttendanceTrendEntry,
   BulkAttendanceEntry,
+  EmployeeDailyOutputDto,
+  EmployeeDailyOutputListResult,
+  EmployeeDailyOutputFilters,
+  CreateEmployeeDailyOutputData,
+  UpdateEmployeeDailyOutputData,
+  EmployeeOutputSummary,
 } from '../interfaces';
 import { ConflictError, NotFoundError, BadRequestError } from '../errors';
 import { logger } from '../logger';
+
+function isoDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
 
 /**
  * WorkforceService — business rules:
@@ -27,10 +37,16 @@ import { logger } from '../logger';
  *
  * Attendance:
  *  3. Employee must exist and not be deleted
- *  4. One record per employee per day (upsert on duplicates)
+ *  4. One record per employee per day — a second create is refused (409),
+ *     never merged; existing records change only through PATCH
  *  5. Clock-out must be after clock-in
  *  6. Cannot clock out if no clock-in exists
  *  7. Cannot create future-dated attendance (optional strict mode — soft warn)
+ *
+ * Employee daily output:
+ *  8. One record per employee per day — a second create is refused (409)
+ *  9. Not dated in the future
+ * 10. Never added to work-order (company) production totals
  */
 export class WorkforceService {
   private readonly repo: WorkforceRepository;
@@ -95,8 +111,15 @@ export class WorkforceService {
     await this.assertEmployeeExists(data.employeeId);
     this.validateClockTimes(data.clockIn, data.clockOut);
 
-    // Rule 4 — upsert (same day = update, new day = create)
-    const attendance = await this.repo.upsertAttendance(data);
+    // Rule 4 — never overwrite an existing day
+    const existing = await this.repo.findAttendanceByEmployeeAndDate(data.employeeId, data.date);
+    if (existing !== null) {
+      throw new ConflictError(
+        `Attendance for ${existing.employee.employeeCode} on ${isoDay(data.date)} already exists ` +
+          `(${existing.status}). Edit the existing record instead.`,
+      );
+    }
+    const attendance = await this.repo.createAttendance(data);
     logger.info('Attendance recorded', {
       employeeId: data.employeeId,
       date: data.date,
@@ -203,9 +226,12 @@ export class WorkforceService {
   async bulkMark(
     date: Date,
     entries: BulkAttendanceEntry[],
-  ): Promise<{ created: number; updated: number }> {
+  ): Promise<{ created: number; updated: number; skippedEmployeeIds: number[] }> {
     // Validate all employee IDs exist
     const ids = [...new Set(entries.map((e) => e.employeeId))];
+    if (ids.length !== entries.length) {
+      throw new BadRequestError('Each employee may appear only once per bulk request');
+    }
     const existing = await prisma.employee.findMany({
       where: { id: { in: ids }, deletedAt: null },
       select: { id: true },
@@ -216,7 +242,8 @@ export class WorkforceService {
       throw new NotFoundError(`Employees not found: ${missing.join(', ')}`);
     }
 
-    const result = await this.repo.bulkUpsert(
+    // Rule 4 — existing records are skipped, not overwritten
+    const result = await this.repo.bulkCreate(
       date,
       entries.map((e) => ({
         employeeId: e.employeeId,
@@ -226,7 +253,11 @@ export class WorkforceService {
         remarks: e.remarks ?? null,
       })),
     );
-    logger.info('Bulk attendance recorded', { date, count: entries.length });
+    logger.info('Bulk attendance recorded', {
+      date,
+      created: result.created,
+      skipped: result.skippedEmployeeIds.length,
+    });
     return result;
   }
 
@@ -236,11 +267,92 @@ export class WorkforceService {
     return this.repo.getDailySummary(date ?? new Date(), departmentId);
   }
 
-  async getAttendanceTrend(days = 7, departmentId?: number): Promise<AttendanceTrendEntry[]> {
-    return this.repo.getAttendanceTrend(days, departmentId);
+  async getAttendanceTrend(
+    days = 7,
+    departmentId?: number,
+    endDate?: Date,
+  ): Promise<AttendanceTrendEntry[]> {
+    return this.repo.getAttendanceTrend(days, departmentId, endDate);
+  }
+
+  // ══ EMPLOYEE DAILY OUTPUT ═════════════════════════════════════════════════
+
+  async createEmployeeOutput(data: CreateEmployeeDailyOutputData): Promise<EmployeeDailyOutputDto> {
+    await this.assertEmployeeExists(data.employeeId);
+    this.assertNotFuture(data.date);
+
+    // Rule 8
+    const existing = await this.repo.findEmployeeOutputByEmployeeAndDate(
+      data.employeeId,
+      data.date,
+    );
+    if (existing !== null) {
+      throw new ConflictError(
+        `Performance for ${existing.employee.employeeCode} on ${isoDay(data.date)} is already ` +
+          'recorded. Edit the existing record instead.',
+      );
+    }
+
+    const output = await this.repo.createEmployeeOutput(data);
+    logger.info('Employee output recorded', { employeeId: data.employeeId, date: data.date });
+    return output;
+  }
+
+  async updateEmployeeOutput(
+    id: number,
+    data: UpdateEmployeeDailyOutputData,
+  ): Promise<EmployeeDailyOutputDto> {
+    await this.getEmployeeOutputById(id);
+    const updated = await this.repo.updateEmployeeOutput(id, data);
+    logger.info('Employee output updated', { id });
+    return updated;
+  }
+
+  async getEmployeeOutputById(id: number): Promise<EmployeeDailyOutputDto> {
+    const record = await this.repo.findEmployeeOutputById(id);
+    if (record === null) {
+      throw new NotFoundError(`Performance record with id ${id} not found`);
+    }
+    return record;
+  }
+
+  async getAllEmployeeOutputs(
+    filters: EmployeeDailyOutputFilters,
+  ): Promise<EmployeeDailyOutputListResult> {
+    return this.repo.findAllEmployeeOutputs(filters);
+  }
+
+  async deleteEmployeeOutput(id: number): Promise<void> {
+    await this.getEmployeeOutputById(id);
+    await this.repo.deleteEmployeeOutput(id);
+    logger.info('Employee output deleted', { id });
+  }
+
+  async getEmployeeOutputSummary(
+    range: { date?: Date | undefined; fromDate?: Date | undefined; toDate?: Date | undefined },
+    departmentId?: number,
+  ): Promise<EmployeeOutputSummary> {
+    const today = new Date();
+    const from = range.date ?? range.fromDate ?? range.toDate ?? today;
+    const to = range.date ?? range.toDate ?? range.fromDate ?? today;
+    if (from > to) throw new BadRequestError('fromDate must be on or before toDate');
+    if (to.getTime() - from.getTime() > 366 * 86_400_000) {
+      throw new BadRequestError('The date range may not exceed one year');
+    }
+    return this.repo.getEmployeeOutputSummary(from, to, departmentId);
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────
+
+  /** Rule 9 — allows "today" in any timezone ahead of UTC (e.g. IST). */
+  private assertNotFuture(date: Date): void {
+    const latest = new Date();
+    latest.setUTCHours(0, 0, 0, 0);
+    latest.setUTCDate(latest.getUTCDate() + 1);
+    const day = new Date(date);
+    day.setUTCHours(0, 0, 0, 0);
+    if (day > latest) throw new BadRequestError('Performance cannot be recorded for a future date');
+  }
 
   private async getShiftOrThrow(id: number): Promise<ShiftDto> {
     const shift = await this.repo.findShiftById(id);

@@ -18,8 +18,15 @@ import {
   bulkAttendanceSchema,
   attendanceSummarySchema,
   attendanceTrendSchema,
+  createEmployeeOutputSchema,
+  updateEmployeeOutputSchema,
+  employeeOutputIdParamSchema,
+  employeeOutputQuerySchema,
+  employeeOutputSummarySchema,
+  attendanceImportSchema,
 } from '../validators/workforce.validator';
 import { ROLES } from '../constants';
+import { uploadAttendanceSheet } from '../utils/attendanceSheetUpload';
 
 const router = Router();
 router.use(authenticate);
@@ -36,6 +43,9 @@ const ALL_ROLES = [
 const WRITE_ROLES = [ROLES.ADMIN, ROLES.HR] as const;
 const ADMIN_ONLY = [ROLES.ADMIN] as const;
 const HR_MGR = [ROLES.ADMIN, ROLES.MANAGER, ROLES.HR] as const;
+// Per-employee output is production data: supervisors record it
+const OUTPUT_READ = [ROLES.ADMIN, ROLES.MANAGER, ROLES.HR, ROLES.PRODUCTION] as const;
+const OUTPUT_WRITE = [ROLES.ADMIN, ROLES.HR, ROLES.PRODUCTION] as const;
 
 // ════════════════════════════════════════════════════════════════
 // SHIFTS
@@ -145,6 +155,34 @@ router.post(
 );
 
 /**
+ * POST /api/v1/workforce/attendance/import/preview
+ * Check an Excel attendance sheet for one day. Writes nothing.
+ * Multipart: file (.xlsx/.xls, max 5 MB), date (YYYY-MM-DD)
+ * Access: ADMIN, HR (the roles that record attendance)
+ */
+router.post(
+  '/attendance/import/preview',
+  authorize(...WRITE_ROLES),
+  uploadAttendanceSheet,
+  validateRequest({ body: attendanceImportSchema }),
+  asyncHandler(WorkforceController.previewAttendanceImport),
+);
+
+/**
+ * POST /api/v1/workforce/attendance/import
+ * Re-check the same sheet and insert its valid rows. Existing records are
+ * skipped, never overwritten.
+ * Access: ADMIN, HR
+ */
+router.post(
+  '/attendance/import',
+  authorize(...WRITE_ROLES),
+  uploadAttendanceSheet,
+  validateRequest({ body: attendanceImportSchema }),
+  asyncHandler(WorkforceController.importAttendance),
+);
+
+/**
  * POST /api/v1/workforce/attendance/clock-in
  * Record clock-in for an employee (upserts today's record).
  * Body: { employeeId, clockIn?, remarks? }
@@ -233,6 +271,74 @@ router.patch(
   authorize(ROLES.ADMIN, ROLES.HR, ROLES.PRODUCTION),
   validateRequest({ params: attendanceIdParamSchema, body: clockOutSchema }),
   asyncHandler(WorkforceController.clockOut),
+);
+
+// ════════════════════════════════════════════════════════════════
+// EMPLOYEE DAILY OUTPUT (per-employee performance)
+// Kept apart from work-order output; never part of company totals.
+// ════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/v1/workforce/performance/summary
+ * Totals and efficiency for a date or range (default today).
+ */
+router.get(
+  '/performance/summary',
+  authorize(...OUTPUT_READ),
+  validateRequest({ query: employeeOutputSummarySchema }),
+  asyncHandler(WorkforceController.getEmployeeOutputSummary),
+);
+
+/**
+ * GET /api/v1/workforce/performance
+ * List daily output records (filter by date/range, employee, department, search).
+ */
+router.get(
+  '/performance',
+  authorize(...OUTPUT_READ),
+  validateRequest({ query: employeeOutputQuerySchema }),
+  asyncHandler(WorkforceController.getAllEmployeeOutputs),
+);
+
+/**
+ * POST /api/v1/workforce/performance
+ * Record one employee's output for one day. 409 if that day already exists.
+ */
+router.post(
+  '/performance',
+  authorize(...OUTPUT_WRITE),
+  validateRequest({ body: createEmployeeOutputSchema }),
+  asyncHandler(WorkforceController.createEmployeeOutput),
+);
+
+/**
+ * GET /api/v1/workforce/performance/:id
+ */
+router.get(
+  '/performance/:id',
+  authorize(...OUTPUT_READ),
+  validateRequest({ params: employeeOutputIdParamSchema }),
+  asyncHandler(WorkforceController.getEmployeeOutputById),
+);
+
+/**
+ * PATCH /api/v1/workforce/performance/:id
+ */
+router.patch(
+  '/performance/:id',
+  authorize(...OUTPUT_WRITE),
+  validateRequest({ params: employeeOutputIdParamSchema, body: updateEmployeeOutputSchema }),
+  asyncHandler(WorkforceController.updateEmployeeOutput),
+);
+
+/**
+ * DELETE /api/v1/workforce/performance/:id
+ */
+router.delete(
+  '/performance/:id',
+  authorize(...ADMIN_ONLY),
+  validateRequest({ params: employeeOutputIdParamSchema }),
+  asyncHandler(WorkforceController.deleteEmployeeOutput),
 );
 
 export default router;

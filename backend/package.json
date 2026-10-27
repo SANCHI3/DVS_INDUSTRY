@@ -23,6 +23,8 @@
     "db:reset": "prisma migrate reset",
     "db:seed": "tsx prisma/seed.ts",
     "audit:incidents": "tsx scripts/audit-incidents.ts",
+    "import:attendance": "tsx src/scripts/import-attendance.ts",
+    "seed:production-demo": "tsx src/scripts/seed-production-demo.ts",
     "eval:assistant": "tsx scripts/eval-assistant.ts",
     "prepare": "husky",
     "docs:api": "tsx scripts/api-reference.ts"
@@ -54,6 +56,7 @@
     "pg": "^8.22.0",
     "prisma": "^6.19.3",
     "winston": "^3.19.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.4.3"
   },
   "devDependencies": {
