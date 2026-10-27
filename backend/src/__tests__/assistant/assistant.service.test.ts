@@ -162,7 +162,10 @@ describe('AssistantService.ask', () => {
     expect(result.grounded).toBe(false);
     expect(result.answer).not.toMatch(/9\d\d/);
     // The retry asked for tool-result numbers only, with tools switched off.
-    expect(requests[2]!.messages.at(-1)).toMatchObject({ role: 'user', content: expect.stringContaining('only numbers') });
+    expect(requests[2]!.messages.at(-1)).toMatchObject({
+      role: 'user',
+      content: expect.stringContaining('only numbers'),
+    });
     expect(requests[2]!.toolChoice).toBe('none');
   });
 
@@ -186,7 +189,8 @@ describe('AssistantService.ask', () => {
     const result = await svc.ask('Please approve purchase order PO-0012', ADMIN);
 
     expect(result).toEqual({
-      answer: "I can only look things up, I can't make changes. Please use the Orders & Supply page to do that.",
+      answer:
+        "I can only look things up, I can't make changes. Please use the Orders & Supply page to do that.",
       toolsUsed: [],
       sources: [],
       grounded: true,
@@ -197,7 +201,12 @@ describe('AssistantService.ask', () => {
 
   it(`stops after ${MAX_TOOL_ROUNDS} tool rounds and forces a text answer`, async () => {
     const loop = { content: null, toolCalls: [toolCall('getLowStockMaterials')] };
-    const { llm, requests } = scriptedLlm([loop, loop, loop, text('2 materials are low on stock.')]);
+    const { llm, requests } = scriptedLlm([
+      loop,
+      loop,
+      loop,
+      text('2 materials are low on stock.'),
+    ]);
     const execute = fakeExecute({ getLowStockMaterials: LOW_STOCK });
     const result = await service(llm, execute).svc.ask('Which materials are low?', STORE);
 
@@ -215,12 +224,16 @@ describe('AssistantService.ask', () => {
       complete: vi.fn(async (request: CompletionRequest) => {
         requests.push(structuredClone(request));
         calls += 1;
-        if (calls === 1) throw new InvalidToolCallError('`/type`: value must be one of fight, fall');
+        if (calls === 1)
+          throw new InvalidToolCallError('`/type`: value must be one of fight, fall');
         if (calls === 2) return { content: null, toolCalls: [toolCall('getOpenIncidents')] };
         return text('There are 2 open incidents.');
       }),
     };
-    const { svc } = service(llm, fakeExecute({ getOpenIncidents: { openCount: 2, incidents: [] } }));
+    const { svc } = service(
+      llm,
+      fakeExecute({ getOpenIncidents: { openCount: 2, incidents: [] } }),
+    );
 
     const result = await svc.ask('How many security incidents are open?', ADMIN);
 
@@ -228,7 +241,9 @@ describe('AssistantService.ask', () => {
     expect(result.grounded).toBe(true);
     const correction = requests[1]!.messages.at(-1)!;
     expect(correction.role).toBe('user');
-    expect('content' in correction && correction.content).toContain('value must be one of fight, fall');
+    expect('content' in correction && correction.content).toContain(
+      'value must be one of fight, fall',
+    );
   });
 
   it('gives up when the corrected tool call is rejected too', async () => {
@@ -271,15 +286,23 @@ describe('writeRequestReply', () => {
 });
 
 describe('checkGrounding', () => {
-  const evidence = [JSON.stringify({ stock: 1250.5, onTimePercent: 87.4, date: '2026-10-17', share: 0.875 })];
+  const evidence = [
+    JSON.stringify({ stock: 1250.5, onTimePercent: 87.4, date: '2026-10-17', share: 0.875 }),
+  ];
 
   it('accepts thousands separators, rounding, percentages and dates', () => {
-    expect(checkGrounding('We have 1,250.5 kg; on time 87% (87.4%) since 17 Oct 2026.', evidence).grounded).toBe(true);
+    expect(
+      checkGrounding('We have 1,250.5 kg; on time 87% (87.4%) since 17 Oct 2026.', evidence)
+        .grounded,
+    ).toBe(true);
     expect(checkGrounding('87.5% of orders were complete.', evidence).grounded).toBe(true);
   });
 
   it('reports numbers that no tool result supports', () => {
-    expect(checkGrounding('We have 1,300 kg.', evidence)).toEqual({ grounded: false, unsupported: [1300] });
+    expect(checkGrounding('We have 1,300 kg.', evidence)).toEqual({
+      grounded: false,
+      unsupported: [1300],
+    });
   });
 
   it('reads numbers the way people write them', () => {
@@ -296,7 +319,10 @@ describe('createLlmClient', () => {
   it('waits once for a short rate-limit pause, then answers', async () => {
     vi.useFakeTimers();
     const fetchImpl = vi.fn().mockResolvedValueOnce(limited('1')).mockResolvedValueOnce(ok());
-    const client = createLlmClient({ baseUrl: 'https://llm.test/v1', model: 'm', apiKey: 'k' }, fetchImpl);
+    const client = createLlmClient(
+      { baseUrl: 'https://llm.test/v1', model: 'm', apiKey: 'k' },
+      fetchImpl,
+    );
     const pending = client.complete({ messages: [{ role: 'user', content: 'hi' }] });
     await vi.advanceTimersByTimeAsync(1000);
     await expect(pending).resolves.toEqual({ content: 'There are 2.', toolCalls: [] });
@@ -306,27 +332,46 @@ describe('createLlmClient', () => {
 
   it('reports a rejected tool call with the provider explanation', async () => {
     const rejected = new Response(
-      JSON.stringify({ error: { code: 'tool_use_failed', message: '`/type`: value must be one of fight, fall' } }),
+      JSON.stringify({
+        error: { code: 'tool_use_failed', message: '`/type`: value must be one of fight, fall' },
+      }),
       { status: 400 },
     );
-    const client = createLlmClient({ baseUrl: 'https://llm.test/v1', model: 'm', apiKey: 'k' }, vi.fn().mockResolvedValue(rejected));
-    const error = await client.complete({ messages: [{ role: 'user', content: 'hi' }] }).catch((e: unknown) => e);
+    const client = createLlmClient(
+      { baseUrl: 'https://llm.test/v1', model: 'm', apiKey: 'k' },
+      vi.fn().mockResolvedValue(rejected),
+    );
+    const error = await client
+      .complete({ messages: [{ role: 'user', content: 'hi' }] })
+      .catch((e: unknown) => e);
     expect(error).toBeInstanceOf(InvalidToolCallError);
     expect((error as InvalidToolCallError).detail).toContain('value must be one of fight, fall');
   });
 
   it('treats any other 400 as "unavailable"', async () => {
-    const bad = new Response(JSON.stringify({ error: { code: 'invalid_request' } }), { status: 400 });
-    const client = createLlmClient({ baseUrl: 'https://llm.test/v1', model: 'm', apiKey: 'k' }, vi.fn().mockResolvedValue(bad));
-    const error = await client.complete({ messages: [{ role: 'user', content: 'hi' }] }).catch((e: unknown) => e);
+    const bad = new Response(JSON.stringify({ error: { code: 'invalid_request' } }), {
+      status: 400,
+    });
+    const client = createLlmClient(
+      { baseUrl: 'https://llm.test/v1', model: 'm', apiKey: 'k' },
+      vi.fn().mockResolvedValue(bad),
+    );
+    const error = await client
+      .complete({ messages: [{ role: 'user', content: 'hi' }] })
+      .catch((e: unknown) => e);
     expect(error).not.toBeInstanceOf(InvalidToolCallError);
     expect(error).toMatchObject({ code: 'ASSISTANT_UNAVAILABLE' });
   });
 
   it('reports "busy" without waiting when the pause is long', async () => {
     const fetchImpl = vi.fn().mockResolvedValue(limited('60'));
-    const client = createLlmClient({ baseUrl: 'https://llm.test/v1', model: 'm', apiKey: 'k' }, fetchImpl);
-    await expect(client.complete({ messages: [{ role: 'user', content: 'hi' }] })).rejects.toMatchObject({
+    const client = createLlmClient(
+      { baseUrl: 'https://llm.test/v1', model: 'm', apiKey: 'k' },
+      fetchImpl,
+    );
+    await expect(
+      client.complete({ messages: [{ role: 'user', content: 'hi' }] }),
+    ).rejects.toMatchObject({
       message: expect.stringContaining('busy'),
     });
     expect(fetchImpl).toHaveBeenCalledTimes(1);

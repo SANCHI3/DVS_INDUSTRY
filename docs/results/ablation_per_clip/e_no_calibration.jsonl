@@ -1,472 +1,472 @@
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi001.mp4", "minutes": 0.052, "wall_seconds": 4.57, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi002.mp4", "minutes": 0.0567, "wall_seconds": 4.98, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi010.mp4", "minutes": 0.035, "wall_seconds": 2.92, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi017.mp4", "minutes": 0.035, "wall_seconds": 2.86, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi023.mp4", "minutes": 0.035, "wall_seconds": 2.68, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi026.mp4", "minutes": 0.0333, "wall_seconds": 2.52, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi034.mp4", "minutes": 0.0333, "wall_seconds": 3.09, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi039.mp4", "minutes": 0.035, "wall_seconds": 2.69, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi042.mp4", "minutes": 0.0333, "wall_seconds": 2.59, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi052.mp4", "minutes": 0.0353, "wall_seconds": 3.64, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi060.mp4", "minutes": 0.0323, "wall_seconds": 2.5, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi070.mp4", "minutes": 0.035, "wall_seconds": 2.67, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi084.mp4", "minutes": 0.0333, "wall_seconds": 2.36, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi085.mp4", "minutes": 0.0352, "wall_seconds": 2.59, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi092.mp4", "minutes": 0.0334, "wall_seconds": 2.52, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi093.mp4", "minutes": 0.0367, "wall_seconds": 2.99, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi111.mp4", "minutes": 0.0334, "wall_seconds": 2.54, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi112.mp4", "minutes": 0.0334, "wall_seconds": 2.65, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi113.mp4", "minutes": 0.0334, "wall_seconds": 2.62, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi121.mp4", "minutes": 0.0334, "wall_seconds": 2.81, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi126.mp4", "minutes": 0.0334, "wall_seconds": 2.74, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/nofi147.mp4", "minutes": 0.0334, "wall_seconds": 2.49, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_102.mp4", "minutes": 0.0833, "wall_seconds": 5.91, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_106.mp4", "minutes": 0.0833, "wall_seconds": 7.18, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_117.mp4", "minutes": 0.0833, "wall_seconds": 5.63, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_119.mp4", "minutes": 0.0833, "wall_seconds": 6.09, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_121.mp4", "minutes": 0.0833, "wall_seconds": 5.74, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_122.mp4", "minutes": 0.0833, "wall_seconds": 5.74, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_127.mp4", "minutes": 0.0833, "wall_seconds": 5.83, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_134.mp4", "minutes": 0.0833, "wall_seconds": 5.76, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_136.mp4", "minutes": 0.0833, "wall_seconds": 7.11, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_14.mp4", "minutes": 0.0733, "wall_seconds": 6.93, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "crowd", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_140.mp4", "minutes": 0.0767, "wall_seconds": 6.56, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_141.mp4", "minutes": 0.07, "wall_seconds": 6.18, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_142.mp4", "minutes": 0.0633, "wall_seconds": 5.59, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_143.mp4", "minutes": 0.0833, "wall_seconds": 5.88, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_148.mp4", "minutes": 0.0833, "wall_seconds": 7.18, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_151.mp4", "minutes": 0.0833, "wall_seconds": 7.28, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_160.mp4", "minutes": 0.0833, "wall_seconds": 7.33, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_163.mp4", "minutes": 0.0833, "wall_seconds": 7.44, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_176.mp4", "minutes": 0.0833, "wall_seconds": 7.07, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_183.mp4", "minutes": 0.0833, "wall_seconds": 7.17, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_190.mp4", "minutes": 0.0833, "wall_seconds": 7.23, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_193.mp4", "minutes": 0.0833, "wall_seconds": 7.13, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_199.mp4", "minutes": 0.0833, "wall_seconds": 7.2, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_2.mp4", "minutes": 0.0833, "wall_seconds": 7.09, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_201.mp4", "minutes": 0.0833, "wall_seconds": 7.01, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_21.mp4", "minutes": 0.08, "wall_seconds": 5.75, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_219.mp4", "minutes": 0.0833, "wall_seconds": 7.24, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_220.mp4", "minutes": 0.0833, "wall_seconds": 7.09, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_227.mp4", "minutes": 0.0833, "wall_seconds": 7.23, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_231.mp4", "minutes": 0.0833, "wall_seconds": 7.04, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_234.mp4", "minutes": 0.0833, "wall_seconds": 7.13, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_240.mp4", "minutes": 0.0833, "wall_seconds": 7.17, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_241.mp4", "minutes": 0.0833, "wall_seconds": 7.23, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_246.mp4", "minutes": 0.0833, "wall_seconds": 7.13, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_250.mp4", "minutes": 0.0833, "wall_seconds": 7.24, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_263.mp4", "minutes": 0.0833, "wall_seconds": 7.05, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_279.mp4", "minutes": 0.07, "wall_seconds": 6.21, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_281.mp4", "minutes": 0.0833, "wall_seconds": 7.2, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_29.mp4", "minutes": 0.0683, "wall_seconds": 5.33, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_293.mp4", "minutes": 0.0933, "wall_seconds": 8.06, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_294.mp4", "minutes": 0.0867, "wall_seconds": 7.54, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_298.mp4", "minutes": 0.0634, "wall_seconds": 4.49, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_299.mp4", "minutes": 0.0751, "wall_seconds": 5.45, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_301.mp4", "minutes": 0.0967, "wall_seconds": 6.53, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_304.mp4", "minutes": 0.0717, "wall_seconds": 5.24, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_310.mp4", "minutes": 0.0651, "wall_seconds": 4.7, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_314.mp4", "minutes": 0.0717, "wall_seconds": 5.01, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_326.mp4", "minutes": 0.082, "wall_seconds": 6.72, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_337.mp4", "minutes": 0.0733, "wall_seconds": 6.39, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_339.mp4", "minutes": 0.08, "wall_seconds": 6.77, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_342.mp4", "minutes": 0.0751, "wall_seconds": 5.45, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_343.mp4", "minutes": 0.0617, "wall_seconds": 4.4, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_344.mp4", "minutes": 0.0784, "wall_seconds": 5.39, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_346.mp4", "minutes": 0.0851, "wall_seconds": 5.76, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_362.mp4", "minutes": 0.0797, "wall_seconds": 4.74, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_365.mp4", "minutes": 0.0833, "wall_seconds": 6.24, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_366.mp4", "minutes": 0.0833, "wall_seconds": 6.45, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_378.mp4", "minutes": 0.0833, "wall_seconds": 6.55, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_397.mp4", "minutes": 0.0833, "wall_seconds": 6.26, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_405.mp4", "minutes": 0.0833, "wall_seconds": 6.45, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_408.mp4", "minutes": 0.0833, "wall_seconds": 6.17, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_420.mp4", "minutes": 0.0833, "wall_seconds": 6.45, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_427.mp4", "minutes": 0.0833, "wall_seconds": 6.19, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_43.mp4", "minutes": 0.0787, "wall_seconds": 6.9, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_430.mp4", "minutes": 0.0833, "wall_seconds": 6.38, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_433.mp4", "minutes": 0.0833, "wall_seconds": 6.32, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_440.mp4", "minutes": 0.0833, "wall_seconds": 6.42, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_448.mp4", "minutes": 0.0833, "wall_seconds": 6.3, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_454.mp4", "minutes": 0.0833, "wall_seconds": 6.69, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_46.mp4", "minutes": 0.0833, "wall_seconds": 5.83, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_461.mp4", "minutes": 0.0833, "wall_seconds": 6.61, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_462.mp4", "minutes": 0.0833, "wall_seconds": 6.62, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_463.mp4", "minutes": 0.0833, "wall_seconds": 6.73, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_492.mp4", "minutes": 0.0833, "wall_seconds": 6.6, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_495.mp4", "minutes": 0.0833, "wall_seconds": 6.74, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_522.mp4", "minutes": 0.0833, "wall_seconds": 5.63, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_523.mp4", "minutes": 0.0833, "wall_seconds": 5.81, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_527.mp4", "minutes": 0.0833, "wall_seconds": 5.61, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_540.mp4", "minutes": 0.0833, "wall_seconds": 5.99, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_545.mp4", "minutes": 0.0833, "wall_seconds": 7.28, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "crowd", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_549.mp4", "minutes": 0.0833, "wall_seconds": 7.08, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_556.mp4", "minutes": 0.0833, "wall_seconds": 7.36, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_562.mp4", "minutes": 0.0833, "wall_seconds": 7.57, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "crowd", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_564.mp4", "minutes": 0.0833, "wall_seconds": 7.17, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_570.mp4", "minutes": 0.0833, "wall_seconds": 7.18, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_596.mp4", "minutes": 0.0833, "wall_seconds": 6.1, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_619.mp4", "minutes": 0.0833, "wall_seconds": 6.07, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_661.mp4", "minutes": 0.0833, "wall_seconds": 5.59, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_67.mp4", "minutes": 0.0833, "wall_seconds": 5.85, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_673.mp4", "minutes": 0.0833, "wall_seconds": 6.94, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_68.mp4", "minutes": 0.0833, "wall_seconds": 5.85, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_681.mp4", "minutes": 0.0833, "wall_seconds": 6.93, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_685.mp4", "minutes": 0.0833, "wall_seconds": 7.17, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_686.mp4", "minutes": 0.0833, "wall_seconds": 7.09, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_692.mp4", "minutes": 0.0833, "wall_seconds": 7.17, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_694.mp4", "minutes": 0.0833, "wall_seconds": 7.16, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_698.mp4", "minutes": 0.0833, "wall_seconds": 7.24, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_702.mp4", "minutes": 0.0833, "wall_seconds": 7.13, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_703.mp4", "minutes": 0.0833, "wall_seconds": 7.22, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_704.mp4", "minutes": 0.0833, "wall_seconds": 7.13, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_716.mp4", "minutes": 0.0833, "wall_seconds": 7.18, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_719.mp4", "minutes": 0.0833, "wall_seconds": 7.09, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_723.mp4", "minutes": 0.0833, "wall_seconds": 7.2, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_725.mp4", "minutes": 0.08, "wall_seconds": 6.84, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_740.mp4", "minutes": 0.0779, "wall_seconds": 5.31, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_75.mp4", "minutes": 0.0833, "wall_seconds": 5.83, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_761.mp4", "minutes": 0.1101, "wall_seconds": 7.47, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_764.mp4", "minutes": 0.0833, "wall_seconds": 6.5, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_765.mp4", "minutes": 0.0833, "wall_seconds": 6.68, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_769.mp4", "minutes": 0.0833, "wall_seconds": 6.72, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_771.mp4", "minutes": 0.0833, "wall_seconds": 6.64, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_776.mp4", "minutes": 0.0833, "wall_seconds": 6.65, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_778.mp4", "minutes": 0.0833, "wall_seconds": 6.62, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_783.mp4", "minutes": 0.0833, "wall_seconds": 6.61, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_786.mp4", "minutes": 0.0833, "wall_seconds": 6.65, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_792.mp4", "minutes": 0.0833, "wall_seconds": 6.64, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_80.mp4", "minutes": 0.0833, "wall_seconds": 7.25, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_808.mp4", "minutes": 0.0833, "wall_seconds": 6.64, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_819.mp4", "minutes": 0.0833, "wall_seconds": 6.78, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_825.mp4", "minutes": 0.092, "wall_seconds": 7.84, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_830.mp4", "minutes": 0.0753, "wall_seconds": 6.66, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_840.mp4", "minutes": 0.0753, "wall_seconds": 6.57, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_841.mp4", "minutes": 0.0753, "wall_seconds": 6.51, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_848.mp4", "minutes": 0.0687, "wall_seconds": 6.06, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_851.mp4", "minutes": 0.088, "wall_seconds": 7.57, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_852.mp4", "minutes": 0.058, "wall_seconds": 5.25, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_858.mp4", "minutes": 0.082, "wall_seconds": 7.09, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_863.avi", "minutes": 0.0833, "wall_seconds": 7.25, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_871.avi", "minutes": 0.0833, "wall_seconds": 7.08, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_874.avi", "minutes": 0.0833, "wall_seconds": 7.15, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_875.avi", "minutes": 0.0833, "wall_seconds": 7.3, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_889.avi", "minutes": 0.0833, "wall_seconds": 7.26, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_897.avi", "minutes": 0.0833, "wall_seconds": 5.69, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_905.avi", "minutes": 0.0833, "wall_seconds": 5.8, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_907.avi", "minutes": 0.0833, "wall_seconds": 5.95, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_91.mp4", "minutes": 0.072, "wall_seconds": 6.29, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_919.mp4", "minutes": 0.0833, "wall_seconds": 5.61, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_923.mp4", "minutes": 0.0833, "wall_seconds": 5.61, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_926.mp4", "minutes": 0.0833, "wall_seconds": 5.67, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_928.mp4", "minutes": 0.0833, "wall_seconds": 5.69, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_933.mp4", "minutes": 0.0833, "wall_seconds": 5.74, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_955.mp4", "minutes": 0.0833, "wall_seconds": 5.77, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_958.mp4", "minutes": 0.0833, "wall_seconds": 5.61, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_966.mp4", "minutes": 0.0833, "wall_seconds": 5.65, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_969.mp4", "minutes": 0.0833, "wall_seconds": 5.87, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_98.mp4", "minutes": 0.0633, "wall_seconds": 5.48, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_988.mp4", "minutes": 0.0833, "wall_seconds": 5.53, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_992.mp4", "minutes": 2.9983, "wall_seconds": 189.56, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}]}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_994.mp4", "minutes": 0.0667, "wall_seconds": 4.77, "incidents": []}
-{"set": "normal", "clip": "data/fight_videos/not_fight/NV_998.mp4", "minutes": 0.1071, "wall_seconds": 8.87, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo1.858.avi", "minutes": 3.1521, "wall_seconds": 241.35, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "crowd", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo10.1072.avi", "minutes": 0.164, "wall_seconds": 13.67, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo11.1073.avi", "minutes": 0.12, "wall_seconds": 9.8, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo12.1074.avi", "minutes": 0.4352, "wall_seconds": 29.2, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo13.1075.avi", "minutes": 0.1846, "wall_seconds": 15.18, "incidents": [{"event_type": "crowd", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo14.1076.avi", "minutes": 0.0312, "wall_seconds": 2.98, "incidents": []}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo15.1078.avi", "minutes": 0.0491, "wall_seconds": 3.46, "incidents": []}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo16.1077.avi", "minutes": 0.1765, "wall_seconds": 11.45, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo2.859.avi", "minutes": 0.2583, "wall_seconds": 16.66, "incidents": []}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo3.860.avi", "minutes": 0.2667, "wall_seconds": 17.38, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo4.861.avi", "minutes": 1.0728, "wall_seconds": 68.78, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo5.862.avi", "minutes": 0.2439, "wall_seconds": 16.81, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo6.863.avi", "minutes": 0.7613, "wall_seconds": 60.95, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo7.864.avi", "minutes": 0.3006, "wall_seconds": 19.87, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo8.865.avi", "minutes": 2.0915, "wall_seconds": 137.29, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo9.866.avi", "minutes": 0.43, "wall_seconds": 34.95, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg01.807.avi", "minutes": 0.1673, "wall_seconds": 14.11, "incidents": []}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg02.808.avi", "minutes": 0.752, "wall_seconds": 62.78, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg03.809.avi", "minutes": 0.4156, "wall_seconds": 7.22, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg04.810.avi", "minutes": 1.8933, "wall_seconds": 151.54, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg05.811.avi", "minutes": 0.1673, "wall_seconds": 13.91, "incidents": []}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg06.812.avi", "minutes": 0.1673, "wall_seconds": 13.96, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg07.813.avi", "minutes": 0.5173, "wall_seconds": 41.14, "incidents": []}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg08.814.avi", "minutes": 0.5007, "wall_seconds": 40.17, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}]}
-{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg09.815.avi", "minutes": 0.482, "wall_seconds": 39.01, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/fi002.mp4", "minutes": 0.042, "wall_seconds": 4.1, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi009.mp4", "minutes": 0.0475, "wall_seconds": 4.17, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/fi012.mp4", "minutes": 0.0542, "wall_seconds": 4.02, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi018.mp4", "minutes": 0.0333, "wall_seconds": 2.92, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi027.mp4", "minutes": 0.0334, "wall_seconds": 2.98, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi038.mp4", "minutes": 0.0355, "wall_seconds": 3.3, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi041.mp4", "minutes": 0.0334, "wall_seconds": 3.41, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi052.mp4", "minutes": 0.0333, "wall_seconds": 2.84, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi066.mp4", "minutes": 0.032, "wall_seconds": 3.11, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi074.mp4", "minutes": 0.0406, "wall_seconds": 3.35, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi079.mp4", "minutes": 0.0395, "wall_seconds": 3.25, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi087.mp4", "minutes": 0.0319, "wall_seconds": 3.51, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/fi103.mp4", "minutes": 0.035, "wall_seconds": 2.76, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi114.mp4", "minutes": 0.0344, "wall_seconds": 2.39, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi115.mp4", "minutes": 0.0333, "wall_seconds": 3.64, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/fi118.mp4", "minutes": 0.0353, "wall_seconds": 3.85, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/fi121.mp4", "minutes": 0.0333, "wall_seconds": 3.59, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/fi124.mp4", "minutes": 0.0334, "wall_seconds": 2.55, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi129.mp4", "minutes": 0.0333, "wall_seconds": 2.77, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi130.mp4", "minutes": 0.0333, "wall_seconds": 2.51, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi132.mp4", "minutes": 0.0317, "wall_seconds": 2.55, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/fi134.mp4", "minutes": 0.0333, "wall_seconds": 2.49, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/fi138.mp4", "minutes": 0.0334, "wall_seconds": 3.18, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/fi146.mp4", "minutes": 0.0334, "wall_seconds": 2.77, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_10.mp4", "minutes": 0.0878, "wall_seconds": 5.69, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_117.mp4", "minutes": 0.0817, "wall_seconds": 6.13, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_12.mp4", "minutes": 0.0767, "wall_seconds": 5.25, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_127.mp4", "minutes": 0.0983, "wall_seconds": 7.01, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_130.mp4", "minutes": 0.0983, "wall_seconds": 6.83, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_134.mp4", "minutes": 0.0983, "wall_seconds": 7.4, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_135.mp4", "minutes": 0.0983, "wall_seconds": 6.97, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_136.mp4", "minutes": 0.0983, "wall_seconds": 6.81, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_139.mp4", "minutes": 0.0983, "wall_seconds": 7.05, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_140.mp4", "minutes": 0.1, "wall_seconds": 7.11, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_142.mp4", "minutes": 0.0983, "wall_seconds": 6.85, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_150.mp4", "minutes": 0.0983, "wall_seconds": 7.42, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_16.mp4", "minutes": 0.0584, "wall_seconds": 4.11, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_164.mp4", "minutes": 0.0883, "wall_seconds": 6.33, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_166.mp4", "minutes": 0.1033, "wall_seconds": 7.39, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}, {"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_171.mp4", "minutes": 0.0517, "wall_seconds": 4.05, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_18.mp4", "minutes": 0.0717, "wall_seconds": 5.09, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_180.mp4", "minutes": 0.0733, "wall_seconds": 5.22, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_182.mp4", "minutes": 0.0617, "wall_seconds": 4.64, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_190.mp4", "minutes": 0.1034, "wall_seconds": 7.44, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_200.mp4", "minutes": 0.0934, "wall_seconds": 6.68, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_215.mp4", "minutes": 0.0867, "wall_seconds": 6.03, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_217.mp4", "minutes": 0.0867, "wall_seconds": 6.1, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_223.mp4", "minutes": 0.0867, "wall_seconds": 6.72, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_227.mp4", "minutes": 0.0867, "wall_seconds": 5.99, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_232.mp4", "minutes": 0.0767, "wall_seconds": 5.49, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_236.mp4", "minutes": 0.0867, "wall_seconds": 6.17, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_247.mp4", "minutes": 0.0717, "wall_seconds": 4.91, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_252.mp4", "minutes": 0.0767, "wall_seconds": 5.48, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_255.mp4", "minutes": 0.0867, "wall_seconds": 6.11, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_259.mp4", "minutes": 0.0767, "wall_seconds": 5.69, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_262.mp4", "minutes": 0.065, "wall_seconds": 4.75, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_282.mp4", "minutes": 0.09, "wall_seconds": 7.32, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_293.mp4", "minutes": 0.0784, "wall_seconds": 6.12, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_297.mp4", "minutes": 0.0784, "wall_seconds": 5.78, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_299.mp4", "minutes": 0.0951, "wall_seconds": 6.89, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_30.mp4", "minutes": 0.0584, "wall_seconds": 4.22, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_300.mp4", "minutes": 0.1084, "wall_seconds": 8.17, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_304.mp4", "minutes": 0.0868, "wall_seconds": 6.55, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_310.mp4", "minutes": 0.0868, "wall_seconds": 6.56, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_313.mp4", "minutes": 0.0868, "wall_seconds": 6.47, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_326.mp4", "minutes": 0.0868, "wall_seconds": 6.55, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_333.mp4", "minutes": 0.0734, "wall_seconds": 5.6, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_336.mp4", "minutes": 0.0918, "wall_seconds": 6.61, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_344.mp4", "minutes": 0.0651, "wall_seconds": 4.49, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_372.mp4", "minutes": 0.0833, "wall_seconds": 6.31, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_373.mp4", "minutes": 0.085, "wall_seconds": 6.36, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_374.mp4", "minutes": 0.085, "wall_seconds": 6.4, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_375.mp4", "minutes": 0.0833, "wall_seconds": 7.45, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_377.mp4", "minutes": 0.1887, "wall_seconds": 16.72, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_38.mp4", "minutes": 0.0953, "wall_seconds": 8.69, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_391.mp4", "minutes": 0.0834, "wall_seconds": 5.72, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_394.mp4", "minutes": 0.0834, "wall_seconds": 5.94, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_396.mp4", "minutes": 0.0852, "wall_seconds": 5.72, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_397.mp4", "minutes": 0.0668, "wall_seconds": 5.01, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_398.mp4", "minutes": 2.2828, "wall_seconds": 154.89, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "crowd", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_413.mp4", "minutes": 0.0652, "wall_seconds": 4.88, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_430.mp4", "minutes": 0.0733, "wall_seconds": 5.74, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_454.mp4", "minutes": 0.0783, "wall_seconds": 5.81, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_457.mp4", "minutes": 0.0733, "wall_seconds": 5.28, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_469.mp4", "minutes": 0.0817, "wall_seconds": 5.5, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_47.mp4", "minutes": 0.0567, "wall_seconds": 4.54, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_473.mp4", "minutes": 0.0701, "wall_seconds": 5.05, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_477.mp4", "minutes": 0.0884, "wall_seconds": 6.02, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_478.mp4", "minutes": 0.0751, "wall_seconds": 5.42, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_481.mp4", "minutes": 0.0684, "wall_seconds": 5.23, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_486.mp4", "minutes": 0.0834, "wall_seconds": 6.01, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_496.mp4", "minutes": 0.0801, "wall_seconds": 5.45, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_498.mp4", "minutes": 0.0767, "wall_seconds": 5.78, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_510.mp4", "minutes": 0.0789, "wall_seconds": 5.53, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_513.mp4", "minutes": 0.0801, "wall_seconds": 6.01, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_516.mp4", "minutes": 0.0684, "wall_seconds": 4.69, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_525.mp4", "minutes": 0.0767, "wall_seconds": 5.94, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_527.mp4", "minutes": 0.0833, "wall_seconds": 5.49, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_529.mp4", "minutes": 0.0833, "wall_seconds": 5.97, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_53.mp4", "minutes": 0.0617, "wall_seconds": 4.3, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_533.mp4", "minutes": 0.0833, "wall_seconds": 5.83, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_540.mp4", "minutes": 0.0833, "wall_seconds": 5.57, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_545.mp4", "minutes": 0.0833, "wall_seconds": 5.45, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_559.mp4", "minutes": 0.0833, "wall_seconds": 5.61, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_565.mp4", "minutes": 0.0833, "wall_seconds": 5.57, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_578.mp4", "minutes": 0.0833, "wall_seconds": 5.73, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_597.mp4", "minutes": 0.0833, "wall_seconds": 5.54, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_601.mp4", "minutes": 0.0833, "wall_seconds": 5.68, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_610.mp4", "minutes": 0.0833, "wall_seconds": 5.64, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_612.mp4", "minutes": 0.0833, "wall_seconds": 5.32, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_621.mp4", "minutes": 0.0833, "wall_seconds": 5.61, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_626.mp4", "minutes": 0.0801, "wall_seconds": 5.98, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_638.mp4", "minutes": 0.0834, "wall_seconds": 5.97, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_641.mp4", "minutes": 0.0833, "wall_seconds": 6.68, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_643.mp4", "minutes": 0.0833, "wall_seconds": 6.07, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_644.mp4", "minutes": 0.0833, "wall_seconds": 6.25, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_65.mp4", "minutes": 0.0683, "wall_seconds": 5.06, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_657.mp4", "minutes": 0.0833, "wall_seconds": 7.84, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "crowd", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_66.mp4", "minutes": 0.0583, "wall_seconds": 4.49, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_661.mp4", "minutes": 0.0833, "wall_seconds": 7.62, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "crowd", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_674.mp4", "minutes": 0.0833, "wall_seconds": 7.64, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_694.mp4", "minutes": 0.0833, "wall_seconds": 7.59, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_695.mp4", "minutes": 0.0833, "wall_seconds": 7.6, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_705.mp4", "minutes": 0.0833, "wall_seconds": 7.59, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_706.mp4", "minutes": 0.0833, "wall_seconds": 7.58, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_721.mp4", "minutes": 0.0833, "wall_seconds": 6.52, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_722.mp4", "minutes": 0.0833, "wall_seconds": 6.85, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_727.mp4", "minutes": 0.0833, "wall_seconds": 6.79, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_733.mp4", "minutes": 0.0833, "wall_seconds": 6.96, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_736.mp4", "minutes": 0.0833, "wall_seconds": 7.06, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_744.mp4", "minutes": 0.0817, "wall_seconds": 5.82, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_747.mp4", "minutes": 0.0751, "wall_seconds": 5.48, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_748.mp4", "minutes": 0.0834, "wall_seconds": 6.0, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_749.mp4", "minutes": 0.0767, "wall_seconds": 6.02, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_75.mp4", "minutes": 0.0834, "wall_seconds": 5.84, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_758.mp4", "minutes": 0.0734, "wall_seconds": 5.84, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_766.mp4", "minutes": 0.0684, "wall_seconds": 5.12, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_769.mp4", "minutes": 0.0983, "wall_seconds": 6.58, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_778.mp4", "minutes": 0.08, "wall_seconds": 5.77, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_811.mp4", "minutes": 0.0683, "wall_seconds": 5.27, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_825.mp4", "minutes": 0.1017, "wall_seconds": 6.86, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_836.mp4", "minutes": 0.0833, "wall_seconds": 6.08, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_838.mp4", "minutes": 0.085, "wall_seconds": 6.59, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_857.mp4", "minutes": 0.0733, "wall_seconds": 5.17, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_861.mp4", "minutes": 0.0817, "wall_seconds": 5.92, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_864.mp4", "minutes": 0.0683, "wall_seconds": 5.03, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_868.mp4", "minutes": 0.0717, "wall_seconds": 4.9, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_871.mp4", "minutes": 0.0867, "wall_seconds": 6.57, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_879.mp4", "minutes": 0.0833, "wall_seconds": 6.14, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_88.mp4", "minutes": 0.0767, "wall_seconds": 5.59, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_891.mp4", "minutes": 0.0701, "wall_seconds": 4.81, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_893.mp4", "minutes": 0.0605, "wall_seconds": 4.36, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_894.mp4", "minutes": 0.0799, "wall_seconds": 5.96, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_901.mp4", "minutes": 0.0834, "wall_seconds": 5.81, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_904.mp4", "minutes": 0.0917, "wall_seconds": 6.67, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_905.mp4", "minutes": 0.075, "wall_seconds": 5.57, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_916.mp4", "minutes": 0.0834, "wall_seconds": 5.71, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_923.mp4", "minutes": 0.0817, "wall_seconds": 5.96, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_932.mp4", "minutes": 0.085, "wall_seconds": 5.84, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_934.mp4", "minutes": 0.075, "wall_seconds": 5.1, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_936.mp4", "minutes": 0.0851, "wall_seconds": 6.07, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_942.mp4", "minutes": 0.0885, "wall_seconds": 6.43, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_944.mp4", "minutes": 0.0701, "wall_seconds": 4.97, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_951.mp4", "minutes": 0.0817, "wall_seconds": 5.69, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_958.mp4", "minutes": 0.0701, "wall_seconds": 4.85, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_96.mp4", "minutes": 0.0834, "wall_seconds": 6.23, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fight", "clip": "data/fight_videos/fight/V_965.mp4", "minutes": 0.0833, "wall_seconds": 5.63, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_98.mp4", "minutes": 0.0834, "wall_seconds": 5.91, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_985.mp4", "minutes": 0.0833, "wall_seconds": 5.87, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_987.mp4", "minutes": 0.0833, "wall_seconds": 5.85, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_995.mp4", "minutes": 0.0833, "wall_seconds": 5.76, "incidents": []}
-{"set": "fight", "clip": "data/fight_videos/fight/V_997.mp4", "minutes": 0.0833, "wall_seconds": 6.26, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/01 (2).mp4", "minutes": 0.0635, "wall_seconds": 4.48, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/01 (3).mp4", "minutes": 0.1061, "wall_seconds": 7.92, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/01 (4).mp4", "minutes": 0.1144, "wall_seconds": 8.08, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/01.mp4", "minutes": 0.0776, "wall_seconds": 5.85, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/02 (2).mp4", "minutes": 0.1094, "wall_seconds": 7.69, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/02 (3).mp4", "minutes": 0.1408, "wall_seconds": 9.87, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/02 (4).mp4", "minutes": 0.1062, "wall_seconds": 7.61, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/02.mp4", "minutes": 0.0496, "wall_seconds": 3.65, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/03 (2).mp4", "minutes": 0.0934, "wall_seconds": 6.95, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/03 (3).mp4", "minutes": 0.1174, "wall_seconds": 8.06, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/03 (4).mp4", "minutes": 0.0987, "wall_seconds": 7.13, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/03.mp4", "minutes": 0.1118, "wall_seconds": 7.72, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/04 (2).mp4", "minutes": 0.091, "wall_seconds": 6.52, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/04 (3).mp4", "minutes": 0.1702, "wall_seconds": 12.16, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/04 (4).mp4", "minutes": 0.0827, "wall_seconds": 5.94, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/04.mp4", "minutes": 0.0787, "wall_seconds": 5.7, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/05 (2).mp4", "minutes": 0.1675, "wall_seconds": 11.85, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/05 (3).mp4", "minutes": 0.0755, "wall_seconds": 5.77, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/05 (4).mp4", "minutes": 0.0976, "wall_seconds": 6.95, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/05.mp4", "minutes": 0.1235, "wall_seconds": 8.59, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/06 (2).mp4", "minutes": 0.0926, "wall_seconds": 6.55, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/06 (3).mp4", "minutes": 0.1083, "wall_seconds": 7.9, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/06 (4).mp4", "minutes": 0.095, "wall_seconds": 6.92, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/06.mp4", "minutes": 0.1022, "wall_seconds": 7.37, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/07 (2).mp4", "minutes": 0.1504, "wall_seconds": 10.45, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/07 (3).mp4", "minutes": 0.0755, "wall_seconds": 5.94, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/07 (4).mp4", "minutes": 0.0859, "wall_seconds": 5.86, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/07.mp4", "minutes": 0.1051, "wall_seconds": 7.64, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/08 (2).mp4", "minutes": 0.1056, "wall_seconds": 7.42, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/08 (3).mp4", "minutes": 0.1011, "wall_seconds": 7.32, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/08 (4).mp4", "minutes": 0.0726, "wall_seconds": 5.33, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/08.mp4", "minutes": 0.1043, "wall_seconds": 7.52, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/09 (2).mp4", "minutes": 0.1037, "wall_seconds": 7.36, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/09 (3).mp4", "minutes": 0.0933, "wall_seconds": 6.85, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/09 (4).mp4", "minutes": 0.0747, "wall_seconds": 5.21, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/09.mp4", "minutes": 0.1011, "wall_seconds": 7.33, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/10 (2).mp4", "minutes": 0.0731, "wall_seconds": 5.31, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/10 (3).mp4", "minutes": 0.1856, "wall_seconds": 18.85, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/10 (4).mp4", "minutes": 0.075, "wall_seconds": 5.59, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/10.mp4", "minutes": 0.0843, "wall_seconds": 6.33, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/11 (2).mp4", "minutes": 0.1491, "wall_seconds": 10.55, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/11 (3).mp4", "minutes": 0.1766, "wall_seconds": 9.63, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/11 (4).mp4", "minutes": 0.1016, "wall_seconds": 7.1, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/11.mp4", "minutes": 0.076, "wall_seconds": 5.62, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/12 (2).mp4", "minutes": 0.0709, "wall_seconds": 5.24, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/12 (3).mp4", "minutes": 0.2043, "wall_seconds": 10.45, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/12 (4).mp4", "minutes": 0.1139, "wall_seconds": 7.83, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/12.mp4", "minutes": 0.0771, "wall_seconds": 5.66, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/13 (2).mp4", "minutes": 0.0675, "wall_seconds": 5.02, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/13 (3).mp4", "minutes": 0.1483, "wall_seconds": 14.8, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/13 (4).mp4", "minutes": 0.072, "wall_seconds": 5.03, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/13.mp4", "minutes": 0.0832, "wall_seconds": 6.11, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/14 (2).mp4", "minutes": 0.2051, "wall_seconds": 14.32, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/14 (3).mp4", "minutes": 0.1867, "wall_seconds": 18.22, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/14 (4).mp4", "minutes": 0.095, "wall_seconds": 6.73, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/14.mp4", "minutes": 0.0875, "wall_seconds": 6.58, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/15 (2).mp4", "minutes": 0.0942, "wall_seconds": 5.07, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/15 (3).mp4", "minutes": 0.1944, "wall_seconds": 13.39, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/15 (4).mp4", "minutes": 0.1, "wall_seconds": 7.04, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/15.mp4", "minutes": 0.0808, "wall_seconds": 6.05, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/16 (2).mp4", "minutes": 0.1013, "wall_seconds": 10.54, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/16 (3).mp4", "minutes": 0.067, "wall_seconds": 4.77, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/16 (4).mp4", "minutes": 0.1016, "wall_seconds": 6.98, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/16.mp4", "minutes": 0.1184, "wall_seconds": 8.3, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/17 (2).mp4", "minutes": 0.1419, "wall_seconds": 7.47, "incidents": []}
-{"set": "fall", "clip": "data/fall_videos/fall/17 (3).mp4", "minutes": 0.1083, "wall_seconds": 7.89, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/17.mp4", "minutes": 0.1155, "wall_seconds": 8.09, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/18 (2).mp4", "minutes": 0.1926, "wall_seconds": 13.1, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/18.mp4", "minutes": 0.1979, "wall_seconds": 19.45, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/19 (2).mp4", "minutes": 0.2587, "wall_seconds": 17.94, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/19.mp4", "minutes": 0.0952, "wall_seconds": 5.22, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/20 (2).mp4", "minutes": 0.191, "wall_seconds": 12.85, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/20.mp4", "minutes": 0.104, "wall_seconds": 5.56, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/21 (2).mp4", "minutes": 0.1582, "wall_seconds": 11.35, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/21.mp4", "minutes": 0.1528, "wall_seconds": 10.73, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/22.mp4", "minutes": 0.0867, "wall_seconds": 6.12, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/23.mp4", "minutes": 0.1256, "wall_seconds": 8.72, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/24.mp4", "minutes": 0.119, "wall_seconds": 8.16, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fall", "clip": "data/fall_videos/fall/25.mp4", "minutes": 0.1216, "wall_seconds": 8.8, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo1.868.avi", "minutes": 0.4883, "wall_seconds": 31.3, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo10.869.avi", "minutes": 0.1307, "wall_seconds": 9.05, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}]}
-{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo11.870.avi", "minutes": 0.1978, "wall_seconds": 10.01, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}]}
-{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo2.871.avi", "minutes": 0.2836, "wall_seconds": 18.5, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo3.872.avi", "minutes": 0.2119, "wall_seconds": 14.12, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo4.873.avi", "minutes": 0.9204, "wall_seconds": 58.78, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo5.874.avi", "minutes": 1.338, "wall_seconds": 84.81, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo6.875.avi", "minutes": 0.43, "wall_seconds": 27.84, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}]}
-{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo7.876.avi", "minutes": 0.9117, "wall_seconds": 58.88, "incidents": []}
-{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo8.877.avi", "minutes": 0.2853, "wall_seconds": 18.76, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo9.878.avi", "minutes": 0.3687, "wall_seconds": 23.84, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}]}
-{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos01.817.avi", "minutes": 0.2826, "wall_seconds": 22.47, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos02.818.avi", "minutes": 0.961, "wall_seconds": 61.12, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos03.819.avi", "minutes": 0.3578, "wall_seconds": 34.93, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos04.820.avi", "minutes": 1.3093, "wall_seconds": 103.26, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos05.821.avi", "minutes": 1.8264, "wall_seconds": 55.34, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}]}
-{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos06.822.avi", "minutes": 0.335, "wall_seconds": 21.81, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}]}
-{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos07.823.avi", "minutes": 1.1683, "wall_seconds": 74.38, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos08.824.avi", "minutes": 0.4033, "wall_seconds": 20.01, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}]}
-{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos09.825.avi", "minutes": 0.46, "wall_seconds": 29.57, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos10.826.avi", "minutes": 0.8175, "wall_seconds": 51.94, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos11.827.avi", "minutes": 0.452, "wall_seconds": 36.43, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos12.828.avi", "minutes": 0.2021, "wall_seconds": 13.49, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
-{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos13.829.avi", "minutes": 0.258, "wall_seconds": 17.02, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "validation_version": 2}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "validation_version": 2}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi001.mp4", "minutes": 0.052, "wall_seconds": 12.15, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi002.mp4", "minutes": 0.0567, "wall_seconds": 8.25, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi010.mp4", "minutes": 0.035, "wall_seconds": 6.95, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi017.mp4", "minutes": 0.035, "wall_seconds": 6.15, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi023.mp4", "minutes": 0.035, "wall_seconds": 5.91, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi026.mp4", "minutes": 0.0333, "wall_seconds": 3.84, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi034.mp4", "minutes": 0.0333, "wall_seconds": 4.05, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi039.mp4", "minutes": 0.035, "wall_seconds": 3.82, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi042.mp4", "minutes": 0.0333, "wall_seconds": 3.6, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi052.mp4", "minutes": 0.0353, "wall_seconds": 3.93, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi060.mp4", "minutes": 0.0323, "wall_seconds": 2.72, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi070.mp4", "minutes": 0.035, "wall_seconds": 2.84, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi084.mp4", "minutes": 0.0333, "wall_seconds": 2.46, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi085.mp4", "minutes": 0.0352, "wall_seconds": 2.74, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi092.mp4", "minutes": 0.0334, "wall_seconds": 2.6, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi093.mp4", "minutes": 0.0367, "wall_seconds": 3.08, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi111.mp4", "minutes": 0.0334, "wall_seconds": 2.79, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi112.mp4", "minutes": 0.0334, "wall_seconds": 2.89, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi113.mp4", "minutes": 0.0334, "wall_seconds": 2.78, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi121.mp4", "minutes": 0.0334, "wall_seconds": 2.9, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi126.mp4", "minutes": 0.0334, "wall_seconds": 2.95, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/nofi147.mp4", "minutes": 0.0334, "wall_seconds": 2.9, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_102.mp4", "minutes": 0.0833, "wall_seconds": 6.02, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_106.mp4", "minutes": 0.0833, "wall_seconds": 7.37, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_117.mp4", "minutes": 0.0833, "wall_seconds": 5.77, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_119.mp4", "minutes": 0.0833, "wall_seconds": 6.59, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_121.mp4", "minutes": 0.0833, "wall_seconds": 5.78, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_122.mp4", "minutes": 0.0833, "wall_seconds": 6.08, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_127.mp4", "minutes": 0.0833, "wall_seconds": 6.14, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_134.mp4", "minutes": 0.0833, "wall_seconds": 5.83, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_136.mp4", "minutes": 0.0833, "wall_seconds": 7.29, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_14.mp4", "minutes": 0.0733, "wall_seconds": 7.64, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "crowd", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_140.mp4", "minutes": 0.0767, "wall_seconds": 6.7, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_141.mp4", "minutes": 0.07, "wall_seconds": 6.34, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_142.mp4", "minutes": 0.0633, "wall_seconds": 5.72, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_143.mp4", "minutes": 0.0833, "wall_seconds": 8.45, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_148.mp4", "minutes": 0.0833, "wall_seconds": 9.25, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_151.mp4", "minutes": 0.0833, "wall_seconds": 7.36, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_160.mp4", "minutes": 0.0833, "wall_seconds": 8.49, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_163.mp4", "minutes": 0.0833, "wall_seconds": 9.43, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_176.mp4", "minutes": 0.0833, "wall_seconds": 7.32, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_183.mp4", "minutes": 0.0833, "wall_seconds": 7.61, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_190.mp4", "minutes": 0.0833, "wall_seconds": 8.52, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_193.mp4", "minutes": 0.0833, "wall_seconds": 8.57, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_199.mp4", "minutes": 0.0833, "wall_seconds": 7.34, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_2.mp4", "minutes": 0.0833, "wall_seconds": 7.34, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_201.mp4", "minutes": 0.0833, "wall_seconds": 7.25, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_21.mp4", "minutes": 0.08, "wall_seconds": 5.94, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_219.mp4", "minutes": 0.0833, "wall_seconds": 7.79, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_220.mp4", "minutes": 0.0833, "wall_seconds": 8.84, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_227.mp4", "minutes": 0.0833, "wall_seconds": 7.34, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_231.mp4", "minutes": 0.0833, "wall_seconds": 7.34, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_234.mp4", "minutes": 0.0833, "wall_seconds": 7.47, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_240.mp4", "minutes": 0.0833, "wall_seconds": 7.46, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_241.mp4", "minutes": 0.0833, "wall_seconds": 7.49, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_246.mp4", "minutes": 0.0833, "wall_seconds": 7.4, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_250.mp4", "minutes": 0.0833, "wall_seconds": 7.3, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_263.mp4", "minutes": 0.0833, "wall_seconds": 7.13, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_279.mp4", "minutes": 0.07, "wall_seconds": 6.48, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_281.mp4", "minutes": 0.0833, "wall_seconds": 7.42, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_29.mp4", "minutes": 0.0683, "wall_seconds": 5.33, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_293.mp4", "minutes": 0.0933, "wall_seconds": 8.42, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_294.mp4", "minutes": 0.0867, "wall_seconds": 8.07, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_298.mp4", "minutes": 0.0634, "wall_seconds": 4.79, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_299.mp4", "minutes": 0.0751, "wall_seconds": 5.8, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_301.mp4", "minutes": 0.0967, "wall_seconds": 6.8, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_304.mp4", "minutes": 0.0717, "wall_seconds": 5.46, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_310.mp4", "minutes": 0.0651, "wall_seconds": 4.97, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_314.mp4", "minutes": 0.0717, "wall_seconds": 5.23, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_326.mp4", "minutes": 0.082, "wall_seconds": 6.98, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_337.mp4", "minutes": 0.0733, "wall_seconds": 6.92, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_339.mp4", "minutes": 0.08, "wall_seconds": 7.84, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_342.mp4", "minutes": 0.0751, "wall_seconds": 6.68, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_343.mp4", "minutes": 0.0617, "wall_seconds": 6.07, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_344.mp4", "minutes": 0.0784, "wall_seconds": 6.59, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_346.mp4", "minutes": 0.0851, "wall_seconds": 6.85, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_362.mp4", "minutes": 0.0797, "wall_seconds": 7.02, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_365.mp4", "minutes": 0.0833, "wall_seconds": 7.49, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_366.mp4", "minutes": 0.0833, "wall_seconds": 7.46, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_378.mp4", "minutes": 0.0833, "wall_seconds": 7.72, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_397.mp4", "minutes": 0.0833, "wall_seconds": 7.45, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_405.mp4", "minutes": 0.0833, "wall_seconds": 7.37, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_408.mp4", "minutes": 0.0833, "wall_seconds": 6.32, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_420.mp4", "minutes": 0.0833, "wall_seconds": 6.77, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_427.mp4", "minutes": 0.0833, "wall_seconds": 6.37, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_43.mp4", "minutes": 0.0787, "wall_seconds": 9.24, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_430.mp4", "minutes": 0.0833, "wall_seconds": 11.21, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_433.mp4", "minutes": 0.0833, "wall_seconds": 8.13, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_440.mp4", "minutes": 0.0833, "wall_seconds": 6.52, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_448.mp4", "minutes": 0.0833, "wall_seconds": 6.6, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_454.mp4", "minutes": 0.0833, "wall_seconds": 6.91, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_46.mp4", "minutes": 0.0833, "wall_seconds": 5.97, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_461.mp4", "minutes": 0.0833, "wall_seconds": 7.78, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_462.mp4", "minutes": 0.0833, "wall_seconds": 8.84, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_463.mp4", "minutes": 0.0833, "wall_seconds": 8.2, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_492.mp4", "minutes": 0.0833, "wall_seconds": 7.86, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_495.mp4", "minutes": 0.0833, "wall_seconds": 10.26, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_522.mp4", "minutes": 0.0833, "wall_seconds": 8.42, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_523.mp4", "minutes": 0.0833, "wall_seconds": 7.2, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_527.mp4", "minutes": 0.0833, "wall_seconds": 5.87, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_540.mp4", "minutes": 0.0833, "wall_seconds": 6.19, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_545.mp4", "minutes": 0.0833, "wall_seconds": 9.34, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_549.mp4", "minutes": 0.0833, "wall_seconds": 9.17, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_556.mp4", "minutes": 0.0833, "wall_seconds": 9.18, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_562.mp4", "minutes": 0.0833, "wall_seconds": 8.12, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_564.mp4", "minutes": 0.0833, "wall_seconds": 7.31, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_570.mp4", "minutes": 0.0833, "wall_seconds": 8.86, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_596.mp4", "minutes": 0.0833, "wall_seconds": 7.25, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_619.mp4", "minutes": 0.0833, "wall_seconds": 7.81, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_661.mp4", "minutes": 0.0833, "wall_seconds": 7.04, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_67.mp4", "minutes": 0.0833, "wall_seconds": 7.83, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_673.mp4", "minutes": 0.0833, "wall_seconds": 8.4, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_68.mp4", "minutes": 0.0833, "wall_seconds": 7.14, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_681.mp4", "minutes": 0.0833, "wall_seconds": 8.18, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_685.mp4", "minutes": 0.0833, "wall_seconds": 8.6, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_686.mp4", "minutes": 0.0833, "wall_seconds": 9.67, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_692.mp4", "minutes": 0.0833, "wall_seconds": 8.54, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_694.mp4", "minutes": 0.0833, "wall_seconds": 8.13, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_698.mp4", "minutes": 0.0833, "wall_seconds": 8.32, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_702.mp4", "minutes": 0.0833, "wall_seconds": 8.69, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_703.mp4", "minutes": 0.0833, "wall_seconds": 8.41, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_704.mp4", "minutes": 0.0833, "wall_seconds": 8.91, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_716.mp4", "minutes": 0.0833, "wall_seconds": 9.2, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_719.mp4", "minutes": 0.0833, "wall_seconds": 13.0, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_723.mp4", "minutes": 0.0833, "wall_seconds": 8.97, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_725.mp4", "minutes": 0.08, "wall_seconds": 8.96, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_740.mp4", "minutes": 0.0779, "wall_seconds": 6.96, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_75.mp4", "minutes": 0.0833, "wall_seconds": 2218.58, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_761.mp4", "minutes": 0.1101, "wall_seconds": 926.06, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_764.mp4", "minutes": 0.0833, "wall_seconds": 11.9, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_765.mp4", "minutes": 0.0833, "wall_seconds": 8.36, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_769.mp4", "minutes": 0.0833, "wall_seconds": 41.47, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_771.mp4", "minutes": 0.0833, "wall_seconds": 12.57, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_776.mp4", "minutes": 0.0833, "wall_seconds": 8.2, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_778.mp4", "minutes": 0.0833, "wall_seconds": 8.09, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_783.mp4", "minutes": 0.0833, "wall_seconds": 7.73, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_786.mp4", "minutes": 0.0833, "wall_seconds": 7.07, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_792.mp4", "minutes": 0.0833, "wall_seconds": 7.35, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_80.mp4", "minutes": 0.0833, "wall_seconds": 9.15, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_808.mp4", "minutes": 0.0833, "wall_seconds": 7.56, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_819.mp4", "minutes": 0.0833, "wall_seconds": 7.01, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_825.mp4", "minutes": 0.092, "wall_seconds": 9.49, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_830.mp4", "minutes": 0.0753, "wall_seconds": 12.26, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_840.mp4", "minutes": 0.0753, "wall_seconds": 12.02, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_841.mp4", "minutes": 0.0753, "wall_seconds": 7.91, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_848.mp4", "minutes": 0.0687, "wall_seconds": 10.66, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_851.mp4", "minutes": 0.088, "wall_seconds": 14.88, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_852.mp4", "minutes": 0.058, "wall_seconds": 10.98, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_858.mp4", "minutes": 0.082, "wall_seconds": 12.2, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_863.avi", "minutes": 0.0833, "wall_seconds": 12.25, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_871.avi", "minutes": 0.0833, "wall_seconds": 19.51, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_874.avi", "minutes": 0.0833, "wall_seconds": 17.07, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_875.avi", "minutes": 0.0833, "wall_seconds": 14.92, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_889.avi", "minutes": 0.0833, "wall_seconds": 11.63, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_897.avi", "minutes": 0.0833, "wall_seconds": 7.11, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_905.avi", "minutes": 0.0833, "wall_seconds": 7.11, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_907.avi", "minutes": 0.0833, "wall_seconds": 7.18, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_91.mp4", "minutes": 0.072, "wall_seconds": 8.38, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_919.mp4", "minutes": 0.0833, "wall_seconds": 6.79, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_923.mp4", "minutes": 0.0833, "wall_seconds": 6.85, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_926.mp4", "minutes": 0.0833, "wall_seconds": 7.37, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_928.mp4", "minutes": 0.0833, "wall_seconds": 7.55, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_933.mp4", "minutes": 0.0833, "wall_seconds": 10.0, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_955.mp4", "minutes": 0.0833, "wall_seconds": 9.68, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_958.mp4", "minutes": 0.0833, "wall_seconds": 7.11, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_966.mp4", "minutes": 0.0833, "wall_seconds": 7.3, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_969.mp4", "minutes": 0.0833, "wall_seconds": 8.32, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_98.mp4", "minutes": 0.0633, "wall_seconds": 6.64, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_988.mp4", "minutes": 0.0833, "wall_seconds": 6.76, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_992.mp4", "minutes": 2.9983, "wall_seconds": 212.88, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_994.mp4", "minutes": 0.0667, "wall_seconds": 6.11, "incidents": []}
+{"set": "normal", "clip": "data/fight_videos/not_fight/NV_998.mp4", "minutes": 0.1071, "wall_seconds": 10.34, "incidents": []}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo1.858.avi", "minutes": 3.1521, "wall_seconds": 255.52, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo10.1072.avi", "minutes": 0.164, "wall_seconds": 17.14, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo11.1073.avi", "minutes": 0.12, "wall_seconds": 12.32, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo12.1074.avi", "minutes": 0.4352, "wall_seconds": 44.48, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo13.1075.avi", "minutes": 0.1846, "wall_seconds": 30.01, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo14.1076.avi", "minutes": 0.0312, "wall_seconds": 6.86, "incidents": []}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo15.1078.avi", "minutes": 0.0491, "wall_seconds": 8.0, "incidents": []}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo16.1077.avi", "minutes": 0.1765, "wall_seconds": 26.22, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo2.859.avi", "minutes": 0.2583, "wall_seconds": 19.04, "incidents": []}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo3.860.avi", "minutes": 0.2667, "wall_seconds": 20.87, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo4.861.avi", "minutes": 1.0728, "wall_seconds": 106.96, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo5.862.avi", "minutes": 0.2439, "wall_seconds": 32.66, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo6.863.avi", "minutes": 0.7613, "wall_seconds": 76.48, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo7.864.avi", "minutes": 0.3006, "wall_seconds": 22.31, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo8.865.avi", "minutes": 2.0915, "wall_seconds": 157.55, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/fire/neg/negsVideo9.866.avi", "minutes": 0.43, "wall_seconds": 35.79, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg01.807.avi", "minutes": 0.1673, "wall_seconds": 14.93, "incidents": []}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg02.808.avi", "minutes": 0.752, "wall_seconds": 70.11, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg03.809.avi", "minutes": 0.4156, "wall_seconds": 13.45, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg04.810.avi", "minutes": 1.8933, "wall_seconds": 152.14, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg05.811.avi", "minutes": 0.1673, "wall_seconds": 15.2, "incidents": []}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg06.812.avi", "minutes": 0.1673, "wall_seconds": 14.87, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg07.813.avi", "minutes": 0.5173, "wall_seconds": 43.15, "incidents": []}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg08.814.avi", "minutes": 0.5007, "wall_seconds": 41.79, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "lookalikes", "clip": "data/fire_smoke_videos/firesense/smoke/neg/testneg09.815.avi", "minutes": 0.482, "wall_seconds": 45.91, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/fi002.mp4", "minutes": 0.042, "wall_seconds": 7.81, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi009.mp4", "minutes": 0.0475, "wall_seconds": 8.52, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/fi012.mp4", "minutes": 0.0542, "wall_seconds": 8.16, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi018.mp4", "minutes": 0.0333, "wall_seconds": 4.39, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi027.mp4", "minutes": 0.0334, "wall_seconds": 5.2, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi038.mp4", "minutes": 0.0355, "wall_seconds": 6.65, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi041.mp4", "minutes": 0.0334, "wall_seconds": 6.61, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi052.mp4", "minutes": 0.0333, "wall_seconds": 4.08, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi066.mp4", "minutes": 0.032, "wall_seconds": 4.39, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi074.mp4", "minutes": 0.0406, "wall_seconds": 4.84, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi079.mp4", "minutes": 0.0395, "wall_seconds": 4.18, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi087.mp4", "minutes": 0.0319, "wall_seconds": 7.13, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/fi103.mp4", "minutes": 0.035, "wall_seconds": 5.6, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi114.mp4", "minutes": 0.0344, "wall_seconds": 3.53, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi115.mp4", "minutes": 0.0333, "wall_seconds": 5.12, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/fi118.mp4", "minutes": 0.0353, "wall_seconds": 6.81, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/fi121.mp4", "minutes": 0.0333, "wall_seconds": 7.95, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/fi124.mp4", "minutes": 0.0334, "wall_seconds": 5.02, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi129.mp4", "minutes": 0.0333, "wall_seconds": 3.86, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi130.mp4", "minutes": 0.0333, "wall_seconds": 4.06, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi132.mp4", "minutes": 0.0317, "wall_seconds": 5.37, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/fi134.mp4", "minutes": 0.0333, "wall_seconds": 6.9, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi138.mp4", "minutes": 0.0334, "wall_seconds": 7.44, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/fi146.mp4", "minutes": 0.0334, "wall_seconds": 6.18, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_10.mp4", "minutes": 0.0878, "wall_seconds": 12.93, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_117.mp4", "minutes": 0.0817, "wall_seconds": 13.92, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_12.mp4", "minutes": 0.0767, "wall_seconds": 7.67, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_127.mp4", "minutes": 0.0983, "wall_seconds": 8.62, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_130.mp4", "minutes": 0.0983, "wall_seconds": 10.28, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_134.mp4", "minutes": 0.0983, "wall_seconds": 19.02, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_135.mp4", "minutes": 0.0983, "wall_seconds": 17.0, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_136.mp4", "minutes": 0.0983, "wall_seconds": 12.79, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_139.mp4", "minutes": 0.0983, "wall_seconds": 14.47, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_140.mp4", "minutes": 0.1, "wall_seconds": 14.97, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_142.mp4", "minutes": 0.0983, "wall_seconds": 10.65, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_150.mp4", "minutes": 0.0983, "wall_seconds": 13.96, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_16.mp4", "minutes": 0.0584, "wall_seconds": 8.1, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_164.mp4", "minutes": 0.0883, "wall_seconds": 13.25, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_166.mp4", "minutes": 0.1033, "wall_seconds": 15.43, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_171.mp4", "minutes": 0.0517, "wall_seconds": 9.65, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_18.mp4", "minutes": 0.0717, "wall_seconds": 12.8, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_180.mp4", "minutes": 0.0733, "wall_seconds": 9.33, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_182.mp4", "minutes": 0.0617, "wall_seconds": 6.67, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_190.mp4", "minutes": 0.1034, "wall_seconds": 13.7, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_200.mp4", "minutes": 0.0934, "wall_seconds": 13.53, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_215.mp4", "minutes": 0.0867, "wall_seconds": 12.88, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_217.mp4", "minutes": 0.0867, "wall_seconds": 10.92, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_223.mp4", "minutes": 0.0867, "wall_seconds": 15.41, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_227.mp4", "minutes": 0.0867, "wall_seconds": 12.27, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_232.mp4", "minutes": 0.0767, "wall_seconds": 8.64, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_236.mp4", "minutes": 0.0867, "wall_seconds": 7.13, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_247.mp4", "minutes": 0.0717, "wall_seconds": 5.24, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_252.mp4", "minutes": 0.0767, "wall_seconds": 5.85, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_255.mp4", "minutes": 0.0867, "wall_seconds": 6.42, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_259.mp4", "minutes": 0.0767, "wall_seconds": 6.18, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_262.mp4", "minutes": 0.065, "wall_seconds": 5.24, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_282.mp4", "minutes": 0.09, "wall_seconds": 8.08, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_293.mp4", "minutes": 0.0784, "wall_seconds": 6.74, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_297.mp4", "minutes": 0.0784, "wall_seconds": 6.57, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_299.mp4", "minutes": 0.0951, "wall_seconds": 7.68, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_30.mp4", "minutes": 0.0584, "wall_seconds": 4.57, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_300.mp4", "minutes": 0.1084, "wall_seconds": 10.03, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_304.mp4", "minutes": 0.0868, "wall_seconds": 7.31, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_310.mp4", "minutes": 0.0868, "wall_seconds": 7.12, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_313.mp4", "minutes": 0.0868, "wall_seconds": 7.27, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_326.mp4", "minutes": 0.0868, "wall_seconds": 7.16, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_333.mp4", "minutes": 0.0734, "wall_seconds": 7.33, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_336.mp4", "minutes": 0.0918, "wall_seconds": 7.15, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_344.mp4", "minutes": 0.0651, "wall_seconds": 4.95, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_372.mp4", "minutes": 0.0833, "wall_seconds": 7.16, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_373.mp4", "minutes": 0.085, "wall_seconds": 7.11, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_374.mp4", "minutes": 0.085, "wall_seconds": 7.01, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_375.mp4", "minutes": 0.0833, "wall_seconds": 8.35, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_377.mp4", "minutes": 0.1887, "wall_seconds": 18.0, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_38.mp4", "minutes": 0.0953, "wall_seconds": 9.63, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_391.mp4", "minutes": 0.0834, "wall_seconds": 6.26, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_394.mp4", "minutes": 0.0834, "wall_seconds": 6.42, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_396.mp4", "minutes": 0.0852, "wall_seconds": 6.05, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_397.mp4", "minutes": 0.0668, "wall_seconds": 5.15, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_398.mp4", "minutes": 2.2828, "wall_seconds": 157.84, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "crowd", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_413.mp4", "minutes": 0.0652, "wall_seconds": 5.49, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_430.mp4", "minutes": 0.0733, "wall_seconds": 6.16, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_454.mp4", "minutes": 0.0783, "wall_seconds": 6.53, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_457.mp4", "minutes": 0.0733, "wall_seconds": 5.81, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_469.mp4", "minutes": 0.0817, "wall_seconds": 5.81, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_47.mp4", "minutes": 0.0567, "wall_seconds": 4.4, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_473.mp4", "minutes": 0.0701, "wall_seconds": 5.53, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_477.mp4", "minutes": 0.0884, "wall_seconds": 6.3, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_478.mp4", "minutes": 0.0751, "wall_seconds": 5.73, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_481.mp4", "minutes": 0.0684, "wall_seconds": 5.75, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_486.mp4", "minutes": 0.0834, "wall_seconds": 6.54, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_496.mp4", "minutes": 0.0801, "wall_seconds": 5.62, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_498.mp4", "minutes": 0.0767, "wall_seconds": 6.01, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_510.mp4", "minutes": 0.0789, "wall_seconds": 5.99, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_513.mp4", "minutes": 0.0801, "wall_seconds": 6.5, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_516.mp4", "minutes": 0.0684, "wall_seconds": 5.13, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_525.mp4", "minutes": 0.0767, "wall_seconds": 6.32, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_527.mp4", "minutes": 0.0833, "wall_seconds": 5.9, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_529.mp4", "minutes": 0.0833, "wall_seconds": 6.49, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_53.mp4", "minutes": 0.0617, "wall_seconds": 4.95, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_533.mp4", "minutes": 0.0833, "wall_seconds": 6.2, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_540.mp4", "minutes": 0.0833, "wall_seconds": 6.4, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_545.mp4", "minutes": 0.0833, "wall_seconds": 5.77, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_559.mp4", "minutes": 0.0833, "wall_seconds": 6.13, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_565.mp4", "minutes": 0.0833, "wall_seconds": 6.0, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_578.mp4", "minutes": 0.0833, "wall_seconds": 5.89, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_597.mp4", "minutes": 0.0833, "wall_seconds": 6.37, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_601.mp4", "minutes": 0.0833, "wall_seconds": 6.13, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_610.mp4", "minutes": 0.0833, "wall_seconds": 5.79, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_612.mp4", "minutes": 0.0833, "wall_seconds": 5.89, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_621.mp4", "minutes": 0.0833, "wall_seconds": 6.36, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_626.mp4", "minutes": 0.0801, "wall_seconds": 6.79, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_638.mp4", "minutes": 0.0834, "wall_seconds": 7.32, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_641.mp4", "minutes": 0.0833, "wall_seconds": 7.23, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_643.mp4", "minutes": 0.0833, "wall_seconds": 7.24, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_644.mp4", "minutes": 0.0833, "wall_seconds": 7.63, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_65.mp4", "minutes": 0.0683, "wall_seconds": 5.28, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_657.mp4", "minutes": 0.0833, "wall_seconds": 8.32, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_66.mp4", "minutes": 0.0583, "wall_seconds": 4.8, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_661.mp4", "minutes": 0.0833, "wall_seconds": 8.44, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_674.mp4", "minutes": 0.0833, "wall_seconds": 8.81, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_694.mp4", "minutes": 0.0833, "wall_seconds": 7.93, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_695.mp4", "minutes": 0.0833, "wall_seconds": 7.89, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_705.mp4", "minutes": 0.0833, "wall_seconds": 7.29, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_706.mp4", "minutes": 0.0833, "wall_seconds": 7.72, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_721.mp4", "minutes": 0.0833, "wall_seconds": 6.61, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_722.mp4", "minutes": 0.0833, "wall_seconds": 6.88, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_727.mp4", "minutes": 0.0833, "wall_seconds": 6.98, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_733.mp4", "minutes": 0.0833, "wall_seconds": 7.35, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_736.mp4", "minutes": 0.0833, "wall_seconds": 7.26, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_744.mp4", "minutes": 0.0817, "wall_seconds": 6.53, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_747.mp4", "minutes": 0.0751, "wall_seconds": 6.01, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_748.mp4", "minutes": 0.0834, "wall_seconds": 6.41, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_749.mp4", "minutes": 0.0767, "wall_seconds": 6.48, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_75.mp4", "minutes": 0.0834, "wall_seconds": 6.11, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_758.mp4", "minutes": 0.0734, "wall_seconds": 6.0, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_766.mp4", "minutes": 0.0684, "wall_seconds": 5.73, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_769.mp4", "minutes": 0.0983, "wall_seconds": 7.04, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_778.mp4", "minutes": 0.08, "wall_seconds": 6.08, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_811.mp4", "minutes": 0.0683, "wall_seconds": 6.14, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_825.mp4", "minutes": 0.1017, "wall_seconds": 7.04, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_836.mp4", "minutes": 0.0833, "wall_seconds": 6.7, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_838.mp4", "minutes": 0.085, "wall_seconds": 7.47, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_857.mp4", "minutes": 0.0733, "wall_seconds": 6.16, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_861.mp4", "minutes": 0.0817, "wall_seconds": 7.12, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_864.mp4", "minutes": 0.0683, "wall_seconds": 6.19, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_868.mp4", "minutes": 0.0717, "wall_seconds": 5.16, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_871.mp4", "minutes": 0.0867, "wall_seconds": 7.02, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_879.mp4", "minutes": 0.0833, "wall_seconds": 7.0, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_88.mp4", "minutes": 0.0767, "wall_seconds": 6.25, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_891.mp4", "minutes": 0.0701, "wall_seconds": 5.13, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_893.mp4", "minutes": 0.0605, "wall_seconds": 4.71, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_894.mp4", "minutes": 0.0799, "wall_seconds": 6.18, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_901.mp4", "minutes": 0.0834, "wall_seconds": 6.28, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_904.mp4", "minutes": 0.0917, "wall_seconds": 7.38, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_905.mp4", "minutes": 0.075, "wall_seconds": 6.01, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_916.mp4", "minutes": 0.0834, "wall_seconds": 5.84, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_923.mp4", "minutes": 0.0817, "wall_seconds": 6.75, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_932.mp4", "minutes": 0.085, "wall_seconds": 6.2, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_934.mp4", "minutes": 0.075, "wall_seconds": 5.35, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_936.mp4", "minutes": 0.0851, "wall_seconds": 6.4, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_942.mp4", "minutes": 0.0885, "wall_seconds": 7.12, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_944.mp4", "minutes": 0.0701, "wall_seconds": 6.22, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_951.mp4", "minutes": 0.0817, "wall_seconds": 6.95, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_958.mp4", "minutes": 0.0701, "wall_seconds": 5.14, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_96.mp4", "minutes": 0.0834, "wall_seconds": 6.59, "incidents": [{"event_type": "fight", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fight", "clip": "data/fight_videos/fight/V_965.mp4", "minutes": 0.0833, "wall_seconds": 6.01, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_98.mp4", "minutes": 0.0834, "wall_seconds": 6.58, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_985.mp4", "minutes": 0.0833, "wall_seconds": 6.22, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_987.mp4", "minutes": 0.0833, "wall_seconds": 6.19, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_995.mp4", "minutes": 0.0833, "wall_seconds": 6.13, "incidents": []}
+{"set": "fight", "clip": "data/fight_videos/fight/V_997.mp4", "minutes": 0.0833, "wall_seconds": 6.44, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/01 (2).mp4", "minutes": 0.0635, "wall_seconds": 4.76, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/01 (3).mp4", "minutes": 0.1061, "wall_seconds": 8.16, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/01 (4).mp4", "minutes": 0.1144, "wall_seconds": 8.41, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/01.mp4", "minutes": 0.0776, "wall_seconds": 6.09, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/02 (2).mp4", "minutes": 0.1094, "wall_seconds": 7.88, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/02 (3).mp4", "minutes": 0.1408, "wall_seconds": 10.44, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/02 (4).mp4", "minutes": 0.1062, "wall_seconds": 7.94, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/02.mp4", "minutes": 0.0496, "wall_seconds": 4.13, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/03 (2).mp4", "minutes": 0.0934, "wall_seconds": 7.48, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/03 (3).mp4", "minutes": 0.1174, "wall_seconds": 8.59, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/03 (4).mp4", "minutes": 0.0987, "wall_seconds": 7.5, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/03.mp4", "minutes": 0.1118, "wall_seconds": 8.14, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/04 (2).mp4", "minutes": 0.091, "wall_seconds": 7.11, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/04 (3).mp4", "minutes": 0.1702, "wall_seconds": 12.88, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/04 (4).mp4", "minutes": 0.0827, "wall_seconds": 6.31, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/04.mp4", "minutes": 0.0787, "wall_seconds": 5.94, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/05 (2).mp4", "minutes": 0.1675, "wall_seconds": 12.45, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/05 (3).mp4", "minutes": 0.0755, "wall_seconds": 6.27, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/05 (4).mp4", "minutes": 0.0976, "wall_seconds": 7.67, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/05.mp4", "minutes": 0.1235, "wall_seconds": 8.61, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/06 (2).mp4", "minutes": 0.0926, "wall_seconds": 6.84, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/06 (3).mp4", "minutes": 0.1083, "wall_seconds": 8.28, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/06 (4).mp4", "minutes": 0.095, "wall_seconds": 7.13, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/06.mp4", "minutes": 0.1022, "wall_seconds": 8.2, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/07 (2).mp4", "minutes": 0.1504, "wall_seconds": 11.42, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/07 (3).mp4", "minutes": 0.0755, "wall_seconds": 5.98, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/07 (4).mp4", "minutes": 0.0859, "wall_seconds": 6.25, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/07.mp4", "minutes": 0.1051, "wall_seconds": 8.44, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/08 (2).mp4", "minutes": 0.1056, "wall_seconds": 8.08, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/08 (3).mp4", "minutes": 0.1011, "wall_seconds": 7.71, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/08 (4).mp4", "minutes": 0.0726, "wall_seconds": 5.49, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/08.mp4", "minutes": 0.1043, "wall_seconds": 7.76, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/09 (2).mp4", "minutes": 0.1037, "wall_seconds": 7.94, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/09 (3).mp4", "minutes": 0.0933, "wall_seconds": 7.28, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/09 (4).mp4", "minutes": 0.0747, "wall_seconds": 5.6, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/09.mp4", "minutes": 0.1011, "wall_seconds": 7.83, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/10 (2).mp4", "minutes": 0.0731, "wall_seconds": 5.9, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/10 (3).mp4", "minutes": 0.1856, "wall_seconds": 19.35, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/10 (4).mp4", "minutes": 0.075, "wall_seconds": 5.79, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/10.mp4", "minutes": 0.0843, "wall_seconds": 6.59, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/11 (2).mp4", "minutes": 0.1491, "wall_seconds": 10.99, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/11 (3).mp4", "minutes": 0.1766, "wall_seconds": 10.01, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/11 (4).mp4", "minutes": 0.1016, "wall_seconds": 7.81, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/11.mp4", "minutes": 0.076, "wall_seconds": 6.48, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/12 (2).mp4", "minutes": 0.0709, "wall_seconds": 5.67, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/12 (3).mp4", "minutes": 0.2043, "wall_seconds": 11.04, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/12 (4).mp4", "minutes": 0.1139, "wall_seconds": 8.18, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/12.mp4", "minutes": 0.0771, "wall_seconds": 6.06, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/13 (2).mp4", "minutes": 0.0675, "wall_seconds": 5.65, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/13 (3).mp4", "minutes": 0.1483, "wall_seconds": 15.65, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/13 (4).mp4", "minutes": 0.072, "wall_seconds": 5.31, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/13.mp4", "minutes": 0.0832, "wall_seconds": 6.6, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/14 (2).mp4", "minutes": 0.2051, "wall_seconds": 14.59, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/14 (3).mp4", "minutes": 0.1867, "wall_seconds": 18.59, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/14 (4).mp4", "minutes": 0.095, "wall_seconds": 7.08, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/14.mp4", "minutes": 0.0875, "wall_seconds": 7.21, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/15 (2).mp4", "minutes": 0.0942, "wall_seconds": 5.55, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/15 (3).mp4", "minutes": 0.1944, "wall_seconds": 14.06, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/15 (4).mp4", "minutes": 0.1, "wall_seconds": 7.22, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/15.mp4", "minutes": 0.0808, "wall_seconds": 6.43, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/16 (2).mp4", "minutes": 0.1013, "wall_seconds": 10.71, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/16 (3).mp4", "minutes": 0.067, "wall_seconds": 5.7, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/16 (4).mp4", "minutes": 0.1016, "wall_seconds": 7.85, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/16.mp4", "minutes": 0.1184, "wall_seconds": 8.72, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/17 (2).mp4", "minutes": 0.1419, "wall_seconds": 7.77, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/17 (3).mp4", "minutes": 0.1083, "wall_seconds": 8.3, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/17.mp4", "minutes": 0.1155, "wall_seconds": 8.39, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/18 (2).mp4", "minutes": 0.1926, "wall_seconds": 13.51, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/18.mp4", "minutes": 0.1979, "wall_seconds": 19.98, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/19 (2).mp4", "minutes": 0.2587, "wall_seconds": 18.59, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/19.mp4", "minutes": 0.0952, "wall_seconds": 5.42, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/20 (2).mp4", "minutes": 0.191, "wall_seconds": 13.69, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/20.mp4", "minutes": 0.104, "wall_seconds": 5.75, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/21 (2).mp4", "minutes": 0.1582, "wall_seconds": 12.15, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}, {"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/21.mp4", "minutes": 0.1528, "wall_seconds": 11.1, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/22.mp4", "minutes": 0.0867, "wall_seconds": 6.67, "incidents": []}
+{"set": "fall", "clip": "data/fall_videos/fall/23.mp4", "minutes": 0.1256, "wall_seconds": 9.29, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/24.mp4", "minutes": 0.119, "wall_seconds": 8.6, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fall", "clip": "data/fall_videos/fall/25.mp4", "minutes": 0.1216, "wall_seconds": 8.75, "incidents": []}
+{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo1.868.avi", "minutes": 0.4883, "wall_seconds": 32.18, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo10.869.avi", "minutes": 0.1307, "wall_seconds": 9.21, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo11.870.avi", "minutes": 0.1978, "wall_seconds": 10.43, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo2.871.avi", "minutes": 0.2836, "wall_seconds": 19.0, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo3.872.avi", "minutes": 0.2119, "wall_seconds": 14.35, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo4.873.avi", "minutes": 0.9204, "wall_seconds": 58.99, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo5.874.avi", "minutes": 1.338, "wall_seconds": 85.81, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo6.875.avi", "minutes": 0.43, "wall_seconds": 28.48, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo7.876.avi", "minutes": 0.9117, "wall_seconds": 58.93, "incidents": []}
+{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo8.877.avi", "minutes": 0.2853, "wall_seconds": 18.88, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "fire", "clip": "data/fire_smoke_videos/firesense/fire/pos/posVideo9.878.avi", "minutes": 0.3687, "wall_seconds": 24.27, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos01.817.avi", "minutes": 0.2826, "wall_seconds": 22.44, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos02.818.avi", "minutes": 0.961, "wall_seconds": 61.2, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos03.819.avi", "minutes": 0.3578, "wall_seconds": 34.48, "incidents": [{"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos04.820.avi", "minutes": 1.3093, "wall_seconds": 104.45, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos05.821.avi", "minutes": 1.8264, "wall_seconds": 55.44, "incidents": [{"event_type": "fall", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos06.822.avi", "minutes": 0.335, "wall_seconds": 22.38, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos07.823.avi", "minutes": 1.1683, "wall_seconds": 74.51, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos08.824.avi", "minutes": 0.4033, "wall_seconds": 19.87, "incidents": [{"event_type": "anomaly", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": false, "review": false, "validation_version": 3}]}
+{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos09.825.avi", "minutes": 0.46, "wall_seconds": 30.07, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos10.826.avi", "minutes": 0.8175, "wall_seconds": 52.68, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos11.827.avi", "minutes": 0.452, "wall_seconds": 36.54, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos12.828.avi", "minutes": 0.2021, "wall_seconds": 13.82, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}
+{"set": "smoke", "clip": "data/fire_smoke_videos/firesense/smoke/pos/testpos13.829.avi", "minutes": 0.258, "wall_seconds": 16.99, "incidents": [{"event_type": "fire_smoke", "tier": "PROBABLE", "dashboard": true, "review": false, "validation_version": 3}, {"event_type": "anomaly", "tier": "CONFIRMED", "dashboard": true, "review": false, "validation_version": 3}]}

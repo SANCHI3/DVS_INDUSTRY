@@ -219,13 +219,23 @@ keeping recall on genuine events, and what does each one contribute?
 
 **Protocol.** `python -m evaluation.ablation run` plays each clip separately
 through the unchanged live pipeline (`main.run`), in real time, headless,
-with fresh state per clip. Six configurations were run:
+with fresh state per clip. Eight configurations were run:
 
 - (a) the code before the fixes, commit `85315cc~1`;
-- (b) the full system;
+- (b) the full system with the fight interaction check as a **veto** (the
+  design evaluated in the first version of this chapter);
 - (c)–(f) the full system with one stage switched off by an existing
   `thresholds.yaml` flag: (c) interaction check, (d) region dynamics,
-  (e) anomaly calibration, (f) every N-of-M persistence rule set to 1 of 1.
+  (e) anomaly calibration, (f) every N-of-M persistence rule set to 1 of 1;
+- (g) the full system with the interaction check as a **review signal**
+  (`fight_detection.interaction.mode: review`);
+- (h) the **deployed** system: (g) plus the false-positive tuning described
+  below (fight alarm threshold, smoke on a person, fall torso rule).
+
+(b)–(f) pin the veto, so (g) − (b) measures exactly the change from veto to
+review. (a) runs fixed old code and was not re-run; (b)–(g) ran on the current
+code, which includes the later fall-plausibility fixes, so their numbers
+differ from the first version of this section.
 
 **Footage: a proxy, not the deployment camera.** The planned field recordings
 were not available, so 472 clips already in the project were used:
@@ -242,16 +252,19 @@ Anomaly calibration was computed once, from 172 disjoint normal clips
 (51 windows), giving a camera threshold of 8.7× the model's.
 
 **Results** (RESULTS.md section 4; brackets are 95% bootstrap intervals;
-Δ = paired difference against the full system on the same clips):
+Δ = paired difference against (b) on the same clips). Alarms are dashboard
+alerts; fights sent for review in (g) are counted separately below.
 
 | Configuration | FA/h normal | FA/h look-alikes | Fight recall | Fall recall | Fire recall | Smoke recall |
 |---|---|---|---|---|---|---|
 | (a) pre-fix code | 157.9 | 109.5 | 0.78 | 0.75 | 0.73 | 0.62 |
-| (b) full system | 135.3 | 44.6 | **0.47** | 0.75 | 0.73 | 0.62 |
-| (c) − interaction check | 139.1 | 56.8 | 0.75 | 0.75 | 0.73 | 0.62 |
-| (d) − region dynamics | 135.3 | 44.6 | 0.47 | 0.75 | 0.73 | 0.62 |
-| (e) − anomaly calibration | 146.6 | 101.3 | 0.47 | 0.75 | 0.73 | 0.54 |
-| (f) single-frame (1/1) | 218.0 | 77.0 | 0.48 | 0.91 | 0.91 | 0.85 |
+| (b) full system, veto | 56.4 | 16.2 | **0.48** | 0.63 | 0.73 | 0.54 |
+| (c) − interaction check | 82.7 | 24.3 | 0.73 | 0.63 | 0.73 | 0.62 |
+| (d) − region dynamics | 67.7 | 12.2 | 0.48 | 0.63 | 0.73 | 0.62 |
+| (e) − anomaly calibration | 71.4 | 73.0 | 0.47 | 0.62 | 0.73 | 0.62 |
+| (f) single-frame (1/1) | 109.0 | 24.3 | 0.48 | 0.78 | 0.91 | 0.85 |
+| (g) review mode | 71.4 | 16.2 | 0.48 (**0.75** incl. review) | 0.63 | 0.73 | 0.62 |
+| (h) tuned (deployed) | **37.6** | 16.2 | 0.47 (**0.76** incl. review) | 0.62 | 0.73 | 0.54 |
 
 ![Ablation](../figures/ablation.png)
 
@@ -260,44 +273,135 @@ Anomaly calibration was computed once, from 172 disjoint normal clips
 **What each stage did:**
 
 - **Persistence** has the largest effect in both directions. Without it,
-  false alarms rise by 82.7/h on normal clips [+44.7, +135.9] and 32.4/h on
-  look-alikes [+11.8, +70.8]. It also costs recall: falls 0.91 → 0.75
-  (Δ 0.16 [0.09, 0.24]); fire and smoke also lose detections, though those
-  intervals reach 0.
+  false alarms rise by 52.6/h on normal clips [+22.4, +96.2]. It also costs
+  recall: falls 0.78 → 0.63 (Δ 0.15 [0.08, 0.24]) and smoke 0.85 → 0.54
+  (Δ 0.31 [0.08, 0.54]); fire also loses detections, though that interval
+  reaches 0.
 - **Anomaly calibration** removes 56.8 look-alike alarms per hour [35.3,
   96.3], every one of them "unusual activity". But with the threshold raised
   8.7×, the detector also raised **no** unusual-activity alert while the
   genuine fire and smoke clips played (7 and 11 without calibration). On
   these clips calibration effectively switched the detector off.
-- **Interaction check** loses 0.28 fight recall [0.21, 0.35]: 48 more fights
-  missed. In exchange it removes 3 fight alarms on normal clips (interval
-  includes 0) and 3 on look-alikes (12.2/h, interval [0.0, 24.8]). On these
-  clips this is a bad trade. Section 6.7 shows why: the check finds a close
-  pair in only half of the fight clips.
+- **Interaction check as a veto** removes 26.3 false alarms per hour on
+  normal clips [+9.4, +51.3] (fight alarms 15 → 9), but loses 0.24 fight
+  recall [0.17, 0.32]: 42 more of the 172 fights missed (0.73 → 0.48).
 - **Region dynamics** had no measurable effect. No FIRESENSE look-alike
   triggered the fire detector even without it, so this proxy cannot test the
   check. It needs static look-alikes (orange cloth, lamps) from the target
   camera.
-- **Overall (a → b):** look-alike false alarms fall by 64.9/h [40.2, 105.8].
-  Normal-clip false alarms fall by 22.6/h, an interval that touches 0. Fight
-  recall falls from 0.78 to 0.47.
+- **Overall (a → b):** false alarms fall by 101.5/h on normal clips
+  [66.5, 148.9] and by 93.2/h on look-alikes [58.8, 143.4]. Fight recall
+  falls from 0.78 to 0.48 and fall recall from 0.75 to 0.63 (Δ 0.11
+  [0.05, 0.19]).
+
+**Why the interaction check was changed from a veto to a review signal.**
+In the first version of this ablation the veto cut fight recall from 0.78 to
+0.47 while its false-alarm reduction on normal clips was not significant
+(Δ 3.8/h, interval including 0), and section 6.7 shows why: the check finds
+a close pair in only half of the fight clips (ROC AUC 0.55). A safety system
+should not silently discard a fight the video model is confident about
+because the tracker could not see two people close together. So the check no
+longer decides whether a fight is reported, only how:
+
+- the R3D-18 model and its 2-of-3 rule are unchanged;
+- if the interaction check passes, the fight is CONFIRMED as before
+  (pop-up, HIGH severity possible);
+- if it fails, the fight is still reported, as PROBABLE: "Possible fight —
+  please check" on the dashboard, at base severity and without a pop-up. If
+  the same fight later passes the check, the incident is escalated to
+  CONFIRMED and the pop-up appears.
+
+**What review mode gives on the same clips** ((g) vs (b)):
+
+| | (b) veto | (g) review | Δ (g − b) |
+|---|---|---|---|
+| Fight recall, pop-up alerts | 0.48 | 0.48 | +0.00 [−0.02, +0.02] |
+| Fight recall incl. review items | 0.48 | **0.75** | **+0.27 [+0.20, +0.34]** |
+| Review items on normal clips | – | 3 (11.3/h) | – |
+| Review items on look-alikes | – | 2 (8.1/h) | – |
+| Alerts on look-alikes | 16.2/h | 16.2/h | +0.0 |
+
+Review mode recovers the fights the veto dropped (129 of 172 reach an
+operator instead of 83) at the cost of 3 "please check" items on 16 minutes
+of normal clips and 2 on the look-alikes, none of them a pop-up.
+
+The alerts on normal clips differ by +15.0/h [+3.1, +33.0]: 19 vs 15. This is
+run-to-run timing noise, not an effect of review mode. The four extra alarms
+are two fights, one fall and one crowd alarm. Review mode cannot change fall
+or crowd alarms, and both extra fights were CONFIRMED with the interaction
+check *passing*, which the veto treats identically; in the (b) run the same
+two clips simply never reached the second high R3D-18 score the 2-of-3 rule
+needs (each run samples slightly different frames). The bootstrap interval
+resamples clips, not runs, so it does not include this variation.
+
+**False-positive tuning after (g): configuration (h).** Live tests on a desk
+webcam showed false falls and false smoke, and (g) showed the fight model as
+the largest source of false alarms. Each change was chosen on data other than
+the evaluation clips and then checked once on held-out footage:
+
+- **Fight: pop-up alarm only at R3D-18 score ≥ 0.75.** Every R3D-18
+  evaluation was recorded in a live replay of the fight dataset's
+  *validation* split (172 fight, 172 normal videos) and alarm rules were
+  simulated on the recordings. Chosen rule: a CONFIRMED pop-up needs 2 of 3
+  clips ≥ 0.75 (plus the interaction check); a fight between 0.55 and 0.75 is
+  still reported, for review. On validation it halved false pop-ups (12 → 6)
+  with no fight lost from the operator's view. Checked once on the *test*
+  split (344 videos): false fight pop-ups on normal videos 11 → 6 (paired 95%
+  interval of the change [−10, −1]), fights reaching an operator unchanged
+  (0.733), fight pop-up recall 0.488 → 0.477 [−0.029, 0.000].
+- **Smoke on a person is ignored.** On the webcam, 6 of 8 smoke alerts were
+  the user's own blurred hair close to the camera. A smoke box lying ≥ 60%
+  inside a tracked person is now dropped. The 6 recorded false-smoke clips no
+  longer alert; on the 24 FIRESENSE fire and smoke positives 21/24 alert with
+  and without the filter (no clip changed).
+- **Fall: no judgement without enough torso evidence.** A small person in a
+  crowded phone video raised a fall from the box shape alone. A person
+  without a visible torso is now judged only if a torso was seen in ≥ 50% of
+  the 4-s window. The recorded false fall no longer alerts; recall on the 79
+  fall clips (every frame) is unchanged, 68/79.
+- **Tried and rejected: a stricter fall torso rule (≥ 75%).** On the
+  validation normal videos it cut fall alarms 14 → 9 without losing a fall,
+  but on the test normal and look-alike videos it changed nothing (5 → 5,
+  interval [0, 0]), so it was not adopted.
+
+**What (h) gives on the same clips** ((h) vs (b), RESULTS.md section 4):
+
+| | (b) veto | (g) review | (h) tuned (deployed) | Δ (h − b) |
+|---|---|---|---|---|
+| Alarms on normal clips | 15 (56.4/h) | 19 (71.4/h) | **10 (37.6/h)** | **−18.8/h [−41.2, −3.9]** |
+| … of which fight / fall | 9 / 5 | 11 / 6 | 6 / 3 | |
+| Alarms on look-alikes | 16.2/h | 16.2/h | 16.2/h | +0.0 |
+| Fights reaching an operator (incl. review) | 0.48 | 0.75 | **0.76** | +0.27 [+0.21, +0.34] |
+| Review items on normal clips | – | 3 | 6 | |
+| Fall / fire / smoke recall | 0.63 / 0.73 / 0.54 | 0.63 / 0.73 / 0.62 | 0.62 / 0.73 / 0.54 | −0.01 / 0 / 0 |
+
+The deployed system raises a third fewer false alarms than the veto design
+(b) and about half as many as (g), while three quarters of fights still reach
+an operator. Fall and smoke recall differ from (g) by one clip each, within
+the run-to-run variation described above (tested on its own, the smoke filter
+changed the outcome of none of the 24 fire and smoke clips).
 
 **Where the system fails.**
 
-- **The research claim holds only in part on these clips.** False alarms
-  fall, but fight recall does not survive the interaction check.
-- **The fall detector is the largest single source of false alarms** on the
-  normal clips: 22 of 36 alarms in the full system, 82.7/h. None of the four
-  stages targets it.
-- **No configuration reaches a usable rate.** The full system still raises
-  135 false alarms per hour on clips from other cameras. On the deployment
-  camera this rate is unknown.
+- **The research claim holds in part on these clips.** False alarms fall from
+  158/h before the fixes to 38/h, but fight recall as pop-up alarms (0.47) is
+  lower than before the fixes (0.78); with the review queue, 0.76 of fights
+  reach an operator.
+- **The fight model is still the largest source of false alarms** on the
+  normal clips: 6 of 10 alarms in (h). Falls are second (3).
+- **No configuration reaches a usable rate.** The deployed system still
+  raises 38 false alarms per hour on clips from other cameras, plus 23 review
+  items per hour. On the deployment camera this rate is unknown.
 
 **Caveats.**
 
 - One run per configuration; the pipeline is timing-dependent, so a re-run
-  can differ by an alert or a detection.
+  can differ by an alert or a detection (see the (g) vs (b) alarms above).
+- The first run of (g) took place while the PC was busy with other work: its
+  fall clips played at about 2× real time and it lost 7 fall detections
+  (recall 0.54). It was discarded and (g) was re-run from scratch on an idle
+  machine, where fall recall matched (b) exactly (0.63).
 - Fall and fire/smoke recall is in-sample for the fall model and the fire
   verifier.
-- Wall time includes each clip's detector start-up. The one 189-s look-alike
-  clip took 242 s, so its time-based rules saw it slightly slowed.
+- Wall time includes each clip's detector start-up; the longest look-alike
+  clip (189 s) took 263 s, so its time-based rules saw it slightly slowed.

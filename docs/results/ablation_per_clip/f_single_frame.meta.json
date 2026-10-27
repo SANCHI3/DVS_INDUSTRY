@@ -1,8 +1,9 @@
 {
-  "run_at": "2026-10-16T02:59:57+00:00",
-  "finished_at": "2026-10-16T04:22:36+00:00",
-  "code": "4bd2c06",
+  "run_at": "2026-10-22T14:44:33+00:00",
+  "finished_at": "2026-10-22T14:44:59+00:00",
+  "code": "6d4063e + uncommitted changes",
   "overrides": {
+    "fight_detection.interaction.mode": "veto",
     "fight_detection.rgb.persistence_window": 1,
     "fight_detection.rgb.required_confirmed": 1,
     "fire_smoke_detection.persistence_window": 1,

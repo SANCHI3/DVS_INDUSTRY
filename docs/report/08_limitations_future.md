@@ -5,22 +5,27 @@
 1. **Domain gap.** All models were trained and tested on public datasets
    (movies, street CCTV, staged falls, FIRESENSE), not on the factory's own
    cameras. On the real test camera the fight classifier scored ordinary
-   activity high. The interaction check now blocks those cases, but the
-   classifier itself was not retrained.
+   activity high. When the interaction check fails, such fights now go to
+   operator review instead of raising an alert, but the classifier itself
+   was not retrained.
 2. **False-alarm rate not measured on site.** The per-hour rate on the
    deployment camera is still unknown. The ablation (chapter 6.8) used 472
    held-out and public clips from many other cameras as a proxy. On those
-   clips the full system still raised 135 false alarms per hour on normal
-   activity, and 45 per hour on fire look-alike scenes.
-3. **The fight interaction check costs more than it saves on public clips.**
-   With it, fight recall on the held-out test split falls from 0.75 to 0.47.
-   It removes 6 false alarms and misses 48 more fights. Closeness of a pair
+   clips the deployed system still raised 38 false alarms per hour on normal
+   activity (plus 23 "please check" review items), and 16 per hour on fire
+   look-alike scenes.
+3. **The fight interaction check is weak evidence, so it no longer vetoes.**
+   As a veto it cut fight recall from 0.73 to 0.48 (42 of 172 fights lost)
+   to remove 26 false alarms per hour on normal clips. Closeness of a pair
    does not separate fight from normal clips (51% of each), and agitation
-   separates them only weakly (AUC 0.55, chapter 6.7). Tracking cannot see
-   the interaction when grappling people are merged into one box or lose
-   their tracks. The check was designed for one room's failure (people
-   standing close and talking) and has not been validated on that room's
-   footage.
+   separates them only weakly (AUC 0.55, chapter 6.7); tracking cannot see
+   the interaction when grappling people merge into one box or lose their
+   tracks. It is now a review signal: a fight that fails it is shown as
+   "Possible fight — please check" without a pop-up, and so is a fight whose
+   scores stay below the alarm threshold (0.75), so 0.76 of fights reach an
+   operator, at the cost of about 23 review items per hour of normal clips.
+   Only 0.47 of fights raise a pop-up, and the check has still not
+   been validated on the deployment room's footage.
 4. **Anomaly calibration can silence the detector.** Calibrated on short
    clips from other cameras, the threshold rose 8.7×. The detector then
    raised no unusual-activity alert at all, also not on genuine fire and
@@ -29,19 +34,26 @@
 5. **Region dynamics is untested by data.** No FIRESENSE look-alike
    triggered the fire detector, so the ablation could not show an effect
    either way. It is supported only by the unit-test scenarios.
-6. **The fall detector dominates false alarms.** It produced 22 of the 36
-   false alarms on normal clips. No verification stage targets it, and its
-   recall (0.75) was measured on clips it was trained on.
+6. **The fight model is the largest source of false alarms.** It produced 6
+   of the 10 false alarms on normal clips in the deployed configuration;
+   falls produced 3 (down from 23 of 42 before the fixes). Fall recall fell
+   from 0.75 to 0.62 with the plausibility checks, and it was measured on
+   clips the fall model was trained on; no separate fall validation set
+   exists, so a stricter fall rule chosen on other footage could not be
+   confirmed (chapter 6.8).
 7. **Persistence trades recall for quiet.** Requiring N of M windows removes
-   83 false alarms per hour on normal clips. It also costs 0.16 fall recall,
-   and fire and smoke lose detections too (8 vs 10 of 11 fires, 8 vs 11 of
-   13 smoke), though those two intervals reach 0.
+   53 false alarms per hour on normal clips. It also costs 0.15 fall recall
+   and 0.31 smoke recall, and fire loses detections too (8 vs 10 of 11),
+   though that interval reaches 0.
 8. **Small evaluation sets for some tasks.** Fire (27 videos) and smoke (22)
    are small. The fall model used 160 videos from 48 events, so
    cross-validation was used instead of a single test split.
 9. **Unusual-activity detector.** It is silent for the first 5 minutes on each
    camera while calibrating, and an incident during calibration raises the
-   threshold. Recall is moderate (0.67).
+   threshold. Recall is moderate (0.67). A version trained on 6 minutes of the
+   factory's own footage (v3) raised more false alerts than v2 in
+   cross-validation, so it needs 20–60 minutes of footage per camera before
+   it can replace v2 (results chapter, section 7 of RESULTS.md).
 10. **Single-process event bus.** The SSE stream uses an in-process bus, so
    running several backend workers (PM2 cluster) needs a shared bus such as
    Redis or PostgreSQL LISTEN/NOTIFY.
@@ -74,10 +86,11 @@
   events and look-alikes from the deployment camera into
   `perception-service/field_data/` and re-run `python -m evaluation.ablation run`.
   It switches to those recordings automatically.
-- **Rethink the fight check:** use the interaction evidence as a severity or
-  review signal rather than a hard gate, or require it only when the R3D
-  score is marginal. Re-tune the agitation threshold on field data; on the
-  public clips 0.2 separated better than 0.1 (chapter 6.7).
+- **Fight review queue:** the interaction check is now a review signal
+  (chapter 6.8). Next, log operators' "real fight / not a fight" answers on
+  review items and use them to re-tune the agitation threshold on field data
+  (on the public clips 0.2 separated better than 0.1, chapter 6.7), or to
+  confirm high-scoring fights directly when the R3D score is very high.
 - **Guard calibration:** cap the camera scale and check calibrated recall on
   known events before accepting a calibration.
 - **Fall false alarms:** add a verification stage for falls, for example

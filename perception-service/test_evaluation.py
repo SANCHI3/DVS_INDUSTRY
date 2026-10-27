@@ -32,6 +32,25 @@ def test_section_update_keeps_other_sections(tmp_path, monkeypatch):
     assert text.index("BEGIN:models") < text.index("BEGIN:benchmark")
 
 
+def test_section_update_keeps_hand_written_text(tmp_path, monkeypatch):
+    from evaluation import common
+
+    results = tmp_path / "RESULTS.md"
+    monkeypatch.setattr(common, "DOCS", tmp_path)
+    monkeypatch.setattr(common, "RESULTS_MD", results)
+    results.write_text(
+        "# Results\n\nEdited intro.\n\n<!-- BEGIN:ablation -->\nA1\n<!-- END:ablation -->\n\n"
+        "## 6. Hand-written section\n\nKeep me.\n",
+        encoding="utf-8",
+    )
+    common.update_section("ablation", "A2")
+    common.update_section("benchmark", "B1")
+    text = results.read_text(encoding="utf-8")
+    assert "Edited intro." in text and "Keep me." in text
+    assert "A2" in text and "A1" not in text
+    assert text.index("BEGIN:benchmark") < text.index("BEGIN:ablation") < text.index("## 6.")
+
+
 def test_bootstrap_ci_is_reproducible_and_brackets_the_estimate():
     import numpy as np
     from evaluation.stats import bootstrap_ci

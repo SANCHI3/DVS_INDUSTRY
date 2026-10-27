@@ -14,6 +14,19 @@ from temporal.fire_verifier import FireVerifier
 from temporal.rule_engine import EventCandidate
 
 
+def share_inside(box: tuple, others: List[tuple]) -> float:
+    """Largest share of `box`'s area that lies inside any one of `others` (x1, y1, x2, y2)."""
+    x1, y1, x2, y2 = box[:4]
+    area = max(1e-6, (x2 - x1) * (y2 - y1))
+    best = 0.0
+    for o in others:
+        ox1, oy1, ox2, oy2 = o[:4]
+        w, h = min(x2, ox2) - max(x1, ox1), min(y2, oy2) - max(y1, oy1)
+        if w > 0 and h > 0:
+            best = max(best, w * h / area)
+    return best
+
+
 def _resolve_device(device):
     """`device: 0` (first GPU) falls back to the CPU on machines without CUDA,
     where Ultralytics would otherwise refuse to run."""
@@ -89,6 +102,9 @@ class FireSmokeDetector:
                     print(f"[{camera_id}] learned fire verifier not found at {checkpoint}; "
                           f"using rule-based verifier")
                 self.verifier = FireVerifier(verifier_cfg)
+        # A smoke box lying mostly inside a person box is the person (dark hair,
+        # clothes, motion blur close to the camera), not smoke. 0 disables.
+        self.smoke_person_overlap = float(cfg.get("smoke_person_overlap", 0.0) or 0.0)
         self.single_class_confirm_seconds = float(cfg.get("single_class_confirm_seconds", 3.0))
         self.alarm_gap_seconds = float(cfg.get("alarm_gap_seconds", 1.5))
         self._alarm_since: Optional[float] = None   # start of the current sustained alarm
@@ -99,7 +115,7 @@ class FireSmokeDetector:
             "fire_positive_windows": 0, "smoke_positive_windows": 0,
             "probable_candidates": 0, "confirmed_candidates": 0,
             "max_fire_score": 0.0, "max_smoke_score": 0.0,
-            "fire_boxes_verified": 0, "fire_boxes_suppressed": 0,
+            "fire_boxes_verified": 0, "fire_boxes_suppressed": 0, "smoke_boxes_on_person": 0,
             "alarms_rejected_by_learned_verifier": 0,
             "alarms_rejected_static_region": 0,
         }
@@ -114,7 +130,8 @@ class FireSmokeDetector:
             self._last_rejection_log[name] = now
             print(f"[{self.camera_id}] fire/smoke {name} rejected: {message}")
 
-    def evaluate(self, frame: np.ndarray, now: Optional[float] = None) -> List[EventCandidate]:
+    def evaluate(self, frame: np.ndarray, now: Optional[float] = None,
+                 person_boxes: Optional[List[tuple]] = None) -> List[EventCandidate]:
         self.cycles += 1
         self._stats["cycles"] += 1
         if (self.cycles - 1) % self.evaluation_stride != 0:
@@ -135,6 +152,11 @@ class FireSmokeDetector:
             for cls_id, confidence, xyxy in zip(result.boxes.cls.tolist(), result.boxes.conf.tolist(),
                                                 result.boxes.xyxy.tolist()):
                 name = self.model.names[int(cls_id)]
+                if name == "smoke" and self.smoke_person_overlap > 0 and person_boxes and \
+                        share_inside(tuple(xyxy), person_boxes) >= self.smoke_person_overlap:
+                    if float(confidence) >= self.thresholds["smoke"]:
+                        self._stats["smoke_boxes_on_person"] += 1
+                    continue
                 if name in best:
                     detections.append((name, float(confidence), tuple(xyxy)))
                     if float(confidence) > raw_best[name]:

@@ -50,6 +50,7 @@ from detection.yolo_detector import YoloDetector
 from evidence.clip_extractor import EvidenceBuffer
 from ingestion.demo_playlist import DemoPlaylistReader, find_demo_videos
 from ingestion.stream_reader import StreamReader
+from reporting.description_generator import is_review_fight
 from reporting.incident_report import IncidentReporter
 from severity.severity_rules import compute_severity
 from temporal.fire_smoke_recognition import FireSmokeDetector
@@ -459,7 +460,8 @@ def run(
                     candidates += fight_detector.evaluate(buffer, frame)
             if fire_smoke_detector is not None:
                 with timer.stage("fire_smoke"):
-                    candidates += fire_smoke_detector.evaluate(frame)
+                    people_now = [t.states[-1].bbox for t in buffer.active_tracks_by_class("person", 0.5)]
+                    candidates += fire_smoke_detector.evaluate(frame, person_boxes=people_now)
             if fall_detector is not None:
                 # the learned pose model supersedes the bbox aspect-ratio fall rule
                 candidates = [c for c in candidates if c.event_type != "fall"]
@@ -473,10 +475,14 @@ def run(
 
             for event in confirmed_events:
                 severity = compute_severity(event.event_type, event, thresholds_cfg["severity"])
-                # A probable fight is an operator-facing signal, not a separate
-                # persisted incident. Persist only after the stricter confirmed
-                # policy is met, preventing probable+confirmed duplicate reports.
-                if event.event_type in ("fight", "crowd") and event.tier == "PROBABLE":
+                # A probable crowd is an operator-facing signal, not a separate
+                # persisted incident; persist only once confirmed. A fight is
+                # PROBABLE when the interaction check (review mode) did not see
+                # an interaction or the score is below the alarm threshold: it
+                # is reported for operator review.
+                review_fight = (event.event_type == "fight"
+                                and is_review_fight(event.candidate.detail))
+                if event.event_type in ("fight", "crowd") and event.tier == "PROBABLE" and not review_fight:
                     print(
                         f"[{camera_id}] PROBABLE {event.event_type} candidate "
                         f"severity={severity} conf={event.confidence:.2f} -- awaiting confirmation"

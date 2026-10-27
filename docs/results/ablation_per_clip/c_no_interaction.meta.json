@@ -1,7 +1,7 @@
 {
-  "run_at": "2026-10-15T23:54:45+00:00",
-  "finished_at": "2026-10-16T00:14:13+00:00",
-  "code": "4bd2c06",
+  "run_at": "2026-10-22T14:43:12+00:00",
+  "finished_at": "2026-10-22T14:43:39+00:00",
+  "code": "6d4063e + uncommitted changes",
   "overrides": {
     "fight_detection.interaction.enabled": false
   },

@@ -1,0 +1,307 @@
+{
+  "model": "denoising autoencoder (numpy), trained on factory CCTV footage",
+  "data": {
+    "videos_used": [
+      "camA_press_01.mp4",
+      "camB_aisle_01.mp4",
+      "camC_hall_01.mp4",
+      "camC_hall_02.mp4"
+    ],
+    "videos_skipped_too_short": [
+      "camA_press_02.mp4",
+      "camA_press_03.mp4",
+      "camA_press_04.mp4",
+      "camA_press_05.mp4",
+      "camA_press_06.mp4",
+      "camB_aisle_02.mp4",
+      "camD_scrap_01.mp4",
+      "camD_scrap_02.mp4"
+    ],
+    "cameras": [
+      "camA_press",
+      "camB_aisle",
+      "camC_hall"
+    ],
+    "usable_windows": 937,
+    "usable_minutes": 6.25
+  },
+  "model_selection": {
+    "criterion": "median window error on the validation blocks, averaged over the folds; smallest model within 5% of the best",
+    "grid": [
+      {
+        "hidden": 8,
+        "bottleneck": 4,
+        "noise": 0.1,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00104,
+        "cv_train_error": 0.00101
+      },
+      {
+        "hidden": 8,
+        "bottleneck": 4,
+        "noise": 0.3,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00131,
+        "cv_train_error": 0.00124
+      },
+      {
+        "hidden": 8,
+        "bottleneck": 4,
+        "noise": 0.5,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00173,
+        "cv_train_error": 0.00165
+      },
+      {
+        "hidden": 8,
+        "bottleneck": 6,
+        "noise": 0.1,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00101,
+        "cv_train_error": 0.0009
+      },
+      {
+        "hidden": 8,
+        "bottleneck": 6,
+        "noise": 0.3,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00126,
+        "cv_train_error": 0.00122
+      },
+      {
+        "hidden": 8,
+        "bottleneck": 6,
+        "noise": 0.5,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.0016,
+        "cv_train_error": 0.00149
+      },
+      {
+        "hidden": 16,
+        "bottleneck": 4,
+        "noise": 0.1,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00106,
+        "cv_train_error": 0.00097
+      },
+      {
+        "hidden": 16,
+        "bottleneck": 4,
+        "noise": 0.3,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00138,
+        "cv_train_error": 0.00137
+      },
+      {
+        "hidden": 16,
+        "bottleneck": 4,
+        "noise": 0.5,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00216,
+        "cv_train_error": 0.00209
+      },
+      {
+        "hidden": 16,
+        "bottleneck": 6,
+        "noise": 0.1,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00059,
+        "cv_train_error": 0.00053
+      },
+      {
+        "hidden": 16,
+        "bottleneck": 6,
+        "noise": 0.3,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00114,
+        "cv_train_error": 0.0011
+      },
+      {
+        "hidden": 16,
+        "bottleneck": 6,
+        "noise": 0.5,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00143,
+        "cv_train_error": 0.00137
+      },
+      {
+        "hidden": 24,
+        "bottleneck": 4,
+        "noise": 0.1,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00099,
+        "cv_train_error": 0.00089
+      },
+      {
+        "hidden": 24,
+        "bottleneck": 4,
+        "noise": 0.3,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00112,
+        "cv_train_error": 0.00108
+      },
+      {
+        "hidden": 24,
+        "bottleneck": 4,
+        "noise": 0.5,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00138,
+        "cv_train_error": 0.00132
+      },
+      {
+        "hidden": 24,
+        "bottleneck": 6,
+        "noise": 0.1,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00046,
+        "cv_train_error": 0.00045
+      },
+      {
+        "hidden": 24,
+        "bottleneck": 6,
+        "noise": 0.3,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00094,
+        "cv_train_error": 0.00094
+      },
+      {
+        "hidden": 24,
+        "bottleneck": 6,
+        "noise": 0.5,
+        "floor": 0.1,
+        "weight_decay": 0.001,
+        "cv_val_error": 0.00143,
+        "cv_train_error": 0.00134
+      }
+    ],
+    "chosen": {
+      "hidden": 24,
+      "bottleneck": 6,
+      "noise": 0.1,
+      "floor": 0.1,
+      "weight_decay": 0.001,
+      "cv_val_error": 0.00046,
+      "cv_train_error": 0.00045
+    }
+  },
+  "cross_validation": {
+    "protocol": "blocked 5-fold CV in time per recording; gap of 6 windows around held-out blocks",
+    "fit": {
+      "train_mse": 0.025,
+      "val_mse": 0.143,
+      "test_mse": 0.1653
+    },
+    "normal_footage": {
+      "held_out_windows": 937,
+      "held_out_minutes": 6.25,
+      "windows_above_threshold": 0.0256,
+      "windows_above_model_threshold_only": 0.0779,
+      "false_alert_episodes": 5,
+      "note": "per-camera calibration simulated (p99 of the camera's training + validation blocks), as deployed",
+      "per_camera": {
+        "camA_press": {
+          "windows": 542,
+          "minutes": 3.61,
+          "windows_above_threshold": 0.0185,
+          "false_alert_episodes": 3
+        },
+        "camB_aisle": {
+          "windows": 154,
+          "minutes": 1.03,
+          "windows_above_threshold": 0.0909,
+          "false_alert_episodes": 2
+        },
+        "camC_hall": {
+          "windows": 241,
+          "minutes": 1.61,
+          "windows_above_threshold": 0.0,
+          "false_alert_episodes": 0
+        }
+      }
+    },
+    "synthetic_stress_tests": {
+      "note": "SYNTHETIC: held-out footage transformed to imitate unusual events; not real incidents",
+      "fast_motion_x4": {
+        "segments": 20,
+        "detected": 1,
+        "detection_rate": 0.05
+      },
+      "camera_covered": {
+        "segments": 20,
+        "detected": 20,
+        "detection_rate": 1.0
+      },
+      "camera_shake": {
+        "segments": 20,
+        "detected": 20,
+        "detection_rate": 1.0
+      },
+      "lights_dimmed": {
+        "segments": 20,
+        "detected": 20,
+        "detection_rate": 1.0
+      }
+    },
+    "previous_model_v2_same_windows": {
+      "note": "v2 (trained on public exercise / fall videos) with the same per-camera calibration",
+      "windows_above_threshold": 0.0075,
+      "false_alert_episodes": 1,
+      "synthetic_detection_rate": {
+        "fast_motion_x4": 0.0,
+        "camera_covered": 1.0,
+        "camera_shake": 1.0,
+        "lights_dimmed": 1.0
+      }
+    }
+  },
+  "leave_one_camera_out": {
+    "camA_press": {
+      "windows": 542,
+      "windows_above_threshold": 0.0221
+    },
+    "camB_aisle": {
+      "windows": 154,
+      "windows_above_threshold": 0.5844
+    },
+    "camC_hall": {
+      "windows": 241,
+      "windows_above_threshold": 0.0
+    }
+  },
+  "final_model": {
+    "architecture": [
+      38,
+      24,
+      6,
+      24,
+      38
+    ],
+    "threshold": 0.2944944764994951,
+    "threshold_rule": "p95 of validation-normal error; the live detector then raises it per camera to the p99 of that camera's own normal footage (5-minute calibration)",
+    "train_windows": 770,
+    "val_windows": 143,
+    "epochs_trained": 226,
+    "camera_thresholds_on_validation": {
+      "camA_press": 0.2945,
+      "camB_aisle": 0.7498,
+      "camC_hall": 0.2945
+    }
+  }
+}

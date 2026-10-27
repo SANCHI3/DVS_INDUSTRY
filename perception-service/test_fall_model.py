@@ -145,7 +145,7 @@ def _skeleton(points):
     return kps
 
 
-def _plausibility(bbox, keypoints=None, before=None):
+def _plausibility(bbox, keypoints=None, before=None, min_torso_share=0.5):
     """Check a 40-row window: `before` = (bbox, keypoints, count) rows first, then `bbox` to the end."""
     from fall_gru.features import frame_features
     from temporal.fall_gru_recognition import fall_plausibility
@@ -155,7 +155,7 @@ def _plausibility(bbox, keypoints=None, before=None):
         rows += [frame_features(before[0], 480, before[1])] * before[2]
     rows += [frame_features(bbox, 480, keypoints)] * (40 - len(rows))
     return fall_plausibility(rows, bottom_edge=0.99, max_truncated_share=0.8, require_down=True,
-                             max_torso_tilt=0.35, max_box_aspect=0.8)
+                             max_torso_tilt=0.35, max_box_aspect=0.8, min_torso_share=min_torso_share)
 
 
 def test_close_desk_webcam_view_is_not_judged_as_a_fall():
@@ -184,6 +184,17 @@ def test_person_half_hidden_behind_a_desk_is_not_judged_as_a_fall():
     shoulders_only = _skeleton({0: (320, 140), 5: (250, 230), 6: (390, 230)})
     assert _plausibility((180, 100, 460, 350), shoulders_only) == "no_torso"
     assert _plausibility((180, 100, 460, 350)) == "no_torso"
+
+
+def test_small_person_in_a_crowd_without_keypoints_is_not_judged():
+    # Webcam pointed at a phone video of a busy street: a small figure, keypoints
+    # only now and then (pose is skipped above 12 people), none at the alert.
+    seen_sometimes = _skeleton({5: (300, 200), 6: (310, 200), 11: (302, 230), 12: (308, 230)})
+    small_wide = (280, 190, 330, 240)
+    assert _plausibility(small_wide, before=((295, 190, 315, 240), seen_sometimes, 13)) == "no_torso"
+    # the old rule (no torso in >= 80% of the window) let this through
+    assert _plausibility(small_wide, before=((295, 190, 315, 240), seen_sometimes, 13),
+                         min_torso_share=0.2) is None
 
 
 def test_fallen_person_at_the_frame_edge_with_torso_visible_still_counts():

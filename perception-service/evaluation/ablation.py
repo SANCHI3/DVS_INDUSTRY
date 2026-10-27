@@ -13,11 +13,20 @@ existing thresholds.yaml flags (applied by evaluation/ablation_worker.py), or,
 for (a), in the code: commit 85315cc~1 checked out in a temporary git worktree.
 
   a_prefix          code before "Fix false-positive CCTV detections" (85315cc~1)
-  b_full            current code and config
+  b_full            current code, interaction check as a VETO (the earlier default)
   c_no_interaction  fight_detection.interaction.enabled = false
-  d_no_dynamics     fire_smoke_detection.dynamics.enabled = false
-  e_no_calibration  scene_anomaly.calibration.enabled = false
-  f_single_frame    every N-of-M persistence rule set to 1 of 1 (see SINGLE_FRAME)
+  d_no_dynamics     (b) with fire_smoke_detection.dynamics.enabled = false
+  e_no_calibration  (b) with scene_anomaly.calibration.enabled = false
+  f_single_frame    (b) with every N-of-M persistence rule set to 1 of 1 (see SINGLE_FRAME)
+  g_review          current code, interaction check in REVIEW mode (the current default):
+                    a fight without interaction evidence is sent to an operator as PROBABLE
+  h_tuned           the deployed configuration after the false-positive tuning that followed
+                    (g): fight pop-up alarm threshold 0.75 (lower scores go to review),
+                    smoke on a person ignored, fall torso rule; thresholds.yaml as is
+
+(b), (d), (e) and (f) pin the veto so they stay comparable with each other and
+with earlier runs; (g) - (b) is the effect of turning the veto into a review
+signal. Fights sent for review are counted separately from alerts.
 
 Footage. The field recordings this study was designed for (normal activity,
 staged events and look-alikes from the deployment camera) were not available,
@@ -63,7 +72,9 @@ WORKER = SERVICE_ROOT / "evaluation" / "ablation_worker.py"
 WARMUP_CLIP = SERVICE_ROOT / "demo_videos" / "01_normal_activity.mp4"
 VIDEO_EXT = {".mp4", ".avi", ".mov", ".mkv"}
 
+VETO = {"fight_detection.interaction.mode": "veto"}
 SINGLE_FRAME = {
+    **VETO,
     "fight_detection.rgb.persistence_window": 1, "fight_detection.rgb.required_confirmed": 1,
     "fire_smoke_detection.persistence_window": 1, "fire_smoke_detection.required_hits": 1,
     "fire_smoke_detection.single_class_confirm_seconds": 0,
@@ -74,14 +85,17 @@ SINGLE_FRAME = {
 }
 CONFIGS = {
     "a_prefix": {"label": "(a) pre-fix code", "ref": PREFIX_REF, "overrides": {}, "calibrated": False},
-    "b_full": {"label": "(b) full system", "overrides": {}, "calibrated": True},
+    "b_full": {"label": "(b) full system (interaction veto)", "overrides": VETO, "calibrated": True},
     "c_no_interaction": {"label": "(c) full − interaction check",
                          "overrides": {"fight_detection.interaction.enabled": False}, "calibrated": True},
     "d_no_dynamics": {"label": "(d) full − region dynamics",
-                      "overrides": {"fire_smoke_detection.dynamics.enabled": False}, "calibrated": True},
+                      "overrides": {**VETO, "fire_smoke_detection.dynamics.enabled": False}, "calibrated": True},
     "e_no_calibration": {"label": "(e) full − anomaly calibration",
-                         "overrides": {"scene_anomaly.calibration.enabled": False}, "calibrated": False},
+                         "overrides": {**VETO, "scene_anomaly.calibration.enabled": False}, "calibrated": False},
     "f_single_frame": {"label": "(f) full, single-frame (1/1)", "overrides": SINGLE_FRAME, "calibrated": True},
+    "g_review": {"label": "(g) interaction check in review mode",
+                 "overrides": {"fight_detection.interaction.mode": "review"}, "calibrated": True},
+    "h_tuned": {"label": "(h) deployed, after false-positive tuning", "overrides": {}, "calibrated": True},
 }
 CALIBRATION_OVERRIDES = {"scene_anomaly.calibration.enabled": True, "scene_anomaly.calibration.recalibrate": True,
                          "scene_anomaly.calibration.seconds": 1e9}
@@ -98,6 +112,15 @@ SET_INFO = {
 }
 FIELD_SETS = {"normal": "normal", "lookalikes": "lookalikes", "fight": "events/fight",
               "fall": "events/fall", "fire_smoke": "events/fire_smoke"}
+
+
+def code_version() -> str:
+    """Short commit of HEAD, marked when perception-service has uncommitted changes."""
+    head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT,
+                          capture_output=True, text=True).stdout.strip()
+    dirty = subprocess.run(["git", "status", "--porcelain", "--", "perception-service"], cwd=REPO_ROOT,
+                           capture_output=True, text=True).stdout.strip()
+    return f"{head} + uncommitted changes" if dirty else head
 
 
 def fight_split(split: str, label: str) -> list[Path]:
@@ -157,6 +180,7 @@ def worker(tree: Path, args: list[str], log: Path) -> None:
 
 def calibrate(clips: list[Path], work: Path) -> Path:
     target = PER_CLIP_DIR / "scene_anomaly_calibration.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
     if target.exists():
         print(f"reusing {rel(target)}")
         return target
@@ -203,10 +227,17 @@ def run_config(name: str, sets: dict, calibration: Path | None, work: Path) -> N
 def compact(record: dict, set_name: str) -> dict:
     """Per-clip outcome kept in the repo: incident types/tiers, not the full records."""
     escalated = {u["incident_id"] for u in record["updates"] if u.get("confidence_tier") == "CONFIRMED"}
-    incidents = [{"event_type": r["event_type"], "tier": r["confidence_tier"],
-                  "dashboard": r["confidence_tier"] == "CONFIRMED" or r["incident_id"] in escalated,
-                  "validation_version": (r.get("detail") or {}).get("validation_version")}
-                 for r in record["incidents"]]
+    incidents = []
+    for r in record["incidents"]:
+        alert = r["confidence_tier"] == "CONFIRMED" or r["incident_id"] in escalated
+        detail = r.get("detail") or {}
+        incidents.append({
+            "event_type": r["event_type"], "tier": r["confidence_tier"], "dashboard": alert,
+            # a fight sent for operator review (interaction check failed or score below the
+            # alarm threshold) and never confirmed
+            "review": (not alert and r["event_type"] == "fight" and r["confidence_tier"] == "PROBABLE"
+                       and (detail.get("review") is True or detail.get("interaction_passed") is False)),
+            "validation_version": detail.get("validation_version")})
     path = Path(record["clip"])
     return {"set": set_name, "clip": rel(path), "minutes": round(clip_minutes(path), 4),
             "wall_seconds": record["seconds"], "incidents": incidents}
@@ -238,17 +269,28 @@ def summarise(rows: list[dict]) -> dict:
                 rate = lambda idx, counts=counts: float(counts[idx].sum() * 60.0 / minutes[idx].sum())  # noqa: E731
                 per_type[t] = {"count": int(counts.sum()), "per_hour": round(rate(np.arange(len(clips))), 2),
                                "per_hour_ci95": bootstrap_ci(len(clips), rate)}
+            reviews = np.array([sum(1 for i in c["incidents"] if i.get("review")) for c in clips])
+            review_rate = lambda idx: float(reviews[idx].sum() * 60.0 / minutes[idx].sum())  # noqa: E731
             out[set_name] = {"kind": kind, "clips": len(clips), "minutes": round(float(minutes.sum()), 2),
                              "false_alarms": per_type,
+                             "review_alerts": {"count": int(reviews.sum()),
+                                               "per_hour": round(review_rate(np.arange(len(clips))), 2),
+                                               "per_hour_ci95": bootstrap_ci(len(clips), review_rate)},
                              "all_records": sum(len(c["incidents"]) for c in clips)}
         else:
             hit = np.array([any(i["dashboard"] and i["event_type"] == event for i in c["incidents"]) for c in clips])
+            hit_any = np.array([any((i["dashboard"] or i.get("review")) and i["event_type"] == event
+                                    for i in c["incidents"]) for c in clips])
             by_type = Counter(i["event_type"] for c in clips for i in c["incidents"] if i["dashboard"])
             out[set_name] = {"kind": kind, "event_type": event, "clips": len(clips),
                              "minutes": round(float(minutes.sum()), 2), "detected": int(hit.sum()),
                              "dashboard_alarms_by_type": dict(sorted(by_type.items())),
                              "recall": round(float(hit.mean()), 4),
-                             "recall_ci95": bootstrap_ci(len(clips), lambda idx: float(hit[idx].mean()))}
+                             "recall_ci95": bootstrap_ci(len(clips), lambda idx: float(hit[idx].mean())),
+                             "detected_incl_review": int(hit_any.sum()),
+                             "recall_incl_review": round(float(hit_any.mean()), 4),
+                             "recall_incl_review_ci95": bootstrap_ci(len(clips),
+                                                                     lambda idx: float(hit_any[idx].mean()))}
     return out
 
 
@@ -263,20 +305,29 @@ def paired_differences(reference: list[dict], other: list[dict]) -> dict:
             continue
         minutes = np.array([c["minutes"] for c in clips])
         if kind in ("normal", "lookalike"):
-            def alarms(rows):
-                return np.array([sum(1 for i in r["incidents"] if i["dashboard"]) for r in rows])
+            def alarms(rows, with_review=False):
+                return np.array([sum(1 for i in r["incidents"] if i["dashboard"] or (with_review and i.get("review")))
+                                 for r in rows])
             a, b = alarms(clips), alarms([ref[c["clip"]] for c in clips])
+            a2 = alarms(clips, True)
             delta = lambda idx: float((a[idx].sum() - b[idx].sum()) * 60.0 / minutes[idx].sum())  # noqa: E731
+            delta2 = lambda idx: float((a2[idx].sum() - b[idx].sum()) * 60.0 / minutes[idx].sum())  # noqa: E731
             out[set_name] = {"metric": "false alarms per hour, config minus full",
-                             "delta": round(delta(np.arange(len(clips))), 2), "ci95": bootstrap_ci(len(clips), delta)}
+                             "delta": round(delta(np.arange(len(clips))), 2), "ci95": bootstrap_ci(len(clips), delta),
+                             "delta_incl_review": round(delta2(np.arange(len(clips))), 2),
+                             "ci95_incl_review": bootstrap_ci(len(clips), delta2)}
         else:
-            def hits(rows):
-                return np.array([any(i["dashboard"] and i["event_type"] == event for i in r["incidents"]) for r in rows],
-                                dtype=float)
+            def hits(rows, with_review=False):
+                return np.array([any((i["dashboard"] or (with_review and i.get("review"))) and i["event_type"] == event
+                                     for i in r["incidents"]) for r in rows], dtype=float)
             a, b = hits(clips), hits([ref[c["clip"]] for c in clips])
+            a2 = hits(clips, True)
             delta = lambda idx: float(a[idx].mean() - b[idx].mean())  # noqa: E731
+            delta2 = lambda idx: float(a2[idx].mean() - b[idx].mean())  # noqa: E731
             out[set_name] = {"metric": "recall, config minus full",
                              "delta": round(delta(np.arange(len(clips))), 4), "ci95": bootstrap_ci(len(clips), delta),
+                             "delta_incl_review": round(delta2(np.arange(len(clips))), 4),
+                             "ci95_incl_review": bootstrap_ci(len(clips), delta2),
                              "only_config_detected": int(((a == 1) & (b == 0)).sum()),
                              "only_full_detected": int(((a == 0) & (b == 1)).sum())}
     return out
@@ -292,6 +343,15 @@ def processing_speed(rows: list[dict]) -> dict:
     return out
 
 
+def longest_clip(rows: list[dict]) -> dict | None:
+    """The longest clip's length and wall time: shows whether long scenes kept real time."""
+    if not rows:
+        return None
+    clip = max(rows, key=lambda r: r["minutes"])
+    return {"clip": clip["clip"], "set": clip["set"], "seconds": round(clip["minutes"] * 60),
+            "wall_seconds": round(clip["wall_seconds"])}
+
+
 def make_figure(results: dict) -> str | None:
     import matplotlib
     matplotlib.use("Agg")
@@ -300,7 +360,7 @@ def make_figure(results: dict) -> str | None:
     names = [n for n in CONFIGS if n in results["configs"]]
     if not names:
         return None
-    colors = ["#2a78d6", "#eb6834", "#1baf7a", "#8a5cd1", "#d4a20b", "#52514e"]
+    colors = ["#2a78d6", "#eb6834", "#1baf7a", "#8a5cd1", "#d4a20b", "#52514e", "#c2398a", "#0f8b8d"]
     ink, ink2, grid = "#0b0b0b", "#52514e", "#e4e3df"
     fa_groups = [("normal", "Normal clips"), ("lookalikes", "Look-alike clips")]
     rec_groups = [(s, s.replace("_", "/").capitalize()) for s in ("fight", "fall", "fire", "smoke", "fire_smoke")
@@ -362,7 +422,8 @@ def markdown(results: dict, figure: str | None) -> str:
            f"Generated by `python -m evaluation.ablation` (runs {results['run_dates']}). "
            f"Footage: **{src}**. Every clip is played separately through the real pipeline at the live "
            "10 processed frames/s, headless, dashboard and LLM off, zones removed. Counts are dashboard "
-           "alerts (CONFIRMED, or PROBABLE later escalated). Brackets: bootstrap 95% CI over clips "
+           "alerts (CONFIRMED, or PROBABLE later escalated); fights sent for operator review in (g) and (h) are "
+           "counted separately below. Brackets: bootstrap 95% CI over clips "
            f"({N_RESAMPLES} resamples). Per-clip outcomes: `docs/results/ablation_per_clip/`.", ""]
     if src.startswith("proxy"):
         out += ["**These are proxy sets, not field recordings.** The deployment-camera recordings "
@@ -432,13 +493,48 @@ def markdown(results: dict, figure: str | None) -> str:
                 cells.append(f"{d['delta']:+.{digits}f} [{d['ci95'][0]:+.{digits}f}, {d['ci95'][1]:+.{digits}f}]"
                              if d["ci95"] else f"{d['delta']:+.{digits}f}")
             out.append(f"| {CONFIGS[n]['label']} | " + " | ".join(cells) + " |")
+    review_cfgs = [name for name in ("g_review", "h_tuned") if name in cfgs]
+    if review_cfgs:
+        out += ["", "### Fights sent for operator review", "",
+                "In review mode a fight whose interaction check fails (and in (h) also one whose scores stay "
+                "below the alarm threshold) is still reported, as PROBABLE "
+                "(\"Possible fight \u2014 please check\", no pop-up). Those are not alerts in the tables above; "
+                "this table counts them. Recall including review = clips with a fight alert or a fight sent "
+                "for review. Deltas are paired against (b), the veto.", "",
+                "| Configuration | Review alerts, normal | Review alerts, look-alikes | Fight recall (alerts) "
+                "| Fight recall incl. review | \u0394 fight recall incl. review vs (b) "
+                "| \u0394 FA/h normal incl. review vs (b) |",
+                "|---|---|---|---|---|---|---|"]
+    for review_cfg in review_cfgs:
+        s = cfgs[review_cfg]["sets"]
+        p = (results.get("paired_vs_full") or {}).get(review_cfg, {})
+
+        def rv(set_name):
+            r = s.get(set_name, {}).get("review_alerts")
+            return f"{r['count']} = {fmt_ci(r['per_hour'], r['per_hour_ci95'])} / h" if r else "\u2013"
+
+        def pd(set_name, digits):
+            d = p.get(set_name)
+            if not d or "delta_incl_review" not in d:
+                return "\u2013"
+            lo, hi = d["ci95_incl_review"] or (d["delta_incl_review"], d["delta_incl_review"])
+            return f"{d['delta_incl_review']:+.{digits}f} [{lo:+.{digits}f}, {hi:+.{digits}f}]"
+
+        f = s.get("fight")
+        alerts = f"{f['detected']}/{f['clips']} = {fmt_ci(f['recall'], f['recall_ci95'], 2)}" if f else "\u2013"
+        incl = (f"{f['detected_incl_review']}/{f['clips']} = "
+                f"{fmt_ci(f['recall_incl_review'], f['recall_incl_review_ci95'], 2)}") if f else "\u2013"
+        out.append(f"| {CONFIGS[review_cfg]['label']} | {rv('normal')} | {rv('lookalikes')} | {alerts} | {incl} "
+                   f"| {pd('fight', 2)} | {pd('normal', 1)} |")
     speed = results.get("processing_speed")
     if speed:
+        longest = results.get("longest_clip")
         out += ["", "Processing pace in (b), wall-clock seconds per second of video (1.0 = real time): "
                 + ", ".join(f"{k} {v}" for k, v in speed.items())
                 + ". Wall time includes each clip's detector start-up (about a second), which dominates on "
-                  "the 5-s clips; the longer FIRESENSE clips show the pipeline itself at close to real time, "
-                  "though one 189-s look-alike clip took 242 s, so its time-based rules saw the scene somewhat slowed."]
+                  "the 5-s clips."
+                + (f" The longest clip ({longest['set']}, {longest['seconds']} s) took {longest['wall_seconds']} s "
+                   "of wall time." if longest else "")]
     out += ["", "Unusual-activity (anomaly) alarms raised while the genuine-event clips played (no labelled "
                 "unusual-activity set exists in the proxy, so this is the only indication of what calibration "
                 "costs in anomaly detections):", "",
@@ -459,7 +555,7 @@ def markdown(results: dict, figure: str | None) -> str:
     cal = results.get("calibration")
     if cal:
         out += ["", f"Scene-anomaly calibration used by the calibrated configurations: {cal['windows']} windows "
-                    f"pooled from {cal["clips"]} normal clips disjoint from the evaluation sets "
+                    f"pooled from {cal['clips']} normal clips disjoint from the evaluation sets "
                     f"(fight-dataset validation split); 99th-percentile ratio {cal['observed_percentile_ratio']} "
                     f"→ camera threshold {cal['camera_scale']}× the model's."]
     out += ["", "Caveats: one run per configuration (the pipeline is timing-dependent, so a re-run can differ "
@@ -505,6 +601,7 @@ def report() -> None:
         results["paired_vs_full"] = {n: paired_differences(reference, load_per_clip(n))
                                      for n in results["configs"] if n != "b_full"}
         results["processing_speed"] = processing_speed(reference)
+        results["longest_clip"] = longest_clip(reference)
     figure = make_figure(results)
     (RESULTS_DIR / "ablation.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
     text = markdown(results, figure)
@@ -545,8 +642,7 @@ def main() -> None:
         (PER_CLIP_DIR / f"{name}.meta.json").write_text(json.dumps({
             "run_at": started.isoformat(timespec="seconds"),
             "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-            "code": CONFIGS[name].get("ref") or subprocess.run(
-                ["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True).stdout.strip(),
+            "code": CONFIGS[name].get("ref") or code_version(),
             "overrides": CONFIGS[name]["overrides"], "limit_per_set": args.limit,
         }, indent=2), encoding="utf-8")
         print(f"[{name}] done")

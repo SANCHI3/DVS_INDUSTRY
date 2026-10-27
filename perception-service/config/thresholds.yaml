@@ -108,11 +108,24 @@ fight_detection:
     confirmed_threshold: 0.55       # alert threshold chosen on validation
     persistence_window: 3
     required_confirmed: 2
+    alarm_threshold: 0.75           # pop-up alarm needs 2 of 3 clips >= 0.75 (and the interaction
+                                    # check); between 0.55 and 0.75 the fight is still reported,
+                                    # for operator review. Chosen on the validation split (live
+                                    # replay, 344 videos); on the 344 test videos false fight
+                                    # alarms on normal videos 11 -> 6, fights reaching an operator
+                                    # unchanged (0.73), fight pop-up recall 0.49 -> 0.48.
   interaction:
-    # Track evidence required before a fight incident (temporal/interaction.py).
+    # Track evidence that two people are physically interacting (temporal/interaction.py).
     # The R3D model scores whole clips and can fire on normal activity; a fight
     # also needs two distinct people, close together, moving in an agitated way.
     enabled: true
+    # What a failed check does when the R3D-18 2-of-3 rule has fired:
+    #   review - report the fight as PROBABLE ("Possible fight - please check",
+    #            no pop-up) for an operator to look at (default)
+    #   veto   - drop it (earlier default; cost fight recall 0.78 -> 0.47 in the
+    #            ablation without a significant drop in false alarms)
+    #   off    - do not run the check
+    mode: review
     active_track_seconds: 1.0       # ignore tracks not seen this recently (left / old IDs)
     duplicate_iou: 0.7              # two boxes this overlapped = one person tracked twice
     proximity_heights: 1.2          # centre distance <= 1.2 x mean body height counts as close
@@ -131,6 +144,10 @@ fire_smoke_detection:
   evaluation_stride_frames: 2
   fire_threshold: 0.50
   smoke_threshold: 0.50
+  smoke_person_overlap: 0.6         # a smoke box >= 60% inside a person box is the person
+                                    # (dark hair / clothes / motion blur close to a webcam),
+                                    # not smoke: ignored. On the 13 FIRESENSE smoke clips
+                                    # 0-1% of real smoke boxes are that far inside a person.
   persistence_window: 5
   required_hits: 3
   # Fire + smoke together -> CONFIRMED at once. A single verified class
@@ -192,8 +209,12 @@ fall_detection:
       max_truncated_share: 0.8      # ... for >= 80% of the 4-s window = never fully in view
                                     # (close desk webcam): not judged. A real fall that ends at
                                     # the bottom edge passes, because the person was visible before.
-                                    # The same share applies when no torso is found mid-frame
-                                    # (sitting behind a desk or table).
+      min_torso_share: 0.5          # no torso right now: judge the person only if a torso was
+                                    # seen in >= 50% of the window. Otherwise the lower body is
+                                    # hidden (behind a desk), or the person is too small / the
+                                    # scene too crowded (> max_people_for_pose) for keypoints, and
+                                    # the box shape alone gave false falls. A real fall passes:
+                                    # the person was visible standing for most of the window.
       require_down: true            # torso tilted (or wide box without a skeleton) right now
     serious:                        # fallen person who does not get back up
       after_seconds: 20             # still down this long -> escalate the fall to CRITICAL
@@ -223,6 +244,10 @@ scene_anomaly:
   # NORMAL footage from each camera:  python -m anomaly.train_autoencoder --normal <folder>
   enabled: true
   checkpoint: "models/scene_anomaly_ae_v2.npz"   # v2: event-grouped split, F1 0.79 / AUC 0.84
+  # v3 (models/scene_anomaly_ae_v3_factory.npz) was trained on 6 min of this
+  # factory's own footage (python -m anomaly.train_factory). On held-out factory
+  # footage it raised more false alerts than v2, so v2 stays live until there
+  # are 20-60 min of normal footage per camera (docs/RESULTS.md, section 7).
   evaluation_stride_frames: 2       # windows between evaluations (after resampling to model FPS)
   threshold_scale: 1.0              # >1 = fewer alerts, <1 = more sensitive
   persistence_window: 3

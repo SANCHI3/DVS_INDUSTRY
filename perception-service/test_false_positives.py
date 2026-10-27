@@ -122,7 +122,7 @@ def test_agitation_scale():
     assert max(values[:3]) < limit < values[3], values
 
 
-def _rgb_detector(score):
+def _rgb_detector(score, mode=None, alarm=None):
     """RgbFightDetector with a fake clip classifier that always returns `score`."""
     fake = types.ModuleType("rgb_fight_model.infer")
 
@@ -142,6 +142,10 @@ def _rgb_detector(score):
     cfg = copy.deepcopy(THRESHOLDS["fight_detection"])
     cfg["gate"]["velocity_threshold_px_s"] = 0       # open the gate; test the final decision
     cfg["rgb"].update({"evaluation_stride_frames": 1, "explain": False})
+    if mode is not None:
+        cfg["interaction"]["mode"] = mode
+    if alarm is not None:
+        cfg["rgb"]["alarm_threshold"] = alarm
     return RgbFightDetector("CAM-T", cfg)
 
 
@@ -153,22 +157,124 @@ def _feed_rgb(detector, buffer_fn, steps=30):
     return out
 
 
-def test_high_model_score_without_interaction_is_rejected():
-    """R3D-18 scores ordinary activity high (domain shift): no incident when
-    the tracks show two people just standing/talking."""
+def _tiers(candidates):
+    """Tiers the real confirmation step reports for these fight candidates."""
+    from confirmation.event_confirmation import EventConfirmation
+    confirmation = EventConfirmation(THRESHOLDS["confirmation"])
+    return [event.tier for c in candidates for event in confirmation.update([c])]
+
+
+def _calm_pair(n):
+    return _pair_buffer(lambda t: [(1, 300), (2, 380)], seconds=n * DT, jitter=2.0, size_jitter=2.0)
+
+
+def _fighting_pair(n):
+    return _pair_buffer(lambda t: [(1, 300), (2, 350)], seconds=n * DT, jitter=12.0, size_jitter=25.0, seed=3)
+
+
+def test_review_is_the_default_interaction_mode():
+    assert THRESHOLDS["fight_detection"]["interaction"]["mode"] == "review"
+
+
+def test_high_model_score_without_interaction_goes_to_review():
+    """R3D-18 scores ordinary activity high (domain shift). Without track
+    evidence of an interaction the fight is not dropped: it is sent to an
+    operator as PROBABLE with the evidence attached."""
     detector = _rgb_detector(0.97)
-    calm = lambda n: _pair_buffer(lambda t: [(1, 300), (2, 380)], seconds=n * DT, jitter=2.0, size_jitter=2.0)
-    assert not _feed_rgb(detector, calm)
+    out = _feed_rgb(detector, _calm_pair)
+    assert out and out[0].event_type == "fight"
+    detail = out[0].detail
+    assert detail["interaction_passed"] is False
+    assert detail["requested_tier"] == "PROBABLE"
+    assert detail["interaction"]["reason"] and "review_reason" in detail
+    assert set(_tiers(out)) == {"PROBABLE"}
+    assert detector.diagnostics()["review_no_interaction"] > 0
+    assert detector.diagnostics()["rejected_no_interaction"] == 0
+
+
+def test_high_model_score_with_interaction_is_confirmed():
+    detector = _rgb_detector(0.9)
+    out = _feed_rgb(detector, _fighting_pair)
+    assert out and out[0].event_type == "fight"
+    assert abs(out[0].raw_confidence - 0.9) < 1e-9 and out[0].detail["interaction"]["agitated"]
+    assert out[0].detail["interaction_passed"] is True
+    assert "requested_tier" not in out[0].detail
+    assert _tiers(out)[0] == "CONFIRMED"
+
+
+def test_agitated_pair_below_the_alarm_threshold_goes_to_review():
+    """Two-level rule: the 2-of-3 rule fired and the tracks show a fight, but
+    the scores are below the alarm threshold: reported for review, no pop-up."""
+    from reporting.description_generator import generate_description, is_review_fight
+    from reporting.incident_report import is_dashboard_review
+    detector = _rgb_detector(0.65, alarm=0.75)
+    out = _feed_rgb(detector, _fighting_pair)
+    assert out and out[0].detail["interaction_passed"] is True
+    assert out[0].detail["review"] is True and out[0].detail["review_kind"] == "low_score"
+    assert out[0].detail["requested_tier"] == "PROBABLE"
+    assert _tiers(out)[0] == "PROBABLE"
+    assert is_review_fight(out[0].detail)
+    assert is_dashboard_review({"event_type": "fight", "confidence_tier": "PROBABLE", "detail": out[0].detail})
+    assert "not sure enough to raise an alarm" in generate_description("fight", "Hall", out[0].detail)
+    assert detector.diagnostics()["review_low_score"] > 0
+
+
+def test_agitated_pair_at_the_alarm_threshold_is_confirmed():
+    out = _feed_rgb(_rgb_detector(0.8, alarm=0.75), _fighting_pair)
+    assert out and "review" not in out[0].detail
+    assert _tiers(out)[0] == "CONFIRMED"
+
+
+def test_veto_mode_still_drops_a_fight_without_interaction():
+    detector = _rgb_detector(0.97, mode="veto")
+    assert not _feed_rgb(detector, _calm_pair)
     assert detector.diagnostics()["rejected_no_interaction"] > 0
 
 
-def test_high_model_score_with_interaction_is_reported():
-    detector = _rgb_detector(0.9)
-    fight = lambda n: _pair_buffer(lambda t: [(1, 300), (2, 350)], seconds=n * DT, jitter=12.0,
-                                   size_jitter=25.0, seed=3)
-    out = _feed_rgb(detector, fight)
-    assert out and out[0].event_type == "fight"
-    assert abs(out[0].raw_confidence - 0.9) < 1e-9 and out[0].detail["interaction"]["agitated"]
+def test_off_mode_reports_without_checking_tracks():
+    detector = _rgb_detector(0.97, mode="off")
+    out = _feed_rgb(detector, _calm_pair)
+    assert out and "interaction_passed" not in out[0].detail
+    assert _tiers(out)[0] == "CONFIRMED"
+
+
+def test_review_fight_reaches_the_dashboard_quietly_and_is_confirmed_by_escalation():
+    """A review fight is created on the dashboard as "please check" without a
+    confidence (no pop-up), at base severity; when the same fight is confirmed
+    the existing incident is escalated with the confidence instead of a second
+    incident being created."""
+    from reporting.incident_report import REVIEW_FIGHT_TITLE, IncidentReporter, is_dashboard_review
+    from severity.severity_rules import compute_severity
+
+    review_candidate = _feed_rgb(_rgb_detector(0.97), _calm_pair)[0]
+    event = type("E", (), {})()
+    event.event_type, event.camera_id, event.tier = "fight", "CAM-T", "PROBABLE"
+    event.confidence, event.duration_s, event.candidate = 0.97, 6.0, review_candidate
+    severity = compute_severity("fight", event, THRESHOLDS["severity"])
+    assert severity == THRESHOLDS["severity"]["base"]["fight"]       # no bump before confirmation
+
+    calls = []
+    reporter = IncidentReporter.__new__(IncidentReporter)
+    reporter._reports = {}
+    reporter._dispatch = lambda fn: fn()
+    reporter._flush_outbox = lambda: None
+    reporter._post_dashboard_incident = lambda payload: calls.append(("create", payload))
+    reporter._escalate_dashboard_incident = lambda *a: calls.append(("escalate", a))
+    reporter._enrich_if_configured = lambda incident_id: calls.append(("enrich", incident_id))
+
+    report = {"incident_id": "INC-T-1", "event_type": "fight", "confidence_tier": "PROBABLE",
+              "confidence_score": 0.97, "severity": severity, "description": "d", "location": "Hall",
+              "detected_at": "2026-10-18T10:00:00+00:00", "detail": dict(review_candidate.detail)}
+    assert is_dashboard_review(report)
+    reporter._remember(report)
+    reporter._create_dashboard_incident(report)
+    kind, payload = calls[-1]
+    assert kind == "create" and payload["title"] == REVIEW_FIGHT_TITLE and payload["confidenceScore"] is None
+
+    reporter._forward_update("INC-T-1", {"confidence_tier": "CONFIRMED", "confidence_score": 0.95,
+                                         "severity": "HIGH", "detail": {"interaction_passed": True}})
+    assert [c[0] for c in calls[1:]] == ["escalate", "enrich"]
+    assert calls[1][1][3] == 0.97                                     # confidence never lowered
 
 
 # --------------------------------------------------------------- fire/smoke
@@ -204,11 +310,11 @@ def _fire_cfg():
     return cfg
 
 
-def _run_fire(frames, script, fps=FPS):
+def _run_fire(frames, script, fps=FPS, person_boxes=None):
     det = FireSmokeDetector("CAM-T", _fire_cfg(), model=_FakeYolo(script))
     out = []
     for i, frame in enumerate(frames):
-        out += det.evaluate(frame, now=T0 + i / fps)
+        out += det.evaluate(frame, now=T0 + i / fps, person_boxes=person_boxes)
     return det, out
 
 
@@ -297,6 +403,38 @@ def test_slowly_growing_smoke_is_detected():
     _, out = _run_fire(frames, lambda i: [(1, 0.65, boxes[i])] if boxes[i] else [])
     assert out, "growing smoke must be reported"
     assert out[0].detail["detected_classes"] == ["smoke"]
+
+
+def _growing_smoke():
+    rng = np.random.default_rng(4)
+    frames, boxes = [], []
+    for i in range(200):
+        frame = _room(rng)
+        if i >= 100:
+            r = 10 + (i - 100) // 2
+            cv2.circle(frame, (160, 90), r, (170, 170, 170), -1)
+            boxes.append((160 - r, 90 - r, 160 + r, 90 + r))
+        else:
+            boxes.append(None)
+        frames.append(frame)
+    return frames, boxes
+
+
+def test_smoke_detected_on_a_person_close_to_the_camera_is_ignored():
+    """Dark hair / clothes blurred close to a webcam look like smoke to the
+    model; such a box lies inside the person's box."""
+    frames, boxes = _growing_smoke()
+    person = (80, 0, 260, 240)   # head and shoulders filling the middle of the frame
+    det, out = _run_fire(frames, lambda i: [(1, 0.65, boxes[i])] if boxes[i] else [], person_boxes=[person])
+    assert out == []
+    assert det.diagnostics()["smoke_boxes_on_person"] > 0
+
+
+def test_smoke_next_to_a_person_is_still_detected():
+    frames, boxes = _growing_smoke()
+    person = (240, 60, 300, 230)  # someone standing beside the smoke
+    _, out = _run_fire(frames, lambda i: [(1, 0.65, boxes[i])] if boxes[i] else [], person_boxes=[person])
+    assert out and out[0].detail["detected_classes"] == ["smoke"]
 
 
 def test_learned_verifier_forgets_old_approvals():

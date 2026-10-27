@@ -34,8 +34,11 @@ detection and the real backend connection — see design doc Phase 1-4.
     whether the expensive video model is worth running at all.
   - When it is, the **R3D-18** 3D CNN (`rgb_fight_model/`) scores 1.5-second
     clips; 2 of the last 3 clips must score high.
-  - A track-based **interaction check** then confirms two distinct people are
-    close and moving in an agitated way before a fight incident is raised.
+  - A track-based **interaction check** then decides the tier: two distinct
+    people close and moving in an agitated way → CONFIRMED fight; otherwise
+    the fight is sent for operator review as PROBABLE ("Possible fight —
+    please check", no pop-up). `fight_detection.interaction.mode`:
+    `review` (default), `veto` or `off`.
     Grad-CAM heatmaps (`explain/gradcam.py`) are saved with each fight.
 - Template-based incident description generation + JSON-lines "incident
   report" persistence, standing in for the future backend API

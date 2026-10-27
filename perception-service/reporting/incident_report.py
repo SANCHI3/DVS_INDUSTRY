@@ -16,6 +16,7 @@ from typing import Dict, Optional
 from reporting.dashboard_client import DashboardClient, DashboardClientError
 from reporting.description_generator import (
     generate_description,
+    is_review_fight,
     recommended_action,
 )
 from schemas.incident_schema import IncidentRecord
@@ -26,7 +27,22 @@ from severity.severity_rules import SEVERITY_ORDER
 # 2: active-track rules, fight interaction check, fire/smoke
 #    static-region check + verifier reset, per-camera anomaly calibration,
 #    evidence-based confidence scores.
-VALIDATION_VERSION = 2
+# 3: fight interaction check is a review signal (PROBABLE), not a veto.
+VALIDATION_VERSION = 3
+
+# Dashboard title of a fight sent for operator review.
+REVIEW_FIGHT_TITLE = "Possible fight — please check"
+
+
+def is_dashboard_review(report: dict) -> bool:
+    """A PROBABLE fight sent for operator review (interaction check failed, or
+    model score below the alarm threshold): shown on the dashboard for an
+    operator to check, unlike other PROBABLE events."""
+    return (
+        str(report.get("event_type")).lower() == "fight"
+        and str(report.get("confidence_tier")).upper() == "PROBABLE"
+        and is_review_fight(report.get("detail") or {})
+    )
 
 # How the confidence score was obtained, for events whose detector does not
 # record it itself. Confidence always comes from a detector/model output and
@@ -229,12 +245,16 @@ class IncidentReporter:
         if self.backend_url:
             self._send_json("/api/incidents", report, "POST")
 
-        # Only CONFIRMED incidents reach the dashboard, and each one gets a
+        # CONFIRMED incidents reach the dashboard, and each one gets a
         # plain-language LLM summary (if LLM_API_KEY is set). PROBABLE ones
-        # stay local until they are confirmed (see _forward_update).
+        # stay local until they are confirmed (see _forward_update), except a
+        # fight sent for operator review, which is shown as a lower-priority
+        # "Possible fight - please check" without a summary or pop-up.
         if str(report["confidence_tier"]).upper() == "CONFIRMED":
             self._create_dashboard_incident(report)
             self._enrich_if_configured(report["incident_id"])
+        elif is_dashboard_review(report):
+            self._create_dashboard_incident(report)
 
     def _enrich_if_configured(self, incident_id: str) -> None:
         if os.getenv("LLM_API_KEY"):
@@ -248,13 +268,18 @@ class IncidentReporter:
         if dashboard_type not in self.DASHBOARD_INCIDENT_TYPES:
             dashboard_type = "OTHER"
 
+        review = is_dashboard_review(report)
         payload = {
             "incident_id": report["incident_id"],
-            "title": report["event_type"],
+            "title": REVIEW_FIGHT_TITLE if review else report["event_type"],
             "description": report["description"],
             "type": dashboard_type,
             "severity": report["severity"],
-            "confidenceScore": report["confidence_score"],
+            # A review fight is sent without a confidence: the dashboard pops up
+            # incidents with high confidence, and this one has not met the
+            # confirmation policy. The model score stays in the local evidence
+            # and is sent with the escalation if the fight is confirmed.
+            "confidenceScore": None if review else report["confidence_score"],
             "location": report["location"],
             "occurredAt": report["detected_at"],
             "reportedByName": "Perception Service",
@@ -503,7 +528,16 @@ class IncidentReporter:
         self._remember(current)
 
         was_confirmed = previous["confidence_tier"] == "CONFIRMED"
-        if not was_confirmed and current["confidence_tier"] == "CONFIRMED":
+        if not was_confirmed and current["confidence_tier"] == "CONFIRMED" and is_dashboard_review(previous):
+            # Already on the dashboard as "please check": confirm it there. Adding
+            # the confidence is what raises the pop-up on the dashboard.
+            reason = "fight confirmed: two people seen close together with agitated motion"
+            def confirm_review() -> None:
+                self._escalate_dashboard_incident(
+                    incident_id, current["severity"], reason, current["confidence_score"])
+                self._enrich_if_configured(incident_id)
+            self._dispatch(confirm_review)
+        elif not was_confirmed and current["confidence_tier"] == "CONFIRMED":
             def create_and_enrich() -> None:
                 self._create_dashboard_incident(current)
                 self._enrich_if_configured(incident_id)

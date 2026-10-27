@@ -53,9 +53,13 @@ alarms.
 
 **8. Why the interaction check if the model is already accurate?**
 On our own test camera the classifier, trained on other footage, scored
-ordinary activity high (a domain gap). A fight incident therefore also needs
-track evidence: two distinct people, close (≤ 1.2 body heights) for ≥ 1 s,
-moving in an agitated way. See `temporal/interaction.py`.
+ordinary activity high (a domain gap). A fight is therefore CONFIRMED (with a
+pop-up) only with track evidence: two distinct people, close (≤ 1.2 body
+heights) for ≥ 1 s, moving in an agitated way. See `temporal/interaction.py`.
+Without that evidence the fight is still reported, as "Possible fight —
+please check" without a pop-up. As a hard veto the check lost a quarter of
+real fights in the ablation (recall 0.73 → 0.48), so it became a review
+signal (report section 6.8).
 
 **9. How does fall detection work?**
 YOLOv8-Pose gives 17 keypoints. From them and the box we compute 15 features

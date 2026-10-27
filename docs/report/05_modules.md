@@ -48,9 +48,13 @@ YOLO, and its evaluated score (from [../RESULTS.md](../RESULTS.md)).
   frame looks like people standing together. A 3D CNN learns spatio-temporal
   patterns directly.
 - **Interaction check:** the classifier is trained on other footage and can
-  score ordinary activity high. A fight incident therefore also needs two
+  score ordinary activity high. A fight is therefore CONFIRMED only with two
   distinct tracked people, close (≤ 1.2 body heights) for ≥ 1 s of the last
-  3 s, with agitated box motion (≥ 0.1 body heights).
+  3 s, with agitated box motion (≥ 0.1 body heights). Without that evidence
+  it is still reported, as PROBABLE ("Possible fight — please check", no
+  pop-up), because as a hard veto the check cost too much recall (chapter
+  6.8). `fight_detection.interaction.mode` selects `review` (default),
+  `veto` or `off`.
 - **Score:** v2 on 344 test videos with the live 2-of-3 rule: precision 0.94,
   recall 0.97, **F1 0.96**, AUC 0.99. v1 (trained with frame-stride sampling)
   reached F1 0.85.
