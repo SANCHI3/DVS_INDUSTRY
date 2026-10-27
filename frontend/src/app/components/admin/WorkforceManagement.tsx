@@ -245,6 +245,9 @@ export function WorkforceManagement() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [selectedDept, setSelectedDept] = useState("all");
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState("all");
+  const [selectedShift, setSelectedShift] = useState("all");
   const [departments, setDepartments] = useState<DepartmentDto[]>([]);
   const [shifts, setShifts] = useState<ShiftDto[]>([]);
   const [dialogMode, setDialogMode] = useState<"add" | "edit" | null>(null);
@@ -277,10 +280,23 @@ export function WorkforceManagement() {
     () =>
       employees.filter((e) =>
         (selectedDept === "all" || String(e.departmentId) === selectedDept) &&
+        (selectedStatus === "all" || e.status === selectedStatus) &&
+        (selectedShift === "all" || String(e.shiftId) === selectedShift) &&
         (e.name.toLowerCase().includes(search.toLowerCase()) || e.id.toLowerCase().includes(search.toLowerCase())),
       ),
-    [employees, search, selectedDept],
+    [employees, search, selectedDept, selectedStatus, selectedShift],
   );
+
+  const activeFilterCount = (selectedStatus !== "all" ? 1 : 0) + (selectedShift !== "all" ? 1 : 0);
+
+  const filterSelectStyle: React.CSSProperties = {
+    padding: "0.5rem 0.75rem",
+    border: "1px solid #E8E2E0",
+    borderRadius: "0.375rem",
+    fontSize: "0.8375rem",
+    background: "#fff",
+    cursor: "pointer",
+  };
 
   const handleAdd = () => {
     setDialogMode("add");
@@ -367,14 +383,40 @@ export function WorkforceManagement() {
         <select
           value={selectedDept}
           onChange={(e) => setSelectedDept(e.target.value)}
-          style={{ padding: "0.5rem 0.75rem", border: "1px solid #E8E2E0", borderRadius: "0.375rem", fontSize: "0.8375rem", background: "#fff", cursor: "pointer" }}
+          style={filterSelectStyle}
         >
           <option value="all">All Departments</option>
           {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
-        <Btn size="sm" variant="secondary"><Filter size={14} /> Filters</Btn>
+        <Btn size="sm" variant="secondary" onClick={() => setShowFilters((open) => !open)}>
+          <Filter size={14} /> Filters{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+        </Btn>
         <Btn size="sm" onClick={handleAdd}><Plus size={14} /> Add Employee</Btn>
       </div>
+
+      {showFilters && (
+        <div className="flex flex-wrap items-end gap-3 mb-4 p-3 rounded-md" style={{ background: "#fff", border: "1px solid #E8E2E0" }}>
+          <label style={{ fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A" }}>
+            <span style={{ display: "block", marginBottom: "0.3rem" }}>Status</span>
+            <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} style={filterSelectStyle}>
+              <option value="all">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="on-leave">On Leave</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
+          <label style={{ fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A" }}>
+            <span style={{ display: "block", marginBottom: "0.3rem" }}>Shift</span>
+            <select value={selectedShift} onChange={(e) => setSelectedShift(e.target.value)} style={filterSelectStyle}>
+              <option value="all">All Shifts</option>
+              {shifts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </label>
+          <Btn size="sm" variant="ghost" disabled={activeFilterCount === 0} onClick={() => { setSelectedStatus("all"); setSelectedShift("all"); }}>
+            Clear filters
+          </Btn>
+        </div>
+      )}
 
       <Card>
         <DataTable
