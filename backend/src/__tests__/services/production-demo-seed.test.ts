@@ -319,6 +319,23 @@ describe('demo data plan', () => {
   });
 });
 
+describe('workforce-only seeding (remote databases)', () => {
+  it('creates workers, attendance and performance but no work orders, output or target', async () => {
+    const { db, tables } = fakeDb();
+    const report = await seedProductionDemo(db, NOW, { workOrders: false });
+    expect(tables['employee']).toHaveLength(DEMO_WORKERS.length);
+    expect(tables['attendance']!.length).toBeGreaterThan(0);
+    expect(tables['employeeDailyOutput']!.length).toBeGreaterThan(0);
+    expect(tables['workOrder']).toHaveLength(0);
+    expect(tables['workOrderOutput']).toHaveLength(0);
+    expect(tables['productionMonthlyTarget']).toHaveLength(0);
+    expect(report).toMatchObject({
+      workOrders: { created: 0, existing: 0 },
+      monthlyTarget: 'skipped',
+    });
+  });
+});
+
 describe('resolveSeedTarget', () => {
   const local = 'postgresql://user:pw@localhost:5433/dvs_factory?schema=public';
 
@@ -334,6 +351,33 @@ describe('resolveSeedTarget', () => {
     'postgresql://u:p@db.example.com/dvs',
   ])('refuses a non-local database %#', (url) => {
     expect(() => resolveSeedTarget(url)).toThrow(/only written to a database on this computer/);
+  });
+
+  it('needs --allow-remote and the exact host typed back before writing to a remote database', () => {
+    const neon =
+      'postgresql://u:p@ep-cool-name-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
+    const host = 'ep-cool-name-pooler.ap-southeast-1.aws.neon.tech';
+    expect(() => resolveSeedTarget(neon, undefined, 'production')).toThrow(/NODE_ENV=production/);
+    expect(() => resolveSeedTarget(neon, undefined, 'production', { allowRemote: true })).toThrow(
+      `Target is the REMOTE database ${host}/neondb. Nothing was written. To add the demo workforce data there, run again with --confirm-host ${host}`,
+    );
+    expect(() =>
+      resolveSeedTarget(neon, undefined, 'production', {
+        allowRemote: true,
+        confirmHost: 'ep-cool-name.aws.neon.tech',
+      }),
+    ).toThrow(/Nothing was written/);
+    expect(() =>
+      resolveSeedTarget(neon, 'other', 'production', { allowRemote: true, confirmHost: host }),
+    ).toThrow(/--db cannot be used/);
+    expect(
+      resolveSeedTarget(neon, undefined, 'production', { allowRemote: true, confirmHost: host }),
+    ).toMatchObject({
+      host,
+      database: 'neondb',
+      remote: true,
+    });
+    expect(resolveSeedTarget('postgresql://u:p@localhost:5433/x').remote).toBe(false);
   });
 
   it('refuses production mode, a missing URL and an unsafe database name', () => {

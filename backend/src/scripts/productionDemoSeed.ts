@@ -379,15 +379,21 @@ export interface SeedReport {
   dailyPerformance: SeedCounts & { filled: number };
   workOrders: SeedCounts;
   workOrderOutputs: { created: number };
-  monthlyTarget: 'created' | 'existing';
+  monthlyTarget: 'created' | 'existing' | 'skipped';
 }
 
 // ── Seed ──────────────────────────────────────────────────────────────────────
 
+/**
+ * `workOrders: false` seeds workforce and attendance only: no demo work
+ * orders, output or monthly target, so company totals stay real.
+ */
 export async function seedProductionDemo(
   db: PrismaClient,
   now: Date = new Date(),
+  options: { workOrders?: boolean } = {},
 ): Promise<SeedReport> {
+  const withWorkOrders = options.workOrders ?? true;
   const today = storedDay(now);
 
   // Departments first, so workers can be assigned to them
@@ -522,7 +528,7 @@ export async function seedProductionDemo(
   const supervisor = DEMO_WORKERS.find((w) => w.code === 'DEMO-EMP-001')!;
   const workOrders: SeedCounts = { created: 0, existing: 0 };
   let outputsCreated = 0;
-  for (const wo of DEMO_WORK_ORDERS) {
+  for (const wo of withWorkOrders ? DEMO_WORK_ORDERS : []) {
     const found = await db.workOrder.findUnique({ where: { workOrderNumber: wo.number } });
     if (found !== null) {
       workOrders.existing++;
@@ -577,8 +583,10 @@ export async function seedProductionDemo(
 
   // This month's target, only when the month has none
   const periodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
-  const target = await db.productionMonthlyTarget.findUnique({ where: { periodStart } });
-  if (target === null) {
+  const target = withWorkOrders
+    ? await db.productionMonthlyTarget.findUnique({ where: { periodStart } })
+    : null;
+  if (withWorkOrders && target === null) {
     await db.productionMonthlyTarget.create({
       data: {
         periodStart,
@@ -604,7 +612,7 @@ export async function seedProductionDemo(
     },
     workOrders,
     workOrderOutputs: { created: outputsCreated },
-    monthlyTarget: target === null ? 'created' : 'existing',
+    monthlyTarget: !withWorkOrders ? 'skipped' : target === null ? 'created' : 'existing',
   };
 }
 
@@ -621,8 +629,10 @@ export function resolveSeedTarget(
   rawUrl: string | undefined,
   database?: string,
   nodeEnv?: string,
-): { url: string; host: string; port: string; database: string } {
-  if (nodeEnv === 'production')
+  remote: { allowRemote?: boolean; confirmHost?: string | undefined } = {},
+): { url: string; host: string; port: string; database: string; remote: boolean } {
+  const allowRemote = remote.allowRemote === true;
+  if (nodeEnv === 'production' && !allowRemote)
     throw new Error('Refusing to seed demo data with NODE_ENV=production.');
   if (!rawUrl) throw new Error('DATABASE_URL is not set.');
   let url: URL;
@@ -633,10 +643,21 @@ export function resolveSeedTarget(
   }
   if (!['postgresql:', 'postgres:'].includes(url.protocol))
     throw new Error('DATABASE_URL is not a PostgreSQL URL.');
-  if (!LOCAL_HOSTS.has(url.hostname)) {
+  const isRemote = !LOCAL_HOSTS.has(url.hostname);
+  if (isRemote && !allowRemote) {
     throw new Error(
       `Refusing to seed "${url.hostname}": demo data is only written to a database on this computer.`,
     );
+  }
+  if (isRemote) {
+    // A remote write needs the exact host typed back, so it cannot happen by accident
+    if (database !== undefined) throw new Error('--db cannot be used with a remote database.');
+    if (remote.confirmHost !== url.hostname) {
+      throw new Error(
+        `Target is the REMOTE database ${url.hostname}${url.pathname}. Nothing was written. ` +
+          `To add the demo workforce data there, run again with --confirm-host ${url.hostname}`,
+      );
+    }
   }
   if (database !== undefined) {
     if (!/^[A-Za-z0-9_]+$/.test(database))
@@ -648,5 +669,6 @@ export function resolveSeedTarget(
     host: url.hostname,
     port: url.port || '5432',
     database: url.pathname.slice(1),
+    remote: isRemote,
   };
 }
