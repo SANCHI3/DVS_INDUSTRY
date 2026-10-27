@@ -15,13 +15,23 @@ type Row = Record<string, unknown> & { id: number };
 
 function fakeDb() {
   const tables: Record<string, Row[]> = {
-    department: [], shift: [], employee: [], attendance: [], employeeDailyOutput: [],
-    workOrder: [], workOrderOutput: [], productionMonthlyTarget: [],
+    department: [],
+    shift: [],
+    employee: [],
+    attendance: [],
+    employeeDailyOutput: [],
+    workOrder: [],
+    workOrderOutput: [],
+    productionMonthlyTarget: [],
   };
   let nextId = 100;
   const insert = (table: string, data: Record<string, unknown>): Row => {
     // Like Postgres: a new employee is not removed
-    const row = { id: nextId++, ...(table === 'employee' ? { deletedAt: null } : {}), ...data } as Row;
+    const row = {
+      id: nextId++,
+      ...(table === 'employee' ? { deletedAt: null } : {}),
+      ...data,
+    } as Row;
     tables[table]!.push(row);
     return row;
   };
@@ -32,29 +42,52 @@ function fakeDb() {
         return String(row[k] ?? '').startsWith((v as { startsWith: string }).startsWith);
       }
       if (v !== null && typeof v === 'object' && 'equals' in v) {
-        return String(row[k]).toLowerCase() === String((v as { equals: string }).equals).toLowerCase();
+        return (
+          String(row[k]).toLowerCase() === String((v as { equals: string }).equals).toLowerCase()
+        );
       }
       return row[k] === v;
     });
   const model = (table: string, uniqueKeys: string[][] = []) => ({
-    findUnique: async ({ where }: { where: Record<string, unknown> }) => tables[table]!.find((r) => matches(r, where)) ?? null,
-    findFirst: async ({ where }: { where: Record<string, unknown> }) => tables[table]!.find((r) => matches(r, where)) ?? null,
+    findUnique: async ({ where }: { where: Record<string, unknown> }) =>
+      tables[table]!.find((r) => matches(r, where)) ?? null,
+    findFirst: async ({ where }: { where: Record<string, unknown> }) =>
+      tables[table]!.find((r) => matches(r, where)) ?? null,
     create: async ({ data }: { data: Record<string, unknown> }) => {
       const { outputs, ...rest } = data as { outputs?: { create: Record<string, unknown>[] } };
       const row = insert(table, rest);
-      for (const o of outputs?.create ?? []) insert('workOrderOutput', { ...o, workOrderId: row.id });
+      for (const o of outputs?.create ?? [])
+        insert('workOrderOutput', { ...o, workOrderId: row.id });
       return row;
     },
-    updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+    updateMany: async ({
+      where,
+      data,
+    }: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => {
       const hits = tables[table]!.filter((r) => matches(r, where));
       for (const r of hits) Object.assign(r, data);
       return { count: hits.length };
     },
-    createMany: async ({ data, skipDuplicates }: { data: Record<string, unknown>[]; skipDuplicates?: boolean }) => {
+    createMany: async ({
+      data,
+      skipDuplicates,
+    }: {
+      data: Record<string, unknown>[];
+      skipDuplicates?: boolean;
+    }) => {
       let count = 0;
       for (const d of data) {
         const clash = uniqueKeys.some((keys) =>
-          tables[table]!.some((r) => keys.every((k) => (d[k] instanceof Date ? (r[k] as Date).getTime() === (d[k] as Date).getTime() : r[k] === d[k]))),
+          tables[table]!.some((r) =>
+            keys.every((k) =>
+              d[k] instanceof Date
+                ? (r[k] as Date).getTime() === (d[k] as Date).getTime()
+                : r[k] === d[k],
+            ),
+          ),
         );
         if (clash) {
           if (!skipDuplicates) throw new Error('unique violation');
@@ -81,17 +114,39 @@ function fakeDb() {
 
 const NOW = new Date(2026, 9, 27, 15, 0); // 27 Oct 2026, 15:00 local
 const TODAY = storedDay(NOW);
-const snapshot = (tables: Record<string, Row[]>) => JSON.parse(JSON.stringify(tables)) as Record<string, Row[]>;
+const snapshot = (tables: Record<string, Row[]>) =>
+  JSON.parse(JSON.stringify(tables)) as Record<string, Row[]>;
 
 function withRealData() {
   const f = fakeDb();
   // Records that already exist and must be left exactly as they are
   const hr = f.insert('department', { name: 'HR', code: 'HR', description: 'Real HR department' });
-  f.insert('department', { name: 'Quality Control', code: 'QUAL', description: 'Real — uses the code QUAL' });
-  const real = f.insert('employee', { employeeCode: 'EMP-1', firstName: 'Real', lastName: 'Person', email: 'real@dvs.in', deletedAt: null, departmentId: hr.id });
-  f.insert('employee', { employeeCode: 'demo-emp-004', firstName: 'Someone', lastName: 'Else', email: 'else@dvs.in', deletedAt: null });
+  f.insert('department', {
+    name: 'Quality Control',
+    code: 'QUAL',
+    description: 'Real — uses the code QUAL',
+  });
+  const real = f.insert('employee', {
+    employeeCode: 'EMP-1',
+    firstName: 'Real',
+    lastName: 'Person',
+    email: 'real@dvs.in',
+    deletedAt: null,
+    departmentId: hr.id,
+  });
+  f.insert('employee', {
+    employeeCode: 'demo-emp-004',
+    firstName: 'Someone',
+    lastName: 'Else',
+    email: 'else@dvs.in',
+    deletedAt: null,
+  });
   f.insert('attendance', { employeeId: real.id, date: TODAY, status: 'ABSENT', remarks: 'real' });
-  f.insert('productionMonthlyTarget', { periodStart: new Date(Date.UTC(2026, 9, 1)), outputTarget: 9999, notes: 'real target' });
+  f.insert('productionMonthlyTarget', {
+    periodStart: new Date(Date.UTC(2026, 9, 1)),
+    outputTarget: 9999,
+    notes: 'real target',
+  });
   return f;
 }
 
@@ -100,7 +155,12 @@ describe('Production demo seed', () => {
     const { db, tables } = fakeDb();
     await seedProductionDemo(db, NOW);
     expect(tables['department']!.map((d) => d.name)).toEqual([
-      'Plant Head', 'Maintance Department', 'Production Scrap', 'Quality Department', 'HR', 'Accountant',
+      'Plant Head',
+      'Maintance Department',
+      'Production Scrap',
+      'Quality Department',
+      'HR',
+      'Accountant',
     ]);
     const deptName = new Map(tables['department']!.map((d) => [d.id, d.name]));
     for (const w of DEMO_WORKERS) {
@@ -139,7 +199,9 @@ describe('Production demo seed', () => {
       for (const row of rows) expect(after[table]!.find((r) => r.id === row.id)).toEqual(row);
     }
     expect(f.tables['department']!.filter((d) => d.name === 'HR')).toHaveLength(1);
-    expect(f.tables['department']!.find((d) => d.name === 'Quality Department')!['code']).toBe('DEMO-QUAL');
+    expect(f.tables['department']!.find((d) => d.name === 'Quality Department')!['code']).toBe(
+      'DEMO-QUAL',
+    );
     // DEMO-EMP-004 exists but is not a demo record: no demo activity is attached to it
     expect(report.employees.notDemo).toEqual(['DEMO-EMP-004']);
     const other = f.tables['employee']!.find((e) => e['email'] === 'else@dvs.in')!;
@@ -152,14 +214,26 @@ describe('Production demo seed', () => {
     const { db, tables } = fakeDb();
     await seedProductionDemo(db, NOW);
     const byId = new Map(tables['employee']!.map((e) => [e.id, e['employeeCode'] as string]));
-    expect(tables['attendance']!.every((a) => (a['date'] as Date).getTime() === TODAY.getTime())).toBe(true);
+    expect(
+      tables['attendance']!.every((a) => (a['date'] as Date).getTime() === TODAY.getTime()),
+    ).toBe(true);
     const attendanceCodes = tables['attendance']!.map((a) => byId.get(a['employeeId'] as number));
-    expect(attendanceCodes.sort()).toEqual(['DEMO-EMP-001', 'DEMO-EMP-004', 'DEMO-EMP-009', 'DEMO-EMP-013', 'DEMO-EMP-015']);
-    const statusOf = new Map(tables['attendance']!.map((a) => [byId.get(a['employeeId'] as number), a['status']]));
+    expect(attendanceCodes.sort()).toEqual([
+      'DEMO-EMP-001',
+      'DEMO-EMP-004',
+      'DEMO-EMP-009',
+      'DEMO-EMP-013',
+      'DEMO-EMP-015',
+    ]);
+    const statusOf = new Map(
+      tables['attendance']!.map((a) => [byId.get(a['employeeId'] as number), a['status']]),
+    );
     expect(statusOf.get('DEMO-EMP-015')).toBe('LATE');
     expect(statusOf.get('DEMO-EMP-001')).toBe('PRESENT');
     for (const o of tables['employeeDailyOutput']!) {
-      expect(['PRESENT', 'LATE', 'HALF_DAY']).toContain(statusOf.get(byId.get(o['employeeId'] as number)));
+      expect(['PRESENT', 'LATE', 'HALF_DAY']).toContain(
+        statusOf.get(byId.get(o['employeeId'] as number)),
+      );
       expect(String(o['remarks'])).toMatch(/^\[DEMO\]/);
     }
     expect(tables['employeeDailyOutput']!.length).toBeGreaterThan(0);
@@ -176,7 +250,9 @@ describe('Production demo seed', () => {
       expect(['IN_PROGRESS', 'ON_HOLD', 'COMPLETED']).toContain(wo!['status']);
       expect((o['recordedAt'] as Date).getTime()).toBeLessThanOrEqual(NOW.getTime());
     }
-    expect(tables['workOrder']!.every((w) => String(w['workOrderNumber']).startsWith('DEMO-WO-'))).toBe(true);
+    expect(
+      tables['workOrder']!.every((w) => String(w['workOrderNumber']).startsWith('DEMO-WO-')),
+    ).toBe(true);
   });
 
   it('keeps company output and employee output separate', async () => {
@@ -185,7 +261,10 @@ describe('Production demo seed', () => {
     const companyGood = tables['workOrderOutput']!.reduce((s, o) => s + Number(o['goodQty']), 0);
     const planned = DEMO_WORK_ORDERS.flatMap((w) => w.outputs).reduce((s, o) => s + o.goodQty, 0);
     expect(companyGood).toBe(planned); // all planned entries are in the past at 15:00
-    const employeeProduced = tables['employeeDailyOutput']!.reduce((s, o) => s + Number(o['producedParts'] ?? 0), 0);
+    const employeeProduced = tables['employeeDailyOutput']!.reduce(
+      (s, o) => s + Number(o['producedParts'] ?? 0),
+      0,
+    );
     expect(employeeProduced).toBeGreaterThan(0);
     expect(tables['workOrderOutput']!.some((o) => 'employeeId' in o)).toBe(false);
   });
@@ -195,7 +274,9 @@ describe('demo daily performance', () => {
   it('gives every worker who worked today expected and produced figures, so efficiency is not N/A', async () => {
     const { db, tables } = fakeDb();
     await seedProductionDemo(db, NOW);
-    const worked = DEMO_WORKERS.filter((w) => w.today && ['PRESENT', 'LATE', 'HALF_DAY'].includes(w.today.status));
+    const worked = DEMO_WORKERS.filter(
+      (w) => w.today && ['PRESENT', 'LATE', 'HALF_DAY'].includes(w.today.status),
+    );
     expect(tables['employeeDailyOutput']).toHaveLength(worked.length);
     for (const o of tables['employeeDailyOutput']!) {
       expect(Number(o['expectedParts'])).toBeGreaterThan(0);
@@ -226,7 +307,11 @@ describe('demo data plan', () => {
   it('keeps five workers, one per key department, with clearly marked IDs', () => {
     expect(DEMO_DEPARTMENTS.map((d) => d.name)).toContain('Maintance Department');
     expect(DEMO_WORKERS.map((w) => w.department)).toEqual([
-      'Plant Head', 'Maintance Department', 'Production Scrap', 'Quality Department', 'HR',
+      'Plant Head',
+      'Maintance Department',
+      'Production Scrap',
+      'Quality Department',
+      'HR',
     ]);
     const codes = DEMO_WORKERS.map((w) => w.code);
     expect(new Set(codes).size).toBe(codes.length);

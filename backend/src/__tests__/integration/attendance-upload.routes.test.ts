@@ -122,9 +122,30 @@ const FILE = sheet([
 const DATE = new Date().toISOString().slice(0, 10);
 
 const staff = [
-  { id: 1, employeeCode: 'EMP-001', firstName: 'Ananya', lastName: 'Iyer', status: 'ACTIVE', deletedAt: null },
-  { id: 2, employeeCode: 'EMP-002', firstName: 'Ravi', lastName: '', status: 'ACTIVE', deletedAt: null },
-  { id: 3, employeeCode: 'EMP-003', firstName: 'Meera', lastName: 'Iyer', status: 'ACTIVE', deletedAt: null },
+  {
+    id: 1,
+    employeeCode: 'EMP-001',
+    firstName: 'Ananya',
+    lastName: 'Iyer',
+    status: 'ACTIVE',
+    deletedAt: null,
+  },
+  {
+    id: 2,
+    employeeCode: 'EMP-002',
+    firstName: 'Ravi',
+    lastName: '',
+    status: 'ACTIVE',
+    deletedAt: null,
+  },
+  {
+    id: 3,
+    employeeCode: 'EMP-003',
+    firstName: 'Meera',
+    lastName: 'Iyer',
+    status: 'ACTIVE',
+    deletedAt: null,
+  },
 ];
 
 let app: Express;
@@ -139,7 +160,8 @@ beforeEach(() => {
   db['employee']!['findMany']!.mockResolvedValue(staff);
   db['attendance']!['findMany']!.mockResolvedValue([]);
   db['attendance']!['createManyAndReturn']!.mockImplementation(
-    async ({ data }: { data: Array<{ employeeId: number }> }) => data.map((d) => ({ employeeId: d.employeeId })),
+    async ({ data }: { data: Array<{ employeeId: number }> }) =>
+      data.map((d) => ({ employeeId: d.employeeId })),
   );
 });
 
@@ -152,7 +174,9 @@ const upload = (path: string, token: string, file = FILE, name = 'attendance.xls
 
 describe('Excel attendance upload — permissions', () => {
   it('requires a login', async () => {
-    const res = await request(app).post('/api/v1/workforce/attendance/import/preview').field('date', DATE);
+    const res = await request(app)
+      .post('/api/v1/workforce/attendance/import/preview')
+      .field('date', DATE);
     expect(res.status).toBe(401);
   });
 
@@ -169,11 +193,14 @@ describe('Excel attendance upload — permissions', () => {
     },
   );
 
-  it.each(['admin-token', 'hr-token'])('allows %s (the roles that record attendance)', async (token) => {
-    useToken(token);
-    const res = await upload('/preview', token);
-    expect(res.status).toBe(200);
-  });
+  it.each(['admin-token', 'hr-token'])(
+    'allows %s (the roles that record attendance)',
+    async (token) => {
+      useToken(token);
+      const res = await upload('/preview', token);
+      expect(res.status).toBe(200);
+    },
+  );
 });
 
 describe('Excel attendance upload — preview and import', () => {
@@ -245,19 +272,32 @@ describe('Excel attendance upload — preview and import', () => {
 
   it('rejects a file over 5 MB', async () => {
     useToken('admin-token');
-    const res = await upload('/preview', 'admin-token', Buffer.alloc(5 * 1024 * 1024 + 1, 1), 'big.xlsx');
+    const res = await upload(
+      '/preview',
+      'admin-token',
+      Buffer.alloc(5 * 1024 * 1024 + 1, 1),
+      'big.xlsx',
+    );
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe('UPLOAD_ERROR');
   });
 
   it('explains a missing file, a missing column, and a missing or future date', async () => {
     useToken('admin-token');
-    const base = () => request(app).post('/api/v1/workforce/attendance/import/preview').set(auth('admin-token'));
+    const base = () =>
+      request(app).post('/api/v1/workforce/attendance/import/preview').set(auth('admin-token'));
     let res = await base().field('date', DATE);
     expect(res.status).toBe(400);
     expect(res.body.error.message).toBe('Choose an Excel file to upload');
 
-    res = await upload('/preview', 'admin-token', sheet([['Employee ID', 'Name'], ['EMP-001', 'Ananya']]));
+    res = await upload(
+      '/preview',
+      'admin-token',
+      sheet([
+        ['Employee ID', 'Name'],
+        ['EMP-001', 'Ananya'],
+      ]),
+    );
     expect(res.status).toBe(400);
     expect(res.body.error.message).toMatch(/no attendance status column/);
 
