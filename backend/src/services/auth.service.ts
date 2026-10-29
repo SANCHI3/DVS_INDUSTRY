@@ -31,6 +31,7 @@ import {
 } from '../utils/token';
 import { sendPasswordResetEmail } from '../utils/mailer';
 import { logger } from '../logger';
+import { REFRESH_ROTATION_GRACE_MS } from '../constants';
 
 const PASSWORD_RESET_TTL_MS = 15 * 60 * 1_000;
 
@@ -185,8 +186,23 @@ export class AuthService {
       throw new UnauthorizedError('User not found or account deactivated');
     }
 
-    // 4. Rotate — delete old token, issue new pair
-    await this.refreshTokenRepo.deleteByToken(rawRefreshToken);
+    // 4. Rotate — keep the old token for a grace period, issue a new pair.
+    //    A token rotated within the grace period is a retried refresh whose
+    //    response was lost, not theft; it gets a fresh pair too.
+    const now = Date.now();
+    if (storedToken.replacedAt === null) {
+      await this.refreshTokenRepo.markReplaced(rawRefreshToken);
+    } else if (now - storedToken.replacedAt.getTime() > REFRESH_ROTATION_GRACE_MS) {
+      await this.refreshTokenRepo.deleteAllByUserId(payload.sub);
+      logger.warn('Refresh token reuse detected — all tokens revoked', {
+        userId: payload.sub,
+      });
+      throw new UnauthorizedError('Refresh token reuse detected. Please log in again.');
+    }
+    await this.refreshTokenRepo.deleteReplacedBefore(
+      user.id,
+      new Date(now - REFRESH_ROTATION_GRACE_MS),
+    );
     return this.issueTokenPair(user.id, user.email, user.role.name);
   }
 

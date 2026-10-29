@@ -1,6 +1,7 @@
 /**
  * Regression tests for auth hardening: login ordering, DB-backed password
- * reset, role-change session revocation and hashed refresh tokens.
+ * reset, role-change session revocation, hashed refresh tokens and the
+ * refresh-token rotation grace period.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createHash } from 'crypto';
@@ -20,7 +21,13 @@ vi.mock('../../lib/prismaClient', () => ({
   prisma: {
     user: { findUnique: vi.fn(), update: vi.fn() },
     role: { findUnique: vi.fn() },
-    refreshToken: { create: vi.fn(), findUnique: vi.fn(), delete: vi.fn(), deleteMany: vi.fn() },
+    refreshToken: {
+      create: vi.fn(),
+      findUnique: vi.fn(),
+      delete: vi.fn(),
+      deleteMany: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
     passwordResetToken: {
       create: vi.fn(),
       delete: vi.fn(),
@@ -49,6 +56,7 @@ vi.mock('../../logger', () => ({ logger: { info: vi.fn(), error: vi.fn(), warn: 
 import { prisma } from '../../lib/prismaClient';
 import bcrypt from 'bcrypt';
 import { sendPasswordResetEmail } from '../../utils/mailer';
+import { verifyRefreshToken } from '../../utils/token';
 
 const { AuthService } = await import('../../services/auth.service');
 
@@ -148,6 +156,54 @@ describe('AuthService hardening', () => {
     it('rejects an unknown or already-used token', async () => {
       fn(prisma.passwordResetToken.delete).mockRejectedValue(new Error('not found'));
       await expect(svc.resetPassword('reused', 'NewPassword!234')).rejects.toThrow(BadRequestError);
+    });
+  });
+
+  describe('refreshTokens', () => {
+    const stored = (replacedAt: Date | null) => ({
+      id: 9,
+      userId: 5,
+      expiresAt: new Date(Date.now() + 60_000),
+      replacedAt,
+    });
+
+    beforeEach(() => {
+      fn(verifyRefreshToken).mockReturnValue({ sub: 5, jti: 'jti' });
+      fn(prisma.user.findUnique).mockResolvedValue(user());
+    });
+
+    it('marks the old token replaced instead of deleting it', async () => {
+      fn(prisma.refreshToken.findUnique).mockResolvedValue(stored(null));
+      const tokens = await svc.refreshTokens('old-token');
+
+      expect(tokens.refreshToken).toBe('refresh-token');
+      expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: { token: sha256('old-token'), replacedAt: null },
+        data: { replacedAt: expect.any(Date) },
+      });
+      expect(prisma.refreshToken.delete).not.toHaveBeenCalled();
+    });
+
+    it('accepts a token rotated moments ago (lost response, retried)', async () => {
+      fn(prisma.refreshToken.findUnique).mockResolvedValue(stored(new Date(Date.now() - 10_000)));
+      await expect(svc.refreshTokens('old-token')).resolves.toMatchObject({
+        accessToken: 'access-token',
+      });
+      expect(prisma.refreshToken.deleteMany).not.toHaveBeenCalledWith({ where: { userId: 5 } });
+    });
+
+    it('revokes every session when a token rotated long ago is replayed', async () => {
+      fn(prisma.refreshToken.findUnique).mockResolvedValue(
+        stored(new Date(Date.now() - 60 * 60 * 1000)),
+      );
+      await expect(svc.refreshTokens('old-token')).rejects.toThrow(UnauthorizedError);
+      expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { userId: 5 } });
+    });
+
+    it('revokes every session for an unknown token', async () => {
+      fn(prisma.refreshToken.findUnique).mockResolvedValue(null);
+      await expect(svc.refreshTokens('forged')).rejects.toThrow(UnauthorizedError);
+      expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { userId: 5 } });
     });
   });
 

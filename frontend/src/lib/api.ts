@@ -87,8 +87,46 @@ const api: AxiosInstance = axios.create({
 
 // ── Request interceptor — attach access token ──────────────────────────────────
 
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+/** Fired on window when the session cannot be refreshed; App returns to login. */
+export const SESSION_EXPIRED_EVENT = 'dvs:session-expired';
+
+const USER_KEY = 'dvs_user'; // owned by auth.ts; cleared here on session expiry
+
+function hasStoredUser(): boolean {
+  try {
+    return localStorage.getItem(USER_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
+/** True when the server refused the refresh (not merely unreachable or starting). */
+function isRefusedRefresh(err: unknown): boolean {
+  return axios.isAxiosError(err) && err.response !== undefined && err.response.status < 500;
+}
+
+/**
+ * After a reload the in-memory access token is gone. For a signed-in user,
+ * refresh it once before the first request instead of letting every request
+ * fail with 401 first. Rejects (and ends the session) when the server refuses
+ * the refresh; returns null when it could not be reached.
+ */
+export async function ensureAccessToken(): Promise<string | null> {
   const token = getAccessToken();
+  if (token !== null || !hasStoredUser()) return token;
+  try {
+    return await refreshAccessToken(null);
+  } catch (err) {
+    if (isRefusedRefresh(err)) {
+      endSession();
+      throw normaliseError(err as AxiosError);
+    }
+    return null;
+  }
+}
+
+api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+  const token = config.url?.includes('/auth/login') ? getAccessToken() : await ensureAccessToken();
   if (token) {
     config.headers['Authorization'] = `Bearer ${token}`;
   }
@@ -96,11 +134,6 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
 });
 
 // ── Response interceptor — handle 401 + error normalisation ───────────────────
-
-/** Fired on window when the session cannot be refreshed; App returns to login. */
-export const SESSION_EXPIRED_EVENT = 'dvs:session-expired';
-
-const USER_KEY = 'dvs_user'; // owned by auth.ts; cleared here on session expiry
 
 // One in-flight refresh per tab, shared by every request that hit a 401.
 let refreshPromise: Promise<string> | null = null;
@@ -150,7 +183,9 @@ function endSession(): void {
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
 
-  async (error: AxiosError) => {
+  async (error: AxiosError | ApiError) => {
+    // Already normalised (the request interceptor ended the session)
+    if (!axios.isAxiosError(error)) return Promise.reject(error);
     const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
 
     // Only attempt refresh for 401s that are NOT auth endpoints themselves
@@ -171,8 +206,8 @@ api.interceptors.response.use(
       } catch (refreshError) {
         // Only a refused refresh ends the session. If the server is down or
         // still starting, keep it and let the caller report the outage.
-        if (axios.isAxiosError(refreshError) && (!refreshError.response || refreshError.response.status >= 500)) {
-          return Promise.reject(normaliseError(refreshError));
+        if (!isRefusedRefresh(refreshError)) {
+          return Promise.reject(normaliseError(refreshError as AxiosError));
         }
         endSession();
         return Promise.reject(normaliseError(error));

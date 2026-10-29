@@ -38,6 +38,12 @@ export type RoleName = (typeof ROLES)[keyof typeof ROLES];
 
 // ── Token cookies ─────────────────────────────────────────────────────────
 export const REFRESH_TOKEN_COOKIE = 'dvs_rt';
+/**
+ * How long a rotated refresh token may still be used. A refresh whose response
+ * never reached the browser (API waking up behind the Vercel proxy, network
+ * drop) would otherwise look like token theft and sign the user out everywhere.
+ */
+export const REFRESH_ROTATION_GRACE_MS = 5 * 60 * 1000;
 export const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env['NODE_ENV'] === 'production',

@@ -17,12 +17,25 @@ export class RefreshTokenRepository implements IRefreshTokenRepository {
 
   async findByToken(
     token: string,
-  ): Promise<{ id: number; userId: number; expiresAt: Date } | null> {
+  ): Promise<{ id: number; userId: number; expiresAt: Date; replacedAt: Date | null } | null> {
     const record = await prisma.refreshToken.findUnique({
       where: { token: hashToken(token) },
-      select: { id: true, userId: true, expiresAt: true },
+      select: { id: true, userId: true, expiresAt: true, replacedAt: true },
     });
     return record ?? null;
+  }
+
+  async markReplaced(token: string): Promise<boolean> {
+    // Conditional update, so two concurrent refreshes cannot both claim it
+    const { count } = await prisma.refreshToken.updateMany({
+      where: { token: hashToken(token), replacedAt: null },
+      data: { replacedAt: new Date() },
+    });
+    return count === 1;
+  }
+
+  async deleteReplacedBefore(userId: number, cutoff: Date): Promise<void> {
+    await prisma.refreshToken.deleteMany({ where: { userId, replacedAt: { lt: cutoff } } });
   }
 
   async deleteByToken(token: string): Promise<void> {

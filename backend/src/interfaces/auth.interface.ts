@@ -64,7 +64,13 @@ export interface IRoleRepository {
 
 export interface IRefreshTokenRepository {
   create(data: { token: string; userId: number; expiresAt: Date }): Promise<void>;
-  findByToken(token: string): Promise<{ id: number; userId: number; expiresAt: Date } | null>;
+  findByToken(
+    token: string,
+  ): Promise<{ id: number; userId: number; expiresAt: Date; replacedAt: Date | null } | null>;
+  /** Marks a token rotated; returns false when it already was. */
+  markReplaced(token: string): Promise<boolean>;
+  /** Deletes this user's tokens rotated before `cutoff`. */
+  deleteReplacedBefore(userId: number, cutoff: Date): Promise<void>;
   deleteByToken(token: string): Promise<void>;
   deleteAllByUserId(userId: number): Promise<void>;
 }

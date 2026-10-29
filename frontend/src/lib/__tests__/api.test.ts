@@ -81,6 +81,32 @@ describe("401 handling", () => {
   );
 });
 
+describe("after a reload with a signed-in user", () => {
+  beforeEach(() => localStorage.setItem("dvs_user", JSON.stringify({ id: 1 })));
+  afterEach(() => localStorage.clear());
+
+  it("refreshes before the first request, so it never gets a 401", async () => {
+    const seen = fakeServer({
+      "/auth/refresh": [refreshed("fresh")],
+      "/inventory": [{ status: 200, data: { ok: true } }],
+    });
+
+    const res = await api.get("/inventory");
+
+    expect(res.data).toEqual({ ok: true });
+    expect(seen.map((r) => r.url)).toEqual(["/api/v1/auth/refresh", "/inventory"]);
+    expect(seen[1].auth).toBe("Bearer fresh");
+  });
+
+  it("ends the session without sending the request when the refresh is refused", async () => {
+    const seen = fakeServer({ "/auth/refresh": [{ status: 401 }] });
+
+    await expect(api.get("/inventory")).rejects.toMatchObject({ status: 401 });
+    expect(expired).toHaveBeenCalledTimes(1);
+    expect(seen.map((r) => r.url)).toEqual(["/api/v1/auth/refresh"]);
+  });
+});
+
 describe("isServerStarting", () => {
   it("is true only for no response and gateway errors", () => {
     for (const status of [0, 502, 503, 504]) {

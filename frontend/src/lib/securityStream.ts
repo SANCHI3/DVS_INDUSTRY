@@ -8,7 +8,7 @@
  * backoff; a 401 first refreshes the access token through the axios client.
  */
 
-import api, { API_BASE, getAccessToken } from './api';
+import api, { API_BASE, ensureAccessToken } from './api';
 import type { IncidentSeverity, SecurityIncidentDto } from './services/security.service';
 
 export type SecurityStreamEvent =
@@ -96,8 +96,9 @@ async function connect(): Promise<void> {
   controller = abort;
   setStatus('connecting');
   try {
+    const token = await ensureAccessToken();
     const res = await fetch(`${API_BASE}/security/stream`, {
-      headers: { Authorization: `Bearer ${getAccessToken() ?? ''}`, Accept: 'text/event-stream' },
+      headers: { Authorization: `Bearer ${token ?? ''}`, Accept: 'text/event-stream' },
       credentials: 'include',
       signal: abort.signal,
     });

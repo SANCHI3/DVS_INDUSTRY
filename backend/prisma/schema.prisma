@@ -50,6 +50,9 @@ model RefreshToken {
   userId    Int
   expiresAt DateTime
   createdAt DateTime @default(now())
+  /// Set when the token is rotated; it stays valid for a short grace period
+  /// so a refresh whose response was lost can be retried.
+  replacedAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
