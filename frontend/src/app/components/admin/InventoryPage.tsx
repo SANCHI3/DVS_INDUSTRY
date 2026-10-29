@@ -7,8 +7,8 @@ import {
 import { Plus, Download, AlertTriangle, Zap } from "lucide-react";
 import { PageHeader, KPICard, StatusBadge, Btn, DataTable, TabBar } from "../shared/UI";
 import {
-  getMaterials, getInventoryStats, adjustStock, createMaterial,
-  type InventoryStatistics, type MaterialDto,
+  getMaterials, getInventoryStats, adjustStock, createMaterial, getPartSpecs, createPartSpec,
+  type InventoryStatistics, type MaterialDto, type PartSpecDto,
 } from "../../../lib/services/inventory.service";
 import { downloadCSV } from "../../../lib/csv";
 import { Modal } from "../shared/Modal";
@@ -20,6 +20,15 @@ import { ProductionCalculator, type InventoryMaterial } from "./inventory/Produc
 ══════════════════════════════════════════════ */
 /* ── Modal overlay helper ── */
 const unavailable = "—";
+
+const emptyPart = { partNumber: "", rmGrade: "", thicknessMm: "", stripSize: "", piecesPerStrip: "", piecesPerSheet: "", sheetSize: "1250x2500" };
+
+/** Strips cut from one sheet, when both yields are known and divide evenly. */
+function stripsPerSheet(part: PartSpecDto): string {
+  if (!part.piecesPerStrip || !part.piecesPerSheet) return unavailable;
+  const strips = part.piecesPerSheet / part.piecesPerStrip;
+  return Number.isInteger(strips) ? String(strips) : strips.toFixed(1);
+}
 
 function toInventoryMaterial(material: MaterialDto): InventoryMaterial {
   const quantity = parseFloat(material.currentStock);
@@ -49,6 +58,11 @@ export function InventoryPage() {
   const [statsError, setStatsError] = useState(false);
   const [showAddMaterial, setShowAddMaterial] = useState(false);
   const [newMat, setNewMat]             = useState({ name: "", category: "Steel", thickness: "", qty: "", cost: "", threshold: "", location: "" });
+  const [parts, setParts]               = useState<PartSpecDto[]>([]);
+  const [partsLoading, setPartsLoading] = useState(true);
+  const [partsError, setPartsError]     = useState(false);
+  const [showAddPart, setShowAddPart]   = useState(false);
+  const [newPart, setNewPart]           = useState(emptyPart);
 
   // ── Load from API ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -59,6 +73,13 @@ export function InventoryPage() {
       if (!cancelled) setMaterialsError(true);
     }).finally(() => {
       if (!cancelled) setMaterialsLoading(false);
+    });
+    getPartSpecs().then((res) => {
+      if (!cancelled) setParts(res);
+    }).catch(() => {
+      if (!cancelled) setPartsError(true);
+    }).finally(() => {
+      if (!cancelled) setPartsLoading(false);
     });
     getInventoryStats().then((res) => {
       if (!cancelled) setApiStats(res);
@@ -115,8 +136,60 @@ export function InventoryPage() {
     }
   };
 
+  const handleAddPart = async () => {
+    if (!newPart.partNumber || !newPart.rmGrade || !newPart.thicknessMm || !newPart.stripSize || !newPart.sheetSize) {
+      toast.error("Part number, RM grade, thickness, strip size and sheet size are required");
+      return;
+    }
+    try {
+      const created = await createPartSpec({
+        partNumber: newPart.partNumber.trim(),
+        rmGrade: newPart.rmGrade.trim(),
+        thicknessMm: newPart.thicknessMm.trim(),
+        stripSize: newPart.stripSize.trim(),
+        sheetSize: newPart.sheetSize.trim(),
+        piecesPerStrip: newPart.piecesPerStrip ? parseInt(newPart.piecesPerStrip, 10) : null,
+        piecesPerSheet: newPart.piecesPerSheet ? parseInt(newPart.piecesPerSheet, 10) : null,
+      });
+      setParts((prev) => [...prev, created].sort((a, b) => a.partNumber.localeCompare(b.partNumber)));
+      setNewPart(emptyPart);
+      setShowAddPart(false);
+      toast.success(`Part "${created.partNumber}" added`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Part could not be saved");
+    }
+  };
+
   return (
     <>
+    {showAddPart && (
+      <Modal title="Add Part" onClose={() => setShowAddPart(false)}>
+        <div className="flex flex-col gap-3">
+          {[
+            { label: "Part Number *", key: "partNumber", placeholder: "e.g. 600N/610N" },
+            { label: "RM Grade *", key: "rmGrade", placeholder: "e.g. CR D" },
+            { label: "Thickness (mm) *", key: "thicknessMm", placeholder: "e.g. 1.2", type: "number" },
+            { label: "Strip Size *", key: "stripSize", placeholder: "e.g. 1X108X1250" },
+            { label: "Per Strip Qty", key: "piecesPerStrip", placeholder: "e.g. 24", type: "number" },
+            { label: "Per Sheet Qty", key: "piecesPerSheet", placeholder: "e.g. 552", type: "number" },
+            { label: "Sheet Size *", key: "sheetSize", placeholder: "e.g. 1250x2500" },
+          ].map((f) => (
+            <div key={f.key}>
+              <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.3rem" }}>{f.label}</label>
+              <input type={f.type || "text"} placeholder={f.placeholder} value={newPart[f.key as keyof typeof newPart]}
+                onChange={(e) => setNewPart((p) => ({ ...p, [f.key]: e.target.value }))}
+                style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #D4BFBB", borderRadius: "0.375rem", fontSize: "0.8375rem", outline: "none" }}
+                onFocus={(e) => { e.target.style.borderColor = "#A52A2A"; }}
+                onBlur={(e) => { e.target.style.borderColor = "#D4BFBB"; }} />
+            </div>
+          ))}
+          <div className="flex gap-2 mt-2">
+            <button onClick={() => setShowAddPart(false)} style={{ flex: 1, padding: "0.625rem", border: "1px solid #E8E2E0", borderRadius: "0.5rem", background: "#fff", cursor: "pointer", fontSize: "0.875rem" }}>Cancel</button>
+            <button onClick={handleAddPart} style={{ flex: 1, padding: "0.625rem", border: "none", borderRadius: "0.5rem", background: "#A52A2A", color: "#fff", cursor: "pointer", fontSize: "0.875rem", fontWeight: 600 }}>Add Part</button>
+          </div>
+        </div>
+      </Modal>
+    )}
     {showAddMaterial && (
       <Modal title="Add New Material" onClose={() => setShowAddMaterial(false)}>
         <div className="flex flex-col gap-3">
@@ -167,6 +240,7 @@ export function InventoryPage() {
         tabs={[
           { id: "overview", label: "Overview" },
           { id: "materials", label: "Material Management" },
+          { id: "parts", label: "Parts Master" },
           { id: "calculator", label: "Production Calculator" },
           { id: "scrap", label: "Scrap Analytics" },
           { id: "procurement", label: "Procurement" },
@@ -289,6 +363,46 @@ export function InventoryPage() {
                 threshold: `${m.threshold} ${m.unit}`,
                 location: <span style={{ fontSize: "0.775rem" }}>{m.location}</span>,
                 status: <StatusBadge status={m.status} />,
+              }))}
+            />
+          </div>
+        )}
+
+        {/* ── PARTS MASTER ── */}
+        {tab === "parts" && (
+          <div className="rounded-xl overflow-hidden" style={{ background: "#fff", border: "1px solid #E8E2E0", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
+            <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #F0ECEB" }}>
+              <div>
+                <p style={{ fontSize: "0.9rem", fontWeight: 600 }}>Parts Master</p>
+                <p style={{ fontSize: "0.775rem", color: "#7A6C6A" }}>Raw-material grade, strip size and yield per strip and per sheet</p>
+              </div>
+              <Btn size="sm" onClick={() => setShowAddPart(true)}><Plus size={14} /> Add Part</Btn>
+            </div>
+            <DataTable
+              searchable
+              exportFilename="DVS_Parts_Master.csv"
+              emptyMsg={partsLoading ? "Loading parts..." : partsError ? "Unable to load parts." : "No parts recorded."}
+              columns={[
+                { key: "partNumber", label: "Part Number" },
+                { key: "rmGrade", label: "RM Grade" },
+                { key: "thickness", label: "Thickness (mm)" },
+                { key: "stripSize", label: "Strip Size" },
+                { key: "perStrip", label: "Per Strip Qty" },
+                { key: "perSheet", label: "Per Sheet Qty" },
+                { key: "strips", label: "Strips / Sheet" },
+                { key: "sheetSize", label: "Sheet Size" },
+                { key: "notes", label: "Notes" },
+              ]}
+              rows={parts.map((p) => ({
+                partNumber: p.partNumber,
+                rmGrade: p.rmGrade,
+                thickness: String(parseFloat(p.thicknessMm)),
+                stripSize: p.stripSize,
+                perStrip: p.piecesPerStrip === null ? unavailable : String(p.piecesPerStrip),
+                perSheet: p.piecesPerSheet === null ? unavailable : String(p.piecesPerSheet),
+                strips: stripsPerSheet(p),
+                sheetSize: p.sheetSize,
+                notes: p.notes ?? "",
               }))}
             />
           </div>

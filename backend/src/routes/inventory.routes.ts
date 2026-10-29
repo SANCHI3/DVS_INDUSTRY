@@ -13,6 +13,7 @@ import {
   transactionQuerySchema,
   createScrapRecordSchema,
   scrapQuerySchema,
+  createPartSpecSchema,
 } from '../validators/inventory.validator';
 import { ROLES } from '../constants';
 
@@ -87,6 +88,27 @@ router.get(
   authorize(...REPORT_ROLES),
   validateRequest({ query: scrapQuerySchema }),
   asyncHandler(InventoryController.getScrapRecords),
+);
+
+// ══ PART SPECS ════════════════════════════════════════════════════════════════
+
+/**
+ * GET /api/v1/inventory/parts
+ * Part master: RM grade, strip size and sheet yield per part.
+ * Access: All roles
+ */
+router.get('/parts', authorize(...ALL_ROLES), asyncHandler(InventoryController.getPartSpecs));
+
+/**
+ * POST /api/v1/inventory/parts
+ * Add a part to the part master.
+ * Access: ADMIN, STORE
+ */
+router.post(
+  '/parts',
+  authorize(...WRITE_ROLES),
+  validateRequest({ body: createPartSpecSchema }),
+  asyncHandler(InventoryController.createPartSpec),
 );
 
 // ══ MATERIALS ═════════════════════════════════════════════════════════════════

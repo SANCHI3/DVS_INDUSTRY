@@ -17,6 +17,8 @@ import type {
   StockAdjustmentData,
   CreateScrapRecordData,
   StockTransactionType,
+  PartSpecDto,
+  CreatePartSpecData,
 } from '../interfaces';
 
 // ── Select shapes ─────────────────────────────────────────────────────────────
@@ -77,6 +79,7 @@ const scrapSelect = {
 type PrismaMaterial = Prisma.MaterialGetPayload<{ select: typeof materialSelect }>;
 type PrismaTransaction = Prisma.StockTransactionGetPayload<{ select: typeof transactionSelect }>;
 type PrismaScrap = Prisma.ScrapRecordGetPayload<{ select: typeof scrapSelect }>;
+type PrismaPartSpec = Prisma.PartSpecGetPayload<object>;
 
 function toMaterialDto(r: PrismaMaterial): MaterialDto {
   return {
@@ -124,6 +127,22 @@ function toScrapDto(r: PrismaScrap): ScrapRecordDto {
     recoveryValue: r.recoveryValue?.toString() ?? null,
     recordedAt: r.recordedAt,
     createdAt: r.createdAt,
+  };
+}
+
+function toPartSpecDto(r: PrismaPartSpec): PartSpecDto {
+  return {
+    id: r.id,
+    partNumber: r.partNumber,
+    rmGrade: r.rmGrade,
+    thicknessMm: r.thicknessMm.toString(),
+    stripSize: r.stripSize,
+    piecesPerStrip: r.piecesPerStrip,
+    piecesPerSheet: r.piecesPerSheet,
+    sheetSize: r.sheetSize,
+    notes: r.notes,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
   };
 }
 
@@ -561,5 +580,38 @@ export class InventoryRepository {
       recentTransactions,
       lowStockMaterials: lowStockMaterials.slice(0, 10),
     };
+  }
+
+  // ══ PART SPECS ═══════════════════════════════════════════════════════════════
+
+  async findPartSpecs(): Promise<PartSpecDto[]> {
+    const rows = await prisma.partSpec.findMany({
+      where: { isActive: true },
+      orderBy: { partNumber: 'asc' },
+    });
+    return rows.map(toPartSpecDto);
+  }
+
+  async findPartSpecByNumber(partNumber: string): Promise<PartSpecDto | null> {
+    const row = await prisma.partSpec.findFirst({
+      where: { partNumber: { equals: partNumber, mode: 'insensitive' } },
+    });
+    return row ? toPartSpecDto(row) : null;
+  }
+
+  async createPartSpec(data: CreatePartSpecData): Promise<PartSpecDto> {
+    const row = await prisma.partSpec.create({
+      data: {
+        partNumber: data.partNumber,
+        rmGrade: data.rmGrade,
+        thicknessMm: data.thicknessMm,
+        stripSize: data.stripSize,
+        piecesPerStrip: data.piecesPerStrip ?? null,
+        piecesPerSheet: data.piecesPerSheet ?? null,
+        sheetSize: data.sheetSize,
+        notes: data.notes ?? null,
+      },
+    });
+    return toPartSpecDto(row);
   }
 }

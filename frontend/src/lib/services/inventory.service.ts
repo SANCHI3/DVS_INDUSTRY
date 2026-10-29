@@ -47,6 +47,20 @@ export interface ScrapRecordDto {
   recordedAt:     string;
 }
 
+export interface PartSpecDto {
+  id:             number;
+  partNumber:     string;
+  rmGrade:        string;
+  thicknessMm:    string;
+  stripSize:      string;
+  piecesPerStrip: number | null;
+  piecesPerSheet: number | null;
+  sheetSize:      string;
+  notes:          string | null;
+  createdAt:      string;
+  updatedAt:      string;
+}
+
 export interface InventoryStatistics {
   totalMaterials:         number;
   activeMaterials:        number;
@@ -128,5 +142,20 @@ export async function createScrapRecord(payload: Record<string, unknown>): Promi
 
 export async function getInventoryStats(): Promise<InventoryStatistics> {
   const res = await api.get<{ success: true; data: InventoryStatistics }>('/inventory/statistics');
+  return unwrap(res);
+}
+
+export async function getPartSpecs(): Promise<PartSpecDto[]> {
+  const res = await api.get<{ success: true; data: PartSpecDto[] }>('/inventory/parts');
+  return unwrap(res);
+}
+
+export async function createPartSpec(payload: {
+  partNumber: string; rmGrade: string; thicknessMm: string;
+  stripSize: string; sheetSize: string;
+  piecesPerStrip?: number | null; piecesPerSheet?: number | null;
+  notes?: string | null;
+}): Promise<PartSpecDto> {
+  const res = await api.post<{ success: true; data: PartSpecDto }>('/inventory/parts', payload);
   return unwrap(res);
 }

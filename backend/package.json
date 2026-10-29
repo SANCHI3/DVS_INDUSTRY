@@ -22,6 +22,7 @@
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:business": "tsx prisma/seed-business-only.ts",
     "audit:incidents": "tsx scripts/audit-incidents.ts",
     "import:attendance": "tsx src/scripts/import-attendance.ts",
     "seed:production-demo": "tsx src/scripts/seed-production-demo.ts",

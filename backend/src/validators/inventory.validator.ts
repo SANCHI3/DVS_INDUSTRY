@@ -137,6 +137,19 @@ export const scrapQuerySchema = z.object({
   sortOrder: z.enum(['asc', 'desc']).optional().default('desc'),
 });
 
+// ── Part spec schema ──────────────────────────────────────────────────────────
+
+export const createPartSpecSchema = z.object({
+  partNumber: z.string().min(1, 'Part number is required').max(50).trim(),
+  rmGrade: z.string().min(1, 'RM grade is required').max(30).trim(),
+  thicknessMm: positiveDecimalString('Thickness'),
+  stripSize: z.string().min(1, 'Strip size is required').max(60).trim(),
+  piecesPerStrip: z.coerce.number().int().positive().optional().nullable(),
+  piecesPerSheet: z.coerce.number().int().positive().optional().nullable(),
+  sheetSize: z.string().min(1, 'Sheet size is required').max(30).trim(),
+  notes: z.string().max(500).trim().optional().nullable(),
+});
+
 // ── Inferred types ────────────────────────────────────────────────────────────
 
 export type CreateMaterialInput = z.infer<typeof createMaterialSchema>;
@@ -146,3 +159,4 @@ export type StockAdjustmentInput = z.infer<typeof stockAdjustmentSchema>;
 export type TransactionQueryInput = z.infer<typeof transactionQuerySchema>;
 export type CreateScrapRecordInput = z.infer<typeof createScrapRecordSchema>;
 export type ScrapQueryInput = z.infer<typeof scrapQuerySchema>;
+export type CreatePartSpecInput = z.infer<typeof createPartSpecSchema>;

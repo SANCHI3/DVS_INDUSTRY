@@ -10,6 +10,7 @@ import type {
   TransactionQueryInput,
   CreateScrapRecordInput,
   ScrapQueryInput,
+  CreatePartSpecInput,
 } from '../validators/inventory.validator';
 import type {
   MaterialFilters,
@@ -210,4 +211,26 @@ export async function getScrapRecords(req: Request, res: Response): Promise<void
 export async function getStatistics(_req: Request, res: Response): Promise<void> {
   const stats = await inventoryService.getStatistics();
   sendSuccess(res, stats);
+}
+
+// ══ PART SPECS ══════════════════════════════════════════════════════════════════
+
+export async function getPartSpecs(_req: Request, res: Response): Promise<void> {
+  const parts = await inventoryService.getPartSpecs();
+  sendSuccess(res, parts);
+}
+
+export async function createPartSpec(req: Request, res: Response): Promise<void> {
+  const body = req.body as CreatePartSpecInput;
+  const part = await inventoryService.createPartSpec({
+    partNumber: body.partNumber,
+    rmGrade: body.rmGrade,
+    thicknessMm: body.thicknessMm,
+    stripSize: body.stripSize,
+    piecesPerStrip: body.piecesPerStrip ?? null,
+    piecesPerSheet: body.piecesPerSheet ?? null,
+    sheetSize: body.sheetSize,
+    notes: body.notes ?? null,
+  });
+  sendCreated(res, part, 'Part created successfully');
 }

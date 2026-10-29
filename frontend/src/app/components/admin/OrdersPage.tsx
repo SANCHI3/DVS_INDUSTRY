@@ -64,7 +64,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
           id: p.poNumber,
           supplier: p.supplierName,
           material: p.material,
-          qty: p.quantity,
+          qty: p.unit ? `${p.quantity} ${p.unit}` : p.quantity,
           orderDate: new Date(p.orderDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
           expectedDel: p.expectedDelivery ? new Date(p.expectedDelivery).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—",
           actualDel: p.actualDelivery ? new Date(p.actualDelivery).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "–",

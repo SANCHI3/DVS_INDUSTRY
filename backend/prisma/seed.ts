@@ -10,6 +10,7 @@ import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import { seedPerceptionServiceAccount } from './seed-perception-service';
+import { seedBusinessData } from './seed-business-data';
 
 const prisma = new PrismaClient();
 
@@ -317,6 +318,8 @@ async function main(): Promise<void> {
   await seedClientData(clientRoleId);
 
   await seedStaffUsers(roleMap);
+
+  await seedBusinessData(prisma);
 
   console.log('\n✅  Seed complete');
   console.log('─'.repeat(50));

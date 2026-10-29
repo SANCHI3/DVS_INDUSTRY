@@ -14,6 +14,8 @@ import type {
   UpdateMaterialData,
   StockAdjustmentData,
   CreateScrapRecordData,
+  PartSpecDto,
+  CreatePartSpecData,
 } from '../interfaces';
 import { ConflictError, NotFoundError, BadRequestError } from '../errors';
 import { logger } from '../logger';
@@ -169,6 +171,22 @@ export class InventoryService {
 
   async getStatistics(): Promise<InventoryStatistics> {
     return this.repo.getStatistics();
+  }
+
+  // ══ PART SPECS ═══════════════════════════════════════════════════════════
+
+  async getPartSpecs(): Promise<PartSpecDto[]> {
+    return this.repo.findPartSpecs();
+  }
+
+  async createPartSpec(data: CreatePartSpecData): Promise<PartSpecDto> {
+    const conflict = await this.repo.findPartSpecByNumber(data.partNumber);
+    if (conflict !== null) {
+      throw new ConflictError(`Part "${data.partNumber}" already exists`);
+    }
+    const part = await this.repo.createPartSpec(data);
+    logger.info('Part spec created', { id: part.id, partNumber: part.partNumber });
+    return part;
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────

@@ -181,3 +181,28 @@ export interface CreateScrapRecordData {
   recoveryValue?: string | null | undefined;
   recordedAt?: Date | undefined;
 }
+
+export interface PartSpecDto {
+  id: number;
+  partNumber: string;
+  rmGrade: string;
+  thicknessMm: string;
+  stripSize: string;
+  piecesPerStrip: number | null;
+  piecesPerSheet: number | null;
+  sheetSize: string;
+  notes: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreatePartSpecData {
+  partNumber: string;
+  rmGrade: string;
+  thicknessMm: string;
+  stripSize: string;
+  piecesPerStrip?: number | null | undefined;
+  piecesPerSheet?: number | null | undefined;
+  sheetSize: string;
+  notes?: string | null | undefined;
+}
