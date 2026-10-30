@@ -14,15 +14,15 @@ vi.mock("../../../../lib/services/departments.service", () => ({ getDepartments:
 vi.mock("../../../../lib/services/workforce.service", () => ({
   getAttendance: vi.fn(), getAttendanceSummary: vi.fn(), getAttendanceTrend: vi.fn(), createAttendance: vi.fn(),
   updateAttendance: vi.fn(), deleteAttendance: vi.fn(),
-  previewAttendanceImport: vi.fn(), importAttendanceSheet: vi.fn(),
+  previewAttendanceImport: vi.fn(), importAttendanceSheet: vi.fn(), registerSheetEmployees: vi.fn(), getShifts: vi.fn(),
 }));
 
 import { toast } from "sonner";
 import { getStoredBackendRole } from "../../../../lib/auth";
 import { getDepartments } from "../../../../lib/services/departments.service";
 import {
-  getAttendance, getAttendanceSummary, getAttendanceTrend, importAttendanceSheet, previewAttendanceImport,
-  type AttendanceImportReport,
+  getAttendance, getAttendanceSummary, getAttendanceTrend, getShifts, importAttendanceSheet, previewAttendanceImport,
+  registerSheetEmployees, type AttendanceImportReport,
 } from "../../../../lib/services/workforce.service";
 import { localIsoDate } from "../../../../lib/workforce";
 import { checkSheetFile } from "../workforce/AttendanceImportDialog";
@@ -32,7 +32,7 @@ const TODAY = localIsoDate();
 const meta = (total: number) => ({ page: 1, pageSize: 25, total, totalPages: 1 });
 const xlsx = (name = "oct27.xlsx", size = 2048) => new File([new Uint8Array(size)], name, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
 
-const noTimes = { clockIn: null, clockOut: null, overtime: null, note: null };
+const noTimes = { clockIn: null, clockOut: null, overtime: null, note: null, sourceName: "", sourceShift: "" };
 const preview: AttendanceImportReport = {
   kind: "table", date: TODAY, fileName: "oct27.xlsx", sheetName: "Attendance",
   rows: [
@@ -44,6 +44,7 @@ const preview: AttendanceImportReport = {
     { row: 7, employeeCode: "NOPE-1", employeeName: "", employeeId: null, date: TODAY, rawStatus: "P", status: "PRESENT", result: "REJECTED", reason: "No employee has the ID NOPE-1.", ...noTimes },
   ],
   summary: { totalRows: 6, valid: 2, existing: 1, duplicate: 1, rejected: 2, blankRows: 0 },
+  unregistered: [],
 };
 
 beforeEach(() => {
@@ -54,6 +55,13 @@ beforeEach(() => {
   vi.mocked(getAttendanceSummary).mockResolvedValue({ date: TODAY, totalEmployees: 0, present: 0, absent: 0, late: 0, halfDay: 0, onLeave: 0, weekOff: 0, attendanceRate: "0%", byDepartment: [] } as never);
   vi.mocked(getAttendanceTrend).mockResolvedValue([]);
   vi.mocked(previewAttendanceImport).mockResolvedValue(preview);
+  vi.mocked(getShifts).mockResolvedValue({
+    data: [
+      { id: 1, name: "General Shift", startTime: "08:00", endTime: "16:00" },
+      { id: 2, name: "Night Shift", startTime: "20:00", endTime: "04:00" },
+    ],
+    meta: meta(2),
+  } as never);
 });
 afterEach(cleanup);
 
@@ -221,5 +229,103 @@ describe("Attendance → Upload Excel", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(importAttendanceSheet).not.toHaveBeenCalled();
+  });
+});
+
+describe("Attendance → Upload Excel → employees not yet registered", () => {
+  const unknownRow = (row: number, code: string, name: string, shift: string) => ({
+    row, employeeCode: code, employeeName: name, sourceName: name, sourceShift: shift, employeeId: null, date: TODAY,
+    rawStatus: "Present", status: "PRESENT" as const, result: "REJECTED" as const,
+    reason: `No employee has the ID ${code}. Register the worker first.`, clockIn: null, clockOut: null, overtime: null, note: null,
+  });
+  const withNewcomers: AttendanceImportReport = {
+    ...preview,
+    rows: [unknownRow(5, "1", "ASHA PATIL", "GS"), unknownRow(6, "2", "RAVI", "NS"), unknownRow(7, "x 9", "ODD ID", "GS")],
+    summary: { totalRows: 3, valid: 0, existing: 0, duplicate: 0, rejected: 3, blankRows: 0 },
+    unregistered: [
+      { employeeCode: "1", name: "ASHA PATIL", shift: "GS", rows: [5], problem: null },
+      { employeeCode: "2", name: "RAVI", shift: "NS", rows: [6], problem: null },
+      { employeeCode: "x 9", name: "ODD ID", shift: "GS", rows: [7], problem: '"x 9" cannot be registered as written.' },
+    ],
+  };
+
+  async function openReview() {
+    vi.mocked(previewAttendanceImport).mockResolvedValue(withNewcomers);
+    const dialog = await openUpload();
+    const file = xlsx("23-9-2026.xls");
+    choose(dialog, file);
+    expect(await within(dialog).findByText(/3 Employee IDs in this sheet are not registered/)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Review 3 new employees" }));
+    await within(dialog).findByLabelText("Register employees from the sheet");
+    await within(dialog).findByLabelText("Shift for 1");
+    return { dialog, file };
+  }
+
+  it("shows the sheet's ID and name read-only and leaves what the sheet lacks blank", async () => {
+    const { dialog } = await openReview();
+    expect(within(dialog).getByText("ASHA PATIL")).toBeTruthy();
+    expect((within(dialog).getByLabelText("First name for 1") as HTMLInputElement).value).toBe("ASHA");
+    expect((within(dialog).getByLabelText("Last name for 1") as HTMLInputElement).value).toBe("PATIL");
+    expect((within(dialog).getByLabelText("Designation for 1") as HTMLInputElement).value).toBe("");
+    expect((within(dialog).getByLabelText("Joining date for 1") as HTMLInputElement).value).toBe("");
+    expect((within(dialog).getByLabelText("Employment type for 1") as HTMLSelectElement).value).toBe("");
+    expect((within(dialog).getByLabelText("Register x 9") as HTMLInputElement).disabled).toBe(true);
+    expect(within(dialog).getAllByText(/cannot be registered as written/).length).toBeGreaterThan(0);
+    const register = within(dialog).getByRole("button", { name: /2 need details/ }) as HTMLButtonElement;
+    expect(register.disabled).toBe(true);
+
+    // The name can be split differently but not changed
+    fireEvent.change(within(dialog).getByLabelText("First name for 1"), { target: { value: "ASHA P" } });
+    expect(within(dialog).getByText('First and last name must together read exactly "ASHA PATIL".')).toBeTruthy();
+    expect(registerSheetEmployees).not.toHaveBeenCalled();
+  });
+
+  it("registers only after the details are completed and confirmed, then previews again without importing", async () => {
+    const { dialog, file } = await openReview();
+    fireEvent.change(within(dialog).getByLabelText("Designation for all"), { target: { value: "Operator" } });
+    fireEvent.change(within(dialog).getByLabelText("Joining date for all"), { target: { value: "2026-08-01" } });
+    fireEvent.change(within(dialog).getByLabelText("Employment type for all"), { target: { value: "CONTRACT" } });
+    fireEvent.change(within(dialog).getByLabelText("Shift for sheet code GS"), { target: { value: "1" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply to 2 selected" }));
+
+    const register = within(dialog).getByRole("button", { name: "Register 2 employees" }) as HTMLButtonElement;
+    expect(register.disabled).toBe(true); // not yet confirmed
+    fireEvent.click(within(dialog).getByLabelText(/I have checked these 2 employee records/));
+    vi.mocked(registerSheetEmployees).mockResolvedValue({
+      created: [{ id: 70, employeeCode: "1", name: "ASHA PATIL" }, { id: 71, employeeCode: "2", name: "RAVI" }],
+      report: {
+        ...withNewcomers,
+        rows: withNewcomers.rows.map((r, i) => (i < 2 ? { ...r, employeeId: 70 + i, result: "VALID" as const, reason: null } : r)),
+        summary: { totalRows: 3, valid: 2, existing: 0, duplicate: 0, rejected: 1, blankRows: 0 },
+        unregistered: [withNewcomers.unregistered[2]!],
+      },
+    });
+    fireEvent.click(register);
+
+    await waitFor(() => expect(registerSheetEmployees).toHaveBeenCalledTimes(1));
+    expect(registerSheetEmployees).toHaveBeenCalledWith(file, TODAY, [
+      { employeeCode: "1", firstName: "ASHA", lastName: "PATIL", designation: "Operator", joiningDate: "2026-08-01", employmentType: "CONTRACT", shiftId: 1 },
+      { employeeCode: "2", firstName: "RAVI", lastName: "", designation: "Operator", joiningDate: "2026-08-01", employmentType: "CONTRACT", shiftId: null },
+    ]);
+    expect(await within(dialog).findByText(/2 employees were registered in Workforce Management. No attendance has been saved yet/)).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: /Confirm import of 2 records/ })).toBeTruthy();
+    expect(importAttendanceSheet).not.toHaveBeenCalled();
+  });
+
+  it("shows the server's per-employee reasons and keeps the review open when registration is refused", async () => {
+    const { dialog } = await openReview();
+    fireEvent.change(within(dialog).getByLabelText("Designation for all"), { target: { value: "Helper" } });
+    fireEvent.change(within(dialog).getByLabelText("Joining date for all"), { target: { value: "2026-08-01" } });
+    fireEvent.change(within(dialog).getByLabelText("Employment type for all"), { target: { value: "FULL_TIME" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply to 2 selected" }));
+    fireEvent.click(within(dialog).getByLabelText(/I have checked these 2 employee records/));
+    vi.mocked(registerSheetEmployees).mockRejectedValue({
+      status: 422, code: "VALIDATION_ERROR", message: "No employees were registered: 1 problem to fix.",
+      details: [{ field: "employees.1", message: "2: is already registered in Workforce Management." }],
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Register 2 employees" }));
+    expect(await within(dialog).findByText("2: is already registered in Workforce Management.")).toBeTruthy();
+    expect(within(dialog).getByText(/Nothing was saved/)).toBeTruthy();
+    expect(within(dialog).getByLabelText("Register employees from the sheet")).toBeTruthy();
   });
 });

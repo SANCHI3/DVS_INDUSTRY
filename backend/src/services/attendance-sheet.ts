@@ -15,6 +15,8 @@ import { parseAttendanceWorkbook } from './attendance-workbook';
  *       Date               optional — Date, Attendance Date (blank = the selected date)
  *       In Time / Out Time optional — punch times (HH:MM)
  *       OT                 optional — overtime duration (H:MM or hours)
+ *       Shift              optional — the shift code as written (e.g. GS, NS); shown
+ *                          when registering a new employee, never used to match one
  *  2. The attendance machine's daily report: the same table under a title
  *     block that declares "Attendance Date". That date must be the selected one.
  *  3. The machine's Monthly Status report (a 1–31 day grid with P/A/WO totals),
@@ -51,6 +53,7 @@ export const ACCEPTED_COLUMNS = {
   inTime: ['intime', 'clockin', 'checkin', 'punchin', 'in'],
   outTime: ['outtime', 'clockout', 'checkout', 'punchout', 'out'],
   overtime: ['ot', 'overtime', 'othours', 'overtimehours'],
+  shift: ['shift', 'shiftcode'],
 } as const;
 
 type Column = keyof typeof ACCEPTED_COLUMNS;
@@ -63,6 +66,7 @@ const COLUMN_LABEL: Record<Column, string> = {
   inTime: 'In Time',
   outTime: 'Out Time',
   overtime: 'OT',
+  shift: 'Shift',
 };
 
 export interface SheetRow {
@@ -78,6 +82,8 @@ export interface SheetRow {
   inTime: string;
   outTime: string;
   overtime: string;
+  /** The shift code as written, '' when the sheet has none */
+  shift: string;
   /** Set when the reader itself had to hold the row back */
   heldBack?: string;
 }
@@ -347,6 +353,7 @@ function parseMonthly(buffer: Buffer, sheetName: string, grid: Grid, date: strin
       inTime: '',
       outTime: '',
       overtime: '',
+      shift: '',
       ...(excluded.has(row)
         ? {
             heldBack:
@@ -418,6 +425,7 @@ function parseTable(sheetName: string, grid: Grid, headerIndex: number): ParsedS
           inTime: '',
           outTime: '',
           overtime: '',
+          shift: '',
         });
       continue;
     }
@@ -436,6 +444,7 @@ function parseTable(sheetName: string, grid: Grid, headerIndex: number): ParsedS
       inTime: text(cell('inTime')),
       outTime: text(cell('outTime')),
       overtime: text(cell('overtime')),
+      shift: text(cell('shift')),
     });
   }
   if (rows.length === 0)

@@ -106,6 +106,10 @@ export interface AttendanceImportRow {
   row:          number;
   employeeCode: string;
   employeeName: string;
+  /** The name exactly as the sheet writes it */
+  sourceName:   string;
+  /** The sheet's shift code as written */
+  sourceShift:  string;
   employeeId:   number | null;
   date:         string | null;
   rawStatus:    string;
@@ -132,8 +136,31 @@ export interface AttendanceImportReport {
     rejected:  number;
     blankRows: number;
   };
+  /** Employee IDs in the sheet that Workforce Management does not have */
+  unregistered: AttendanceSheetNewEmployee[];
   /** Present on the import response only */
   imported?: number;
+}
+
+export interface AttendanceSheetNewEmployee {
+  employeeCode: string;
+  /** Name and shift exactly as the sheet writes them */
+  name:         string;
+  shift:        string;
+  rows:         number[];
+  /** Why it cannot be registered from this sheet; null when it can */
+  problem:      string | null;
+}
+
+/** What the administrator completes for one employee before registering */
+export interface SheetEmployeeRegistration {
+  employeeCode:   string;
+  firstName:      string;
+  lastName:       string;
+  designation:    string;
+  joiningDate:    string;
+  employmentType: 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERN';
+  shiftId:        number | null;
 }
 
 function sheetForm(file: File, date: string): FormData {
@@ -158,6 +185,24 @@ export async function previewAttendanceImport(file: File, date: string): Promise
 /** The server checks the same file again and saves only the valid rows. */
 export async function importAttendanceSheet(file: File, date: string): Promise<AttendanceImportReport> {
   const res = await api.post<{ success: true; data: AttendanceImportReport }>('/workforce/attendance/import', sheetForm(file, date), MULTIPART);
+  return unwrap(res);
+}
+
+/**
+ * Registers employees the sheet lists but Workforce Management lacks. The
+ * server reads the same file again; all are created or none. No attendance is saved.
+ */
+export async function registerSheetEmployees(
+  file: File,
+  date: string,
+  employees: SheetEmployeeRegistration[],
+): Promise<{ created: Array<{ id: number; employeeCode: string; name: string }>; report: AttendanceImportReport }> {
+  const form = sheetForm(file, date);
+  form.append('employees', JSON.stringify(employees));
+  const res = await api.post<{
+    success: true;
+    data: { created: Array<{ id: number; employeeCode: string; name: string }>; report: AttendanceImportReport };
+  }>('/workforce/attendance/import/register-employees', form, MULTIPART);
   return unwrap(res);
 }
 

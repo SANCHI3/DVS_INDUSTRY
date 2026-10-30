@@ -309,3 +309,98 @@ describe('Excel attendance upload — preview and import', () => {
     expect(res.body.error.message).toMatch(/future date/);
   });
 });
+
+describe('Excel attendance upload — registering employees from the sheet', () => {
+  const tx = prisma as unknown as { $transaction: Mock };
+  const register = (token: string, employees: unknown) =>
+    request(app)
+      .post('/api/v1/workforce/attendance/import/register-employees')
+      .set(auth(token))
+      .field('date', DATE)
+      .field('employees', JSON.stringify(employees))
+      .attach('file', FILE, 'attendance.xlsx');
+  const newcomer = {
+    employeeCode: 'EMP-404',
+    firstName: 'New',
+    lastName: 'Worker',
+    designation: 'Operator',
+    joiningDate: '2026-01-05',
+    employmentType: 'CONTRACT',
+  };
+
+  beforeEach(() => {
+    tx.$transaction.mockImplementation((fn: (t: unknown) => unknown) => fn(prisma));
+    // Employees whose code is asked for, as the database would answer
+    db['employee']!['findMany']!.mockImplementation(
+      async (q: { where: { OR: Array<{ employeeCode: { equals: string } }> } }) => {
+        const codes = q.where.OR.map((c) => c.employeeCode.equals.toLowerCase());
+        return staff.filter((e) => codes.includes(e.employeeCode.toLowerCase()));
+      },
+    );
+  });
+
+  it.each(['manager-token', 'production-token', 'store-token', 'sales-token'])(
+    'refuses %s without creating anything',
+    async (token) => {
+      useToken(token);
+      const res = await register(token, [newcomer]);
+      expect(res.status).toBe(403);
+      expect(db['employee']!['create']).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses an ID the sheet gives no name for, creating nothing', async () => {
+    useToken('hr-token');
+    const res = await register('hr-token', [{ ...newcomer, firstName: 'New', lastName: 'Worker' }]);
+    expect(res.status).toBe(422);
+    expect(res.body.error.details[0].message).toBe('EMP-404: The sheet has no name for this ID.');
+    expect(db['employee']!['create']).not.toHaveBeenCalled();
+    expect(db['attendance']!['createManyAndReturn']).not.toHaveBeenCalled();
+  });
+
+  it('validates the completed fields like the employee form', async () => {
+    useToken('admin-token');
+    const res = await register('admin-token', [{ ...newcomer, designation: '', joiningDate: '' }]);
+    expect(res.status).toBe(422);
+    const fields = (res.body.error.details as Array<{ field: string }>).map((d) => d.field);
+    expect(fields).toEqual(
+      expect.arrayContaining(['employees.0.designation', 'employees.0.joiningDate']),
+    );
+    expect(db['employee']!['create']).not.toHaveBeenCalled();
+  });
+
+  it('registers a named, unregistered ID from the sheet', async () => {
+    useToken('admin-token');
+    const named = sheet([
+      ['Employee ID', 'Employee Name', 'Attendance Status'],
+      ['EMP-001', 'Ananya Iyer', 'P'],
+      ['12', 'SITA DEVI', 'P'],
+    ]);
+    db['employee']!['create']!.mockResolvedValue({ id: 45, employeeCode: '12' });
+    const res = await request(app)
+      .post('/api/v1/workforce/attendance/import/register-employees')
+      .set(auth('admin-token'))
+      .field('date', DATE)
+      .field(
+        'employees',
+        JSON.stringify([{ ...newcomer, employeeCode: '12', firstName: 'SITA', lastName: 'DEVI' }]),
+      )
+      .attach('file', named, 'attendance.xlsx');
+    expect(res.status).toBe(201);
+    expect(db['employee']!['create']).toHaveBeenCalledTimes(1);
+    expect(db['employee']!['create']!.mock.calls[0]![0]).toMatchObject({
+      data: {
+        employeeCode: '12',
+        firstName: 'SITA',
+        lastName: 'DEVI',
+        designation: 'Operator',
+        joiningDate: new Date('2026-01-05T00:00:00.000Z'),
+        employmentType: 'CONTRACT',
+        shiftId: null,
+        departmentId: null,
+      },
+    });
+    expect(res.body.data.created).toEqual([{ id: 45, employeeCode: '12', name: 'SITA DEVI' }]);
+    expect(db['attendance']!['createManyAndReturn']).not.toHaveBeenCalled();
+  });
+});

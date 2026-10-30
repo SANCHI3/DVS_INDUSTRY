@@ -93,6 +93,7 @@ describe('parseAttendanceSheet', () => {
           inTime: '',
           outTime: '',
           overtime: '',
+          shift: '',
         },
       ]);
     }
@@ -271,7 +272,7 @@ describe('checkAttendanceUpload', () => {
     expect(report.rows[0]!.reason).toMatch(/Employee ID is missing/);
     expect(report.rows[0]!.employeeId).toBeNull();
     expect(report.rows[1]!.reason).toMatch(
-      /No employee has the ID NOPE-9.*never creates employees/,
+      /No employee has the ID NOPE-9\. Register the worker first.*never imported for an unregistered ID/,
     );
     expect(report.rows[2]!.reason).toMatch(/removed worker/);
     expect(r.findEmployeesByCodes).toHaveBeenCalledWith(['nope-9', 'old-001']);

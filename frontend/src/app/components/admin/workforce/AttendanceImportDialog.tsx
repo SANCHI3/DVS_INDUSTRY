@@ -6,6 +6,7 @@ import {
 } from "../../../../lib/services/workforce.service";
 import { attendanceStatusInfo, formatDay, localIsoDate } from "../../../../lib/workforce";
 import { DialogFrame, InlineNotice, LoadingLine, PrimaryButton, SecondaryButton, inputStyle } from "./formControls";
+import { RegisterSheetEmployeesPanel } from "./RegisterSheetEmployeesPanel";
 
 export const MAX_SHEET_BYTES = 5 * 1024 * 1024;
 
@@ -25,7 +26,7 @@ const RESULT: Record<AttendanceImportResult, { label: string; color: string; bg:
 };
 const IMPORTED = { label: "Imported", color: "#2E7D32", bg: "#E8F5E9" };
 
-type Phase = "choose" | "checking" | "preview" | "importing" | "done";
+type Phase = "choose" | "checking" | "preview" | "register" | "importing" | "done";
 
 interface Props {
   defaultDate: string;
@@ -46,12 +47,14 @@ export function AttendanceImportDialog({ defaultDate, onClose, onImported }: Pro
   const [report, setReport] = useState<AttendanceImportReport | null>(null);
   const [error, setError] = useState<{ message: string; retry: (() => void) | null; useDate?: string } | null>(null);
   const [problemsOnly, setProblemsOnly] = useState(false);
+  const [registered, setRegistered] = useState<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const busy = phase === "checking" || phase === "importing";
 
   async function check(f: File, d: string) {
     setError(null);
     setReport(null);
+    setRegistered(null);
     const problem = checkSheetFile(f);
     if (problem) { setPhase("choose"); setError({ message: problem, retry: null }); return; }
     if (d === "" || d > today) { setPhase("choose"); setError({ message: "Select an attendance date that is not in the future.", retry: null }); return; }
@@ -105,6 +108,8 @@ export function AttendanceImportDialog({ defaultDate, onClose, onImported }: Pro
   const done = phase === "done";
   const rows = (report?.rows ?? []).filter((r) => !problemsOnly || r.result !== "VALID");
   const hasTimes = (report?.rows ?? []).some((r) => r.clockIn || r.clockOut || r.overtime);
+  const hasShift = (report?.rows ?? []).some((r) => r.sourceShift);
+  const unregistered = report?.unregistered ?? [];
 
   const footer = (
     <>
@@ -113,7 +118,7 @@ export function AttendanceImportDialog({ defaultDate, onClose, onImported }: Pro
       )}
       {done ? (
         <PrimaryButton onClick={onClose}>Done</PrimaryButton>
-      ) : (
+      ) : phase === "register" ? null : (
         <>
           <SecondaryButton onClick={onClose} disabled={phase === "importing"}>Cancel</SecondaryButton>
           {(phase === "preview" || phase === "importing") && (
@@ -133,12 +138,12 @@ export function AttendanceImportDialog({ defaultDate, onClose, onImported }: Pro
   return (
     <DialogFrame
       title={done ? "Attendance Import Summary" : "Upload Attendance from Excel"}
-      subtitle={done ? `${report?.fileName} · ${formatDay(date)}` : "Rows are checked first. Nothing is saved until you confirm."}
+      subtitle={done ? `${report?.fileName} · ${formatDay(date)}` : phase === "register" ? `${file?.name ?? ""} · ${formatDay(date)} · review new employees` : "Rows are checked first. Nothing is saved until you confirm."}
       onClose={phase === "importing" ? () => undefined : onClose}
       footer={footer}
       width="max-w-5xl"
     >
-      {!done && (
+      {!done && phase !== "register" && (
         <div className="flex flex-wrap items-end gap-4 mb-4">
           <label style={{ fontSize: "0.8125rem", color: "#4A4A4A", fontWeight: 600 }}>
             Attendance date
@@ -181,7 +186,8 @@ export function AttendanceImportDialog({ defaultDate, onClose, onImported }: Pro
             <li><b>In Time</b>, <b>Out Time</b>, <b>OT</b> (optional) — saved as check-in, check-out and hours worked. Overtime is saved in the remarks, because attendance has no overtime field.</li>
           </ul>
           <p className="mt-2" style={{ color: "#7A6C6A" }}>
-            Employees are never created from the sheet, and existing attendance is never overwritten. Missing punches and OT marks without hours are held back with a reason.
+            Employees are never created automatically: an Employee ID that is not registered is listed for you to review, complete
+            and register explicitly. Existing attendance is never overwritten. Missing punches and OT marks without hours are held back with a reason.
           </p>
         </div>
       )}
@@ -197,8 +203,38 @@ export function AttendanceImportDialog({ defaultDate, onClose, onImported }: Pro
 
       {phase === "checking" && <LoadingLine text={`Checking ${file?.name ?? "the file"}…`} />}
 
-      {report && s && phase !== "checking" && (
+      {phase === "register" && file && report && (
+        <RegisterSheetEmployeesPanel
+          file={file}
+          date={date}
+          employees={unregistered}
+          onCancel={() => setPhase("preview")}
+          onRegistered={(r, n) => { setReport(r); setRegistered(n); setProblemsOnly(false); setPhase("preview"); }}
+        />
+      )}
+
+      {report && s && phase !== "checking" && phase !== "register" && (
         <>
+          {registered !== null && !done && (
+            <div className="mb-4">
+              <InlineNotice tone="info">
+                {registered} employee{registered === 1 ? " was" : "s were"} registered in Workforce Management. No attendance has been
+                saved yet: review the rows below, then confirm the import.
+              </InlineNotice>
+            </div>
+          )}
+          {unregistered.length > 0 && !done && (
+            <div className="mb-4 space-y-2">
+              <InlineNotice tone="warning">
+                {unregistered.length} Employee ID{unregistered.length === 1 ? " in this sheet is" : "s in this sheet are"} not registered in
+                Workforce Management ({unregistered.map((u) => u.employeeCode).join(", ")}). Their rows cannot be imported until the
+                employees are registered.
+              </InlineNotice>
+              <SecondaryButton onClick={() => { setError(null); setPhase("register"); }} disabled={busy}>
+                Review {unregistered.length} new employee{unregistered.length === 1 ? "" : "s"}
+              </SecondaryButton>
+            </div>
+          )}
           {done && (
             <div className="mb-4">
               <InlineNotice tone={report.imported ? "info" : "warning"}>
@@ -234,14 +270,14 @@ export function AttendanceImportDialog({ defaultDate, onClose, onImported }: Pro
             <table className="w-full" style={{ fontSize: "0.8rem", borderCollapse: "collapse" }}>
               <thead style={{ background: "#F9F6F5", textAlign: "left" }}>
                 <tr>
-                  {["Row", "Employee ID", "Employee name", "Date", "Status", ...(hasTimes ? ["In", "Out", "OT"] : []), "Result"].map((h) => (
+                  {["Row", "Employee ID", "Employee name", ...(hasShift ? ["Shift"] : []), "Date", "Status", ...(hasTimes ? ["In", "Out", "OT"] : []), "Result"].map((h) => (
                     <th key={h} className="px-3 py-2" style={{ fontWeight: 600, color: "#4A4A4A", whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
-                  <tr><td colSpan={hasTimes ? 9 : 6} className="px-3 py-4 text-center" style={{ color: "#7A6C6A" }}>Every row is ready to import.</td></tr>
+                  <tr><td colSpan={(hasTimes ? 9 : 6) + (hasShift ? 1 : 0)} className="px-3 py-4 text-center" style={{ color: "#7A6C6A" }}>Every row is ready to import.</td></tr>
                 ) : rows.map((r) => {
                   const res = done && r.result === "VALID" ? IMPORTED : RESULT[r.result];
                   const st = r.status ? attendanceStatusInfo(r.status) : null;
@@ -249,7 +285,13 @@ export function AttendanceImportDialog({ defaultDate, onClose, onImported }: Pro
                     <tr key={r.row} style={{ borderTop: "1px solid #F0ECEB", verticalAlign: "top" }}>
                       <td className="px-3 py-2" style={{ color: "#9A8A88" }}>{r.row}</td>
                       <td className="px-3 py-2" style={{ fontFamily: "JetBrains Mono, monospace", whiteSpace: "nowrap" }}>{r.employeeCode || <span style={{ color: "#B0A3A1" }}>—</span>}</td>
-                      <td className="px-3 py-2">{r.employeeName || <span style={{ color: "#B0A3A1" }}>—</span>}</td>
+                      <td className="px-3 py-2">
+                        {r.employeeName || <span style={{ color: "#B0A3A1" }}>—</span>}
+                        {r.sourceName && r.sourceName !== r.employeeName && (
+                          <p style={{ fontSize: "0.72rem", color: "#7A6C6A", marginTop: 2 }}>In sheet: {r.sourceName}</p>
+                        )}
+                      </td>
+                      {hasShift && <td className="px-3 py-2" style={{ fontFamily: "JetBrains Mono, monospace" }}>{r.sourceShift || <span style={{ color: "#B0A3A1" }}>—</span>}</td>}
                       <td className="px-3 py-2" style={{ whiteSpace: "nowrap" }}>{r.date ? formatDay(r.date) : <span style={{ color: "#B0A3A1" }}>Invalid</span>}</td>
                       <td className="px-3 py-2" style={{ whiteSpace: "nowrap" }}>
                         {st ? (

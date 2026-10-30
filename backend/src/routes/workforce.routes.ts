@@ -24,6 +24,7 @@ import {
   employeeOutputQuerySchema,
   employeeOutputSummarySchema,
   attendanceImportSchema,
+  registerSheetEmployeesSchema,
 } from '../validators/workforce.validator';
 import { ROLES } from '../constants';
 import { uploadAttendanceSheet } from '../utils/attendanceSheetUpload';
@@ -180,6 +181,23 @@ router.post(
   uploadAttendanceSheet,
   validateRequest({ body: attendanceImportSchema }),
   asyncHandler(WorkforceController.importAttendance),
+);
+
+/**
+ * POST /api/v1/workforce/attendance/import/register-employees
+ * Register employees that the sheet lists but Workforce Management does not
+ * have, after an administrator has reviewed them and completed the required
+ * fields. The file is read again; nothing is created unless every employee
+ * passes. No attendance is saved.
+ * Multipart: file, date, employees (JSON array)
+ * Access: ADMIN, HR (the roles that create employees)
+ */
+router.post(
+  '/attendance/import/register-employees',
+  authorize(...WRITE_ROLES),
+  uploadAttendanceSheet,
+  validateRequest({ body: registerSheetEmployeesSchema }),
+  asyncHandler(WorkforceController.registerAttendanceSheetEmployees),
 );
 
 /**

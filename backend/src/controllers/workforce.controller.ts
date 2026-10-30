@@ -9,6 +9,10 @@ import {
   parseUpload,
   prismaAttendanceUploadRepository,
 } from '../services/attendance-upload.service';
+import {
+  prismaSheetEmployeeRepository,
+  registerSheetEmployees,
+} from '../services/attendance-sheet-employees.service';
 import type {
   CreateShiftInput,
   UpdateShiftInput,
@@ -26,6 +30,7 @@ import type {
   EmployeeOutputQueryInput,
   EmployeeOutputSummaryInput,
   AttendanceImportInput,
+  RegisterSheetEmployeesInput,
 } from '../validators/workforce.validator';
 import type {
   ShiftFilters,
@@ -238,6 +243,22 @@ export async function importAttendance(req: Request, res: Response): Promise<voi
     utcOffset,
   );
   sendSuccess(res, report, 200, `Imported ${report.imported} attendance records`);
+}
+
+/** Registers employees the sheet lists but Workforce Management lacks. No attendance is saved. */
+export async function registerAttendanceSheetEmployees(req: Request, res: Response): Promise<void> {
+  const { date, employees } = req.body as RegisterSheetEmployeesInput;
+  const { buffer, fileName } = uploadedSheet(req);
+  const result = await registerSheetEmployees(
+    parseUpload(buffer, date),
+    date,
+    fileName,
+    employees,
+    prismaAttendanceUploadRepository,
+    prismaSheetEmployeeRepository,
+  );
+  const n = result.created.length;
+  sendCreated(res, result, `Registered ${n} employee${n === 1 ? '' : 's'} from ${fileName}`);
 }
 
 // ── Summary & trend ───────────────────────────────────────────────────────────

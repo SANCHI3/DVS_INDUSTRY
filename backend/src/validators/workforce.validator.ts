@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createEmployeeSchema } from './employee.validator';
 
 // ── Time helper — validates "HH:MM" 24-hour format ────────────────────────────
 const timeField = z
@@ -222,6 +223,32 @@ export const attendanceImportSchema = z.object({
   utcOffset: z.coerce.number().int().min(-720).max(840).default(330),
 });
 
+// Employees an administrator registers from an attendance sheet. Sent as a
+// JSON string next to the file (multipart); same field rules as the employee form.
+const sheetEmployeeSchema = createEmployeeSchema
+  .pick({
+    employeeCode: true,
+    firstName: true,
+    lastName: true,
+    designation: true,
+    joiningDate: true,
+    employmentType: true,
+    shiftId: true,
+    departmentId: true,
+  })
+  .strict();
+
+export const registerSheetEmployeesSchema = attendanceImportSchema.extend({
+  employees: z.preprocess((v) => {
+    if (typeof v !== 'string') return v;
+    try {
+      return JSON.parse(v) as unknown;
+    } catch {
+      return v;
+    }
+  }, z.array(sheetEmployeeSchema).min(1, 'Choose at least one employee to register').max(500)),
+});
+
 // ── Inferred types ─────────────────────────────────────────────────────────────
 
 export type CreateShiftInput = z.infer<typeof createShiftSchema>;
@@ -240,3 +267,4 @@ export type UpdateEmployeeOutputInput = z.infer<typeof updateEmployeeOutputSchem
 export type EmployeeOutputQueryInput = z.infer<typeof employeeOutputQuerySchema>;
 export type EmployeeOutputSummaryInput = z.infer<typeof employeeOutputSummarySchema>;
 export type AttendanceImportInput = z.infer<typeof attendanceImportSchema>;
+export type RegisterSheetEmployeesInput = z.infer<typeof registerSheetEmployeesSchema>;

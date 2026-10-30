@@ -17,7 +17,9 @@ import {
  * Rules:
  *  1. Rows are matched to employees by Employee ID only (case-insensitive).
  *     A name, when present, must agree with that employee; it is never used to
- *     find one. Employees are never created from the sheet.
+ *     find one. The check never creates employees; IDs that are not registered
+ *     are listed in `unregistered` so an administrator can register them
+ *     explicitly (attendance-sheet-employees.service) and preview again.
  *  2. A row date must equal the selected date; a blank date means the selected date.
  *  3. Insert-only: an employee who already has attendance that day is skipped
  *     and reported, never overwritten.
@@ -47,6 +49,10 @@ export interface UploadRow {
   employeeCode: string;
   /** The employee's saved name when matched, otherwise the name in the sheet */
   employeeName: string;
+  /** The name exactly as the sheet writes it ('' when the sheet has none) */
+  sourceName: string;
+  /** The sheet's shift code as written ('' when the sheet has none) */
+  sourceShift: string;
   employeeId: number | null;
   date: string | null;
   rawStatus: string;
@@ -59,6 +65,18 @@ export interface UploadRow {
   overtime: string | null;
   /** What happens to data that has no field of its own */
   note: string | null;
+}
+
+/** An Employee ID in the sheet that no employee has, removed workers included */
+export interface UnregisteredEmployee {
+  employeeCode: string;
+  /** The name as the sheet writes it */
+  name: string;
+  /** The shift code as the sheet writes it */
+  shift: string;
+  rows: number[];
+  /** Null when the employee can be registered from this sheet */
+  problem: string | null;
 }
 
 export interface UploadSummary {
@@ -78,6 +96,7 @@ export interface UploadReport {
   columns: ParsedSheet['columns'];
   rows: UploadRow[];
   summary: UploadSummary;
+  unregistered: UnregisteredEmployee[];
 }
 
 export interface ImportReport extends UploadReport {
@@ -237,6 +256,8 @@ export async function checkAttendanceUpload(
     row: r.row,
     employeeCode: r.employeeCode,
     employeeName: r.employeeName,
+    sourceName: r.employeeName,
+    sourceShift: r.shift,
     employeeId: null,
     date: r.date === '' ? date : r.date,
     rawStatus: r.status,
@@ -344,9 +365,14 @@ export async function checkAttendanceUpload(
     const key = e.employeeCode.toLowerCase();
     byCode.set(key, [...(byCode.get(key) ?? []), e]);
   }
+  const unknown = new Map<string, UploadRow[]>();
   for (const row of rows) {
     if (row.employeeCode === '') continue;
     const matches = byCode.get(row.employeeCode.toLowerCase()) ?? [];
+    if (matches.length === 0) {
+      const key = row.employeeCode.toLowerCase();
+      unknown.set(key, [...(unknown.get(key) ?? []), row]);
+    }
     const active = matches.filter((e) => e.deletedAt === null && e.status !== 'TERMINATED');
     const sheetName = row.employeeName;
     if (active.length === 1) {
@@ -379,7 +405,8 @@ export async function checkAttendanceUpload(
     } else {
       reject(
         row,
-        `No employee has the ID ${row.employeeCode}. Add the worker on Workforce Management first; the import never creates employees.`,
+        `No employee has the ID ${row.employeeCode}. Register the worker first (Review new employees, or ` +
+          'Workforce Management); attendance is never imported for an unregistered ID.',
       );
     }
   }
@@ -430,6 +457,43 @@ export async function checkAttendanceUpload(
     columns: sheet.columns,
     rows,
     summary: summarise(rows, sheet.blankRows),
+    unregistered: [...unknown.values()].map(describeUnregistered),
+  };
+}
+
+// Same rule as the employee form (employee.validator)
+const EMPLOYEE_CODE = /^[A-Z0-9_-]{1,20}$/;
+
+/** Whether the sheet says enough, consistently, to register this ID; changes nothing. */
+function describeUnregistered(group: UploadRow[]): UnregisteredEmployee {
+  const first = group[0]!;
+  const list = (values: string[]): string =>
+    [...new Set(values)].map((v) => `"${v || '(blank)'}"`).join(', ');
+  const codes = new Set(group.map((r) => r.employeeCode));
+  const names = new Set(group.map((r) => r.sourceName));
+  const shifts = new Set(group.map((r) => r.sourceShift));
+  let problem: string | null = null;
+  if (codes.size > 1) {
+    problem = `The sheet writes this ID in different ways (${list([...codes])}).`;
+  } else if (!EMPLOYEE_CODE.test(first.employeeCode)) {
+    problem =
+      `Workforce Management accepts IDs of up to 20 capital letters, digits, "-" or "_"; ` +
+      `"${first.employeeCode}" cannot be registered as written.`;
+  } else if (names.size > 1) {
+    problem = `Rows ${group.map((r) => r.row).join(', ')} give this ID different names (${list([...names])}).`;
+  } else if (first.sourceName === '') {
+    problem = 'The sheet has no name for this ID.';
+  } else if (first.sourceName.length > 200) {
+    problem = 'The name in the sheet is longer than 200 characters.';
+  } else if (shifts.size > 1) {
+    problem = `Rows ${group.map((r) => r.row).join(', ')} give this ID different shifts (${list([...shifts])}).`;
+  }
+  return {
+    employeeCode: first.employeeCode,
+    name: first.sourceName,
+    shift: first.sourceShift,
+    rows: group.map((r) => r.row),
+    problem,
   };
 }
 
