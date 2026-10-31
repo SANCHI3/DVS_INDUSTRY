@@ -9,6 +9,7 @@ import { WorkforceManagement } from "./WorkforceManagement";
 import { AttendancePanel } from "./workforce/AttendancePanel";
 import { InlineNotice, LoadingLine } from "./workforce/formControls";
 import { MonthlyTargetCard, currentMonth } from "./production/MonthlyTargetCard";
+import { DemoDataBanner, DemoTag, isDemoWorkOrder } from "./production/DemoData";
 import {
   ACCEPTS_OUTPUT, CAN_DELETE, DeleteWorkOrderDialog, NEXT_STATUSES, RecordOutputDialog, STATUS_ACTION, WorkOrderDialog,
 } from "./production/WorkOrderDialogs";
@@ -21,6 +22,7 @@ import {
   type WorkOrderDto, type WorkOrderStatus,
 } from "../../../lib/services/production.service";
 import { getDepartments } from "../../../lib/services/departments.service";
+import { getEmployees } from "../../../lib/services/employees.service";
 import { getEmployeeOutputSummary } from "../../../lib/services/workforce.service";
 
 function formatQty(value: string | number) {
@@ -55,6 +57,14 @@ export function ProductionPage() {
   // This month's target and thresholds, for the KPI cards and the trend chart
   const monthTarget = useApiData(() => getMonthlyPerformance(thisMonth), [thisMonth], "load this month's target", onPerformance);
   const departments = useApiData(() => getDepartments(), [], "load departments", onPerformance && prod.createWorkOrders);
+  // Counts demo records for the DEMO DATA banner; on failure the banner stays hidden
+  const demo = useApiData(
+    () => Promise.all([
+      getEmployees({ search: "DEMO-EMP-", status: "all", pageSize: 1 }),
+      getWorkOrders({ search: "DEMO-WO-", status: "all", pageSize: 1 }),
+    ]).then(([e, w]) => ({ employees: e.meta.total, workOrders: w.meta.total })),
+    [], "check for demo data",
+  );
 
   // Everything derived from recorded output
   const reloadProduction = () => {
@@ -119,6 +129,8 @@ export function ProductionPage() {
       />
 
       <div className="mt-5">
+        {demo.data && <DemoDataBanner employees={demo.data.employees} workOrders={demo.data.workOrders} />}
+
         {tab === "performance" && (
           <div>
             {kpis.waking && <div className="mb-3"><InlineNotice tone="info">The server is starting up after being idle. Data will appear in up to a minute.</InlineNotice></div>}
@@ -192,7 +204,7 @@ export function ProductionPage() {
                     ...(showActions ? [{ key: "actions", label: "Actions" }] : []),
                   ]}
                   rows={orders.map((wo) => ({
-                    wo: <span style={{ fontSize: "0.775rem", fontFamily: "JetBrains Mono, monospace", color: "#A52A2A", fontWeight: 600 }}>{wo.workOrderNumber}</span>,
+                    wo: <span style={{ fontSize: "0.775rem", fontFamily: "JetBrains Mono, monospace", color: "#A52A2A", fontWeight: 600 }}>{wo.workOrderNumber}{isDemoWorkOrder(wo.workOrderNumber) && <DemoTag />}</span>,
                     product: <span style={{ fontWeight: 500, fontSize: "0.8rem" }}>{wo.product}</span>,
                     dept: <span style={{ fontSize: "0.8rem" }}>{wo.departmentName ?? <span style={{ color: "#9A8A88" }}>Unassigned</span>}</span>,
                     target: <span style={{ fontSize: "0.8rem" }}>{formatQty(wo.targetQuantity)} {wo.unit}</span>,

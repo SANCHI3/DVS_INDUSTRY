@@ -18,6 +18,7 @@ import {
 import { AttendanceDialog } from "./AttendanceDialog";
 import { AttendanceImportDialog } from "./AttendanceImportDialog";
 import { InlineNotice, LoadingLine, Pager, filterStyle } from "./formControls";
+import { DemoTag, isDemoEmployee } from "../production/DemoData";
 
 const PAGE_SIZE = 25;
 
@@ -238,7 +239,7 @@ export function AttendancePanel() {
                   emp: (
                     <div>
                       <p style={{ fontSize: "0.8375rem", fontWeight: 600 }}>{fullName(r.employee)}</p>
-                      <p style={{ fontSize: "0.7rem", color: "#9A8A88", fontFamily: "JetBrains Mono, monospace" }}>{r.employee.employeeCode}</p>
+                      <p style={{ fontSize: "0.7rem", color: "#9A8A88", fontFamily: "JetBrains Mono, monospace" }}>{r.employee.employeeCode}{isDemoEmployee(r.employee.employeeCode) && <DemoTag />}</p>
                     </div>
                   ),
                   dept: r.employee.department?.name ?? <span style={{ color: "#9A8A88" }}>Unassigned</span>,

@@ -2,15 +2,18 @@
  * Adds demo data to the Production module.
  *
  *   Local:   npm run seed:production-demo -- --db dvs_factory_preview
- *   Remote:  TZ=Asia/Kolkata node dist/scripts/seed-production-demo.js --allow-remote
- *            (prints the target and writes nothing), then again with
- *            --confirm-host <that host>
+ *   Remote:  npx tsx src/scripts/seed-production-demo.ts --allow-remote [--with-work-orders]
+ *            reads the remote database and prints what a run would do, writing
+ *            nothing; run it again with --confirm-host <that host> to write.
  *
  * Uses DATABASE_URL from backend/.env (or the shell). --db swaps only the
  * database name. Any host other than this computer needs --allow-remote and
- * the host typed back; a remote database gets workforce and attendance only,
- * never demo work orders, output or targets. Safe to run again: existing
- * records are reused, never changed. See productionDemoSeed.ts.
+ * the host typed back. A remote database gets workforce and attendance only,
+ * unless --with-work-orders also adds the demo work orders, their output and
+ * (when the month has none) a target. --upgrade-old-demo updates demo workers
+ * an earlier version of this seed created; --dry-run writes nothing anywhere.
+ * Safe to run again: existing records are reused, never changed. See
+ * productionDemoSeed.ts.
  */
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
@@ -27,24 +30,25 @@ function argValue(flag: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 
+const flag = (name: string): boolean => process.argv.includes(name);
+
 async function main(): Promise<void> {
   const target = resolveSeedTarget(
     process.env['DATABASE_URL'],
     argValue('--db'),
     process.env['NODE_ENV'],
-    {
-      allowRemote: process.argv.includes('--allow-remote'),
-      confirmHost: argValue('--confirm-host'),
-    },
+    { allowRemote: flag('--allow-remote'), confirmHost: argValue('--confirm-host') },
   );
+  const dryRun = flag('--dry-run') || !target.confirmed;
+  const workOrders = !target.remote || flag('--with-work-orders');
   print(
     `Target database: ${target.host}:${target.port}/${target.database}${target.remote ? ' (REMOTE)' : ''}`,
   );
-  if (target.remote) {
-    print(
-      `Demo workforce and attendance only; dates and times use time zone ${Intl.DateTimeFormat().resolvedOptions().timeZone}.`,
-    );
-  }
+  print(
+    `Demo ${workOrders ? 'workforce, attendance and work orders' : 'workforce and attendance only'}; ` +
+      `dates and times use time zone ${Intl.DateTimeFormat().resolvedOptions().timeZone}.`,
+  );
+  if (dryRun) print('DRY RUN: nothing will be written. Counts show what a real run would do.');
 
   const db = new PrismaClient({ datasourceUrl: target.url });
   try {
@@ -62,13 +66,32 @@ async function main(): Promise<void> {
           '(npx prisma migrate deploy with DATABASE_URL pointing at it).',
       );
     }
-    const report = await seedProductionDemo(db, new Date(), { workOrders: !target.remote });
+    const report = await seedProductionDemo(db, new Date(), {
+      workOrders,
+      upgradeOldDemo: flag('--upgrade-old-demo'),
+      dryRun,
+    });
     print(JSON.stringify(report, null, 2));
-    if (report.employees.notDemo.length > 0) {
-      print(`Left alone (not created by this seed): ${report.employees.notDemo.join(', ')}`);
+    const e = report.employees;
+    if (e.notDemo.length > 0)
+      print(`Left alone (not created by this seed): ${e.notDemo.join(', ')}`);
+    if (e.removed.length > 0)
+      print(`Removed demo workers were not restored: ${e.removed.join(', ')}`);
+    if (e.outdated.length > 0 || e.extra.length > 0) {
+      print(
+        `Demo workers from an earlier version of this seed: ${[...e.outdated, ...e.extra].join(', ')}. ` +
+          'They got no new demo activity. Add --upgrade-old-demo to rename them to the current ' +
+          'plan and remove the ones no longer in it.',
+      );
     }
-    if (report.employees.removed.length > 0) {
-      print(`Removed demo workers were not restored: ${report.employees.removed.join(', ')}`);
+    if (workOrders && report.workOrders.otherThisMonth > 0) {
+      print(
+        `Note: ${report.workOrders.otherThisMonth} non-demo work order(s) were created this month; ` +
+          "Company Performance totals will add the demo orders' figures to theirs.",
+      );
+    }
+    if (target.remote && !target.confirmed) {
+      print(`To write this, run again with --confirm-host ${target.host}`);
     }
   } finally {
     await db.$disconnect();

@@ -18,6 +18,7 @@ import {
 import { EmployeeDialog, type EmployeeDialogMode } from "./workforce/EmployeeDialog";
 import { RemoveWorkerDialog } from "./workforce/RemoveWorkerDialog";
 import { InlineNotice, Pager, filterStyle } from "./workforce/formControls";
+import { DemoTag, isDemoEmployee } from "./production/DemoData";
 
 const PAGE_SIZE = 25;
 
@@ -161,6 +162,7 @@ export function WorkforceManagement({ addRequest = 0, onAddHandled }: { addReque
           <p style={{ fontWeight: 600, fontSize: "0.8375rem" }}>{fullName(e)}</p>
           <p style={{ fontSize: "0.72rem", color: "#9A8A88" }}>
             <span style={{ fontFamily: "JetBrains Mono, monospace", color: "#A52A2A" }}>{e.employeeCode}</span> · {e.designation}
+            {isDemoEmployee(e.employeeCode) && <DemoTag />}
           </p>
         </div>
       ),
