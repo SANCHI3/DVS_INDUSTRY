@@ -34,8 +34,8 @@ const roles = [
     color: "#4E342E",
     bgColor: "#FBF9F8",
     borderColor: "#D7CCC8",
-    desc: "Production module only",
-    permissions: ["Production Performance", "Workforce Management", "Attendance Tracking", "Production Reports"],
+    desc: "Production and workforce",
+    permissions: ["Work orders and daily output", "Workforce output", "AI Security alerts (view)", "Production reports"],
     tagline: "Dedicated access to production operations",
   },
   {
@@ -45,9 +45,9 @@ const roles = [
     color: "#E65100",
     bgColor: "#FFF3E0",
     borderColor: "#FFE0B2",
-    desc: "Orders & supply only",
-    permissions: ["Client Orders", "Supplier Orders", "Supply Chain", "Order Reports"],
-    tagline: "Dedicated access to orders and supply chain",
+    desc: "Inventory, orders & supply",
+    permissions: ["Materials and stock", "Purchase orders", "Client order dispatch", "Inventory and scrap reports"],
+    tagline: "Dedicated access to stores, orders and supply",
   },
   {
     id: "supplier" as Role,
@@ -57,7 +57,7 @@ const roles = [
     bgColor: "#F0FAF0",
     borderColor: "#C8E6C9",
     desc: "Materials & order supply",
-    permissions: ["Material Catalog", "Purchase Orders", "Delivery Management", "Performance Reports"],
+    permissions: ["Purchase orders from DVS", "Confirm and dispatch orders", "Delivery performance and reports", "Messages with DVS"],
     tagline: "Manage your materials and supply chain with DVS",
   },
   {
@@ -68,7 +68,7 @@ const roles = [
     bgColor: "#F0F4FF",
     borderColor: "#C5CAE9",
     desc: "Order tracking & management",
-    permissions: ["Product Catalog", "Order Placement", "Shipment Tracking", "Invoice Downloads"],
+    permissions: ["Place and track orders", "Shipment and invoice details", "Order history and reports", "Messages with DVS"],
     tagline: "Browse products and manage your orders seamlessly",
   },
 ];

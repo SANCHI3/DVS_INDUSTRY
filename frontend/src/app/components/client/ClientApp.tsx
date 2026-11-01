@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import { AppShell } from "../shared/AppShell";
 import { PageHeader, KPICard, Card, CardHeader, StatusBadge, Btn, DataTable } from "../shared/UI";
 import { PortalMessages } from "../shared/PortalMessages";
-import { getUser } from "../../../lib/auth";
 import { describeApiError, fetchAllPages, isApiError, withServerWake } from "../../../lib/api";
 import { downloadCSV } from "../../../lib/csv";
 import {
@@ -25,7 +24,7 @@ import {
 import { useConfirm } from "../shared/ConfirmDialog";
 
 const ACCENT = "#1565C0";
-const NO_PROFILE = "No client record matches this login's email. Ask DVS to set it on your client record.";
+const NO_PROFILE = "This login is not linked to a client record yet. Ask DVS to link it.";
 
 type ClientPortalData = {
   profile: ClientDto | null;
@@ -372,11 +371,11 @@ export function ClientApp({ onLogout }: { onLogout: () => void }) {
   const [data, setData] = useState<ClientPortalData>({ profile: null, orders: [], messages: [], loading: true, error: null });
 
   const loadData = useCallback(async () => {
-    const user = getUser();
     setData((current) => ({ ...current, loading: true, error: null }));
     try {
       const clientResult = await withServerWake(() => getClients());
-      const profile = clientResult.data.find((client) => user?.email && client.email?.toLowerCase() === user.email.toLowerCase()) ?? null;
+      // For a client login the server returns only its own (linked) client
+      const profile = clientResult.data[0] ?? null;
       if (profile === null) {
         setData({ profile: null, orders: [], messages: [], loading: false, error: NO_PROFILE });
         return;

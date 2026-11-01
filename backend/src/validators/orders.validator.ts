@@ -239,3 +239,10 @@ export type ClientOrderQueryInput = z.infer<typeof clientOrderQuerySchema>;
 export type CreatePurchaseOrderInput = z.infer<typeof createPurchaseOrderSchema>;
 export type UpdatePurchaseOrderInput = z.infer<typeof updatePurchaseOrderSchema>;
 export type PurchaseOrderQueryInput = z.infer<typeof purchaseOrderQuerySchema>;
+
+/** Supplier portal: confirm or dispatch its own PO. */
+export const supplierPurchaseOrderActionSchema = z.object({
+  dispatchDate: z.coerce.date().optional().nullable(),
+  note: optStr(300),
+});
+export type SupplierPurchaseOrderActionInput = z.infer<typeof supplierPurchaseOrderActionSchema>;

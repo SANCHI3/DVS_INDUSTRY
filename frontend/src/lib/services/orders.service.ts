@@ -93,6 +93,8 @@ export interface ClientOrderDto {
   requiredDate: string | null;
   dispatchDate: string | null;
   deliveryDate: string | null;
+  approvedAt?: string | null;
+  productionStartedAt?: string | null;
   status:       ClientOrderStatus;
   notes:        string | null;
   dispatchNote: string | null;
@@ -168,6 +170,11 @@ export interface PurchaseOrderDto {
   orderDate:        string;
   expectedDelivery: string | null;
   actualDelivery:   string | null;
+  /** Set by the supplier from the portal */
+  confirmedAt?:     string | null;
+  dispatchDate?:    string | null;
+  dispatchedAt?:    string | null;
+  supplierNote?:    string | null;
   status:           PurchaseOrderStatus;
   notes:            string | null;
   createdAt:        string;
@@ -239,5 +246,19 @@ export interface OrderStatistics {
 
 export async function getOrderStats(): Promise<OrderStatistics> {
   const res = await api.get<{ success: true; data: OrderStatistics }>('/orders/statistics');
+  return unwrap(res);
+}
+
+// ── Supplier portal: its own purchase orders ─────────────────────────────────
+
+/** The supplier accepts the PO, optionally with the date it plans to dispatch. */
+export async function supplierConfirmPurchaseOrder(id: number, body: { dispatchDate?: string; note?: string }): Promise<PurchaseOrderDto> {
+  const res = await api.patch<{ success: true; data: PurchaseOrderDto }>(`/orders/purchase-orders/${id}/supplier-confirm`, body);
+  return unwrap(res);
+}
+
+/** The supplier marks the PO dispatched; DVS store marks it delivered on arrival. */
+export async function supplierDispatchPurchaseOrder(id: number, body: { dispatchDate?: string; note?: string }): Promise<PurchaseOrderDto> {
+  const res = await api.patch<{ success: true; data: PurchaseOrderDto }>(`/orders/purchase-orders/${id}/supplier-dispatch`, body);
   return unwrap(res);
 }

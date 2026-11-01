@@ -78,6 +78,12 @@ describe("orderTimeline", () => {
     expect(steps[3].date).toBe("2026-10-26");
   });
 
+  it("dates the approved and in-production steps when they were recorded", () => {
+    const steps = orderTimeline(order({ status: "IN_PRODUCTION", approvedAt: "2026-10-27", productionStartedAt: "2026-10-28" }));
+    expect(steps[1]).toMatchObject({ label: "Approved", date: "2026-10-27", done: true });
+    expect(steps[2]).toMatchObject({ label: "In production", date: "2026-10-28", done: true });
+  });
+
   it("ticks nothing for a cancelled order", () => {
     expect(orderTimeline(order({ status: "CANCELLED" })).some((s) => s.done)).toBe(false);
   });

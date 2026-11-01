@@ -2,15 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSectionHash } from "../../../lib/useSectionHash";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Download, MessageSquare, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { AppShell } from "../shared/AppShell";
 import { PageHeader, KPICard, Card, CardHeader, StatusBadge, Btn, DataTable } from "../shared/UI";
 import { PortalMessages } from "../shared/PortalMessages";
 
-import { getUser } from "../../../lib/auth";
 import { describeApiError, fetchAllPages, isApiError, withServerWake } from "../../../lib/api";
 import { downloadCSV } from "../../../lib/csv";
 import {
-  getPurchaseOrders, getSuppliers, type PurchaseOrderDto, type SupplierDto,
+  getPurchaseOrders, getSuppliers, supplierConfirmPurchaseOrder, supplierDispatchPurchaseOrder,
+  type PurchaseOrderDto, type SupplierDto,
 } from "../../../lib/services/orders.service";
 import { formatINRCompact, formatMoney } from "../../../lib/format";
 import { getPortalMessages, type PortalMessageDto } from "../../../lib/services/portal.service";
@@ -92,7 +93,7 @@ function SupplierDashboard({ onNavigate, data, onRetry }: { onNavigate: (s: stri
             <p><strong>Phone:</strong> {profile.phone ?? "—"}</p><p><strong>Location:</strong> {[profile.city, profile.state, profile.country].filter(Boolean).join(", ") || "—"}</p>
             <p><strong>GSTIN:</strong> {profile.gstin ?? "—"}</p><p><strong>Lead time:</strong> {profile.leadTimeDays === null ? "—" : `${profile.leadTimeDays} days`}</p>
             <p style={{ gridColumn: "span 2" }}><strong>Materials:</strong> {profile.materials ?? "—"}</p>
-          </div> : <EmptyState message={loading ? "Loading profile…" : "No supplier record matches this login's email. Ask DVS to set it on your supplier record."} />}
+          </div> : <EmptyState message={loading ? "Loading profile…" : "This login is not linked to a supplier record yet. Ask DVS to link it."} />}
         </Card>
 
         <Card>
@@ -214,7 +215,63 @@ function PurchaseOrders({ data }: { data: SupplierData }) {
   );
 }
 
-function DeliveryManagement({ data }: { data: SupplierData }) {
+/** Confirm a PO (with a planned dispatch date) or mark it dispatched. */
+function DeliveryAction({ order, onChanged }: { order: PurchaseOrderDto; onChanged: () => void }) {
+  const [mode, setMode] = useState<"confirm" | "dispatch" | null>(null);
+  const [date, setDate] = useState("");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const today = new Date().toLocaleDateString("en-CA");
+
+  const submit = async () => {
+    setSaving(true);
+    try {
+      const body = { ...(date && { dispatchDate: date }), ...(note.trim() && { note: note.trim() }) };
+      if (mode === "confirm") await supplierConfirmPurchaseOrder(order.id, body);
+      else await supplierDispatchPurchaseOrder(order.id, body);
+      toast.success(mode === "confirm" ? `${order.poNumber} confirmed.` : `${order.poNumber} marked dispatched.`);
+      setMode(null);
+      onChanged();
+    } catch (err) {
+      toast.error(describeApiError(err, mode === "confirm" ? "confirm the order" : "mark it dispatched"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (order.status === "IN_TRANSIT") {
+    return <span style={{ fontSize: "0.75rem", color: "#7A6C6A" }}>Dispatched {formatDate(order.dispatchedAt ?? order.dispatchDate ?? null)} · DVS confirms receipt</span>;
+  }
+  if (order.status !== "PENDING" && order.status !== "CONFIRMED") return <span style={{ fontSize: "0.75rem", color: "#9A8A88" }}>—</span>;
+  if (mode === null) {
+    return order.status === "PENDING"
+      ? <Btn size="sm" onClick={() => { setDate(""); setMode("confirm"); }}>Confirm order</Btn>
+      : (
+        <div className="flex flex-col gap-1">
+          {order.dispatchDate && <span style={{ fontSize: "0.72rem", color: "#7A6C6A" }}>Planned dispatch {formatDate(order.dispatchDate)}</span>}
+          <Btn size="sm" onClick={() => { setDate(today); setMode("dispatch"); }}>Mark dispatched</Btn>
+        </div>
+      );
+  }
+  return (
+    <div className="flex flex-col gap-1.5" style={{ minWidth: "12rem" }}>
+      <label style={{ fontSize: "0.7rem", color: "#4A4A4A" }}>
+        {mode === "confirm" ? "Planned dispatch date (optional)" : "Dispatch date"}
+        <input type="date" min={mode === "confirm" ? today : undefined} value={date} onChange={(e) => setDate(e.target.value)} className="block w-full rounded-md px-2 py-1" style={{ border: "1px solid #E8E2E0" }} />
+      </label>
+      <label style={{ fontSize: "0.7rem", color: "#4A4A4A" }}>
+        Note for DVS (optional)
+        <input value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} className="block w-full rounded-md px-2 py-1" style={{ border: "1px solid #E8E2E0" }} />
+      </label>
+      <div className="flex gap-1.5">
+        <Btn size="sm" disabled={saving} onClick={() => void submit()}>{saving ? "Saving…" : mode === "confirm" ? "Confirm" : "Mark dispatched"}</Btn>
+        <Btn size="sm" variant="secondary" disabled={saving} onClick={() => setMode(null)}>Cancel</Btn>
+      </div>
+    </div>
+  );
+}
+
+function DeliveryManagement({ data, onChanged }: { data: SupplierData; onChanged: () => void }) {
   const { purchaseOrders, loading } = data;
   const today = Date.now();
   const lateness = (o: PurchaseOrderDto) => {
@@ -227,7 +284,7 @@ function DeliveryManagement({ data }: { data: SupplierData }) {
   };
   return (
     <div className="p-6">
-      <PageHeader title="Delivery Management" subtitle="Delivery status of every purchase order" />
+      <PageHeader title="Delivery Management" subtitle="Confirm new purchase orders and tell DVS when they are dispatched" />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <KPICard label="Awaiting Confirmation" value={loading ? "—" : purchaseOrders.filter((o) => o.status === "PENDING").length} accent="#E65100" />
         <KPICard label="Confirmed" value={loading ? "—" : purchaseOrders.filter((o) => o.status === "CONFIRMED").length} accent="#1565C0" />
@@ -247,6 +304,7 @@ function DeliveryManagement({ data }: { data: SupplierData }) {
             { key: "actual", label: "Delivered" },
             { key: "timing", label: "Timing" },
             { key: "status", label: "Status" },
+            { key: "action", label: "Your action" },
           ]}
           rows={purchaseOrders.map((o) => ({
             id: <span style={{ fontSize: "0.775rem", fontFamily: "JetBrains Mono, monospace", color: ACCENT }}>{o.poNumber}</span>,
@@ -256,6 +314,7 @@ function DeliveryManagement({ data }: { data: SupplierData }) {
             actual: formatDate(o.actualDelivery),
             timing: lateness(o),
             status: <StatusBadge status={o.status} label={statusLabel(o.status)} />,
+            action: <DeliveryAction order={o} onChanged={onChanged} />,
           }))}
         />
       </Card>
@@ -388,15 +447,13 @@ export function SupplierApp({ onLogout }: { onLogout: () => void }) {
   const [data, setData] = useState<SupplierData>({ profile: null, purchaseOrders: [], messages: [], loading: true, error: null });
 
   const loadData = useCallback(async () => {
-    const user = getUser();
     setData((current) => ({ ...current, loading: true, error: null }));
     try {
       const supplierResult = await withServerWake(() => getSuppliers());
-      const profile = supplierResult.data.find((supplier) =>
-        user?.email && supplier.email?.toLowerCase() === user.email.toLowerCase(),
-      ) ?? null;
+      // For a supplier login the server returns only its own (linked) supplier
+      const profile = supplierResult.data[0] ?? null;
       if (profile === null) {
-        setData({ profile: null, purchaseOrders: [], messages: [], loading: false, error: "No supplier record matches this login's email. Ask DVS to set it on your supplier record." });
+        setData({ profile: null, purchaseOrders: [], messages: [], loading: false, error: "This login is not linked to a supplier record yet. Ask DVS to link it." });
         return;
       }
       const [purchaseOrders, messages] = await Promise.all([
@@ -407,7 +464,7 @@ export function SupplierApp({ onLogout }: { onLogout: () => void }) {
     } catch (err: unknown) {
       // The API answers 404 when no supplier record is linked to this login
       const error = isApiError(err) && err.status === 404
-        ? "No supplier record matches this login's email. Ask DVS to set it on your supplier record."
+        ? "This login is not linked to a supplier record yet. Ask DVS to link it."
         : describeApiError(err, "load your supplier data");
       setData({ profile: null, purchaseOrders: [], messages: [], loading: false, error });
     }
@@ -422,7 +479,7 @@ export function SupplierApp({ onLogout }: { onLogout: () => void }) {
     switch (section) {
       case "catalog": return <MaterialCatalog data={data} />;
       case "purchase-orders": return <PurchaseOrders data={data} />;
-      case "delivery": return <DeliveryManagement data={data} />;
+      case "delivery": return <DeliveryManagement data={data} onChanged={() => void loadData()} />;
       case "communication": return <Communication onMessages={setMessages} />;
       case "performance": return <SupplierPerformance data={data} />;
       case "reports": return <SupplierReports data={data} />;

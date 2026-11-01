@@ -10,12 +10,15 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("../../../../lib/services/orders.service", () => ({
   getSuppliers: vi.fn(), getPurchaseOrders: vi.fn(), getClients: vi.fn(), getClientOrders: vi.fn(),
   createClientOrder: vi.fn(), cancelClientOrder: vi.fn(),
+  supplierConfirmPurchaseOrder: vi.fn(), supplierDispatchPurchaseOrder: vi.fn(),
 }));
 vi.mock("../../../../lib/services/portal.service", () => ({
   getPortalMessages: vi.fn(), sendPortalMessage: vi.fn(), markPortalMessagesRead: vi.fn(),
 }));
 
-import { getClientOrders, getClients, getPurchaseOrders, getSuppliers } from "../../../../lib/services/orders.service";
+import {
+  getClientOrders, getClients, getPurchaseOrders, getSuppliers, supplierConfirmPurchaseOrder, supplierDispatchPurchaseOrder,
+} from "../../../../lib/services/orders.service";
 import { getPortalMessages, markPortalMessagesRead, sendPortalMessage } from "../../../../lib/services/portal.service";
 import { SupplierApp } from "../../supplier/SupplierApp";
 import { ClientApp } from "../../client/ClientApp";
@@ -83,6 +86,27 @@ describe("supplier portal", () => {
     expect(markPortalMessagesRead).toHaveBeenCalled();
   });
 
+  it("confirms a pending PO with a dispatch date and marks a confirmed one dispatched", async () => {
+    vi.mocked(getPurchaseOrders).mockResolvedValue(page([
+      { ...purchaseOrder, id: 5, poNumber: "PO-NEW-5", status: "PENDING", actualDelivery: null },
+      { ...purchaseOrder, id: 6, poNumber: "PO-CNF-6", status: "CONFIRMED", actualDelivery: null },
+    ]) as never);
+    vi.mocked(supplierConfirmPurchaseOrder).mockResolvedValue(purchaseOrder as never);
+    vi.mocked(supplierDispatchPurchaseOrder).mockResolvedValue(purchaseOrder as never);
+    render(<SupplierApp onLogout={() => {}} />);
+    await screen.findByText(/Partner ID: SUP-MAL/);
+    fireEvent.click(screen.getAllByText("Delivery Management")[0]);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm order" }));
+    fireEvent.change(screen.getByLabelText(/Planned dispatch date/), { target: { value: "2099-01-10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(supplierConfirmPurchaseOrder).toHaveBeenCalledWith(5, { dispatchDate: "2099-01-10" }));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Mark dispatched" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Mark dispatched" }).at(-1)!);
+    await waitFor(() => expect(supplierDispatchPurchaseOrder).toHaveBeenCalledWith(6, expect.objectContaining({ dispatchDate: expect.any(String) })));
+  });
+
   it("sends a message from the Communication page", async () => {
     vi.mocked(sendPortalMessage).mockResolvedValue({ ...dvsMessage, id: 2, fromDvs: false, senderName: "Mahindra", body: "Dispatching Friday" });
     render(<SupplierApp onLogout={() => {}} />);
@@ -97,9 +121,10 @@ describe("supplier portal", () => {
   });
 
   it("explains a login that is not linked to a supplier record", async () => {
-    vi.mocked(getSuppliers).mockResolvedValue(page([{ ...supplier, email: "someone-else@test.local" }]));
+    // The server answers 404 when no supplier is linked to the login
+    vi.mocked(getSuppliers).mockRejectedValue({ status: 404, code: "NOT_FOUND", message: "No supplier profile is linked to this account" });
     render(<SupplierApp onLogout={() => {}} />);
-    expect((await screen.findAllByText(/No supplier record matches this login's email/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/not linked to a supplier record yet/)).length).toBeGreaterThan(0);
   });
 });
 

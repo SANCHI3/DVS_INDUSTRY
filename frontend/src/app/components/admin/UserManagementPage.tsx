@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Plus, Edit2, Trash2, Shield, Search } from "lucide-react";
 import { PageHeader, Card, CardHeader, StatusBadge, Btn, DataTable } from "../shared/UI";
 import { toast } from "sonner";
-import { isApiError } from "../../../lib/api";
+import { describeApiError, isApiError } from "../../../lib/api";
 import { deactivateUser, getRoles, getUsers, registerUser, updateUser, type RoleDto, type UserDto } from "../../../lib/services/users.service";
 import { getAuditLogs } from "../../../lib/services/audit.service";
 import { Modal } from "../shared/Modal";
@@ -93,10 +93,10 @@ export function UserManagementPage() {
     ]).then(([roleResult, userResult, logResult]) => {
       if (cancelled) return;
       if (roleResult.status === "fulfilled") setRoles(roleResult.value);
-      else setDataError("Unable to load backend roles. API error: " + (roleResult.reason instanceof Error ? roleResult.reason.message : "Unknown error"));
+      else setDataError(describeApiError(roleResult.reason, "load the list of roles"));
       if (userResult.status === "fulfilled") {
         setUsers(mapUsers(userResult.value));
-      } else setDataError((current) => current ? `${current} User API error: ${userResult.reason instanceof Error ? userResult.reason.message : "Unknown error"}` : "Unable to load users. API error: " + (userResult.reason instanceof Error ? userResult.reason.message : "Unknown error"));
+      } else setDataError((current) => [current, describeApiError(userResult.reason, "load users")].filter(Boolean).join(" "));
       if (logResult.status === "fulfilled") {
         setAuditLogs(logResult.value.data.map(l => ({
           time: new Date(l.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }),
@@ -104,7 +104,7 @@ export function UserManagementPage() {
           action: `${l.action} ${l.entity}${l.entityId ? ` #${l.entityId}` : ""} ${l.path ?? ""}`.trim(),
           type: l.action === "LOGIN" ? "info" : l.action === "DELETE" ? "critical" : l.statusCode && l.statusCode >= 400 ? "warn" : "info",
         })));
-      } else setDataError((current) => current ? `${current} Audit log API error: ${logResult.reason instanceof Error ? logResult.reason.message : "Unknown error"}` : "Unable to load audit logs. API error: " + (logResult.reason instanceof Error ? logResult.reason.message : "Unknown error"));
+      } else setDataError((current) => [current, describeApiError(logResult.reason, "load the audit log")].filter(Boolean).join(" "));
     });
     return () => { cancelled = true; };
   }, []);

@@ -31,7 +31,13 @@ vi.mock('../../lib/prismaClient', () => ({
       update: vi.fn(),
     },
     supplier: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn() },
-    purchaseOrder: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+    purchaseOrder: {
+      findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
+      update: vi.fn(),
+    },
     portalMessage: { findMany: vi.fn(), groupBy: vi.fn() },
     auditLog: { create: vi.fn().mockResolvedValue({}) },
     $queryRawUnsafe: vi.fn().mockResolvedValue([{ max: null }]),
@@ -283,5 +289,86 @@ describe('portal messages', () => {
       .set('Authorization', 'Bearer sales')
       .send({ supplierId: 3, clientId: 4, body: 'Hi' });
     expect(res.status).toBe(422);
+  });
+});
+
+describe('supplier actions on its own purchase orders', () => {
+  const po = (id: number, supplierId: number, status: string) => ({
+    id,
+    poNumber: `PO-${id}`,
+    supplierId,
+    material: 'CRCA',
+    quantity: '500',
+    unit: 'kg',
+    totalCost: null,
+    currency: 'INR',
+    orderDate: new Date('2026-10-20'),
+    expectedDelivery: null,
+    actualDelivery: null,
+    confirmedAt: null,
+    dispatchDate: null,
+    dispatchedAt: null,
+    supplierNote: null,
+    status,
+    notes: null,
+    createdById: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    supplier: { name: `Supplier ${supplierId}` },
+  });
+
+  beforeEach(() => {
+    fn(prisma.supplier.findFirst).mockResolvedValue(supplierRow(3, 'vendor@acme.test'));
+    fn(prisma.purchaseOrder.findUnique).mockImplementation(({ where }: { where: { id: number } }) =>
+      Promise.resolve(where.id === 10 ? po(10, 3, 'PENDING') : po(11, 8, 'PENDING')),
+    );
+    fn(prisma.purchaseOrder.update).mockImplementation(
+      ({ where, data }: { where: { id: number }; data: { status: string } }) =>
+        Promise.resolve({ ...po(where.id, 3, 'PENDING'), ...data }),
+    );
+  });
+
+  it('lets a supplier confirm its own PO with a dispatch date', async () => {
+    const res = await request(app)
+      .patch('/api/v1/orders/purchase-orders/10/supplier-confirm')
+      .set('Authorization', 'Bearer supplier')
+      .send({ dispatchDate: '2099-01-10', note: 'Ready next week' });
+
+    expect(res.status).toBe(200);
+    expect(fn(prisma.purchaseOrder.update)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 10 },
+        data: expect.objectContaining({
+          status: 'CONFIRMED',
+          confirmedAt: expect.any(Date),
+          supplierNote: 'Ready next week',
+        }),
+      }),
+    );
+  });
+
+  it("hides another supplier's PO", async () => {
+    const res = await request(app)
+      .patch('/api/v1/orders/purchase-orders/11/supplier-confirm')
+      .set('Authorization', 'Bearer supplier')
+      .send({});
+    expect(res.status).toBe(404);
+    expect(fn(prisma.purchaseOrder.update)).not.toHaveBeenCalled();
+  });
+
+  it('cannot dispatch a PO that is not confirmed yet', async () => {
+    const res = await request(app)
+      .patch('/api/v1/orders/purchase-orders/10/supplier-dispatch')
+      .set('Authorization', 'Bearer supplier')
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('is for supplier logins only', async () => {
+    const res = await request(app)
+      .patch('/api/v1/orders/purchase-orders/10/supplier-confirm')
+      .set('Authorization', 'Bearer sales')
+      .send({});
+    expect(res.status).toBe(403);
   });
 });

@@ -28,6 +28,7 @@ import type {
   UpdateClientOrderData,
   UpdatePurchaseOrderData,
 } from '../interfaces';
+import type { SupplierPurchaseOrderActionInput } from '../validators/orders.validator';
 
 const svc = new OrdersService();
 
@@ -479,4 +480,26 @@ export async function cancelPurchaseOrder(req: Request, res: Response): Promise<
     200,
     'Purchase order cancelled',
   );
+}
+
+// ── Supplier portal actions on its own POs ────────────────────────────────────
+
+export async function supplierConfirmPurchaseOrder(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const supplier = await getRequestSupplier(req);
+  const body = req.body as SupplierPurchaseOrderActionInput;
+  const po = await svc.supplierConfirmPurchaseOrder(parseId(req.params['id']), supplier.id, body);
+  sendSuccess(res, po, 200, 'Purchase order confirmed');
+}
+
+export async function supplierDispatchPurchaseOrder(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const supplier = await getRequestSupplier(req);
+  const body = req.body as SupplierPurchaseOrderActionInput;
+  const po = await svc.supplierDispatchPurchaseOrder(parseId(req.params['id']), supplier.id, body);
+  sendSuccess(res, po, 200, 'Purchase order marked dispatched');
 }

@@ -306,7 +306,9 @@ export class OrdersService {
   async approveClientOrder(id: number): Promise<ClientOrderDto> {
     const existing = await this.getClientOrderOrThrow(id);
     this.assertTransition(existing.status, 'APPROVED', ['PENDING']);
-    const updated = await this.repo.updateClientOrderStatus(id, 'APPROVED');
+    const updated = await this.repo.updateClientOrderStatus(id, 'APPROVED', {
+      approvedAt: new Date(),
+    });
     logger.info('Client order approved', { id });
     return updated;
   }
@@ -314,7 +316,9 @@ export class OrdersService {
   async markInProduction(id: number): Promise<ClientOrderDto> {
     const existing = await this.getClientOrderOrThrow(id);
     this.assertTransition(existing.status, 'IN_PRODUCTION', ['APPROVED']);
-    const updated = await this.repo.updateClientOrderStatus(id, 'IN_PRODUCTION');
+    const updated = await this.repo.updateClientOrderStatus(id, 'IN_PRODUCTION', {
+      productionStartedAt: new Date(),
+    });
     logger.info('Client order marked in-production', { id });
     return updated;
   }
@@ -416,9 +420,58 @@ export class OrdersService {
   async confirmPurchaseOrder(id: number): Promise<PurchaseOrderDto> {
     const existing = await this.getPurchaseOrderOrThrow(id);
     this.assertPOTransition(existing.status, 'CONFIRMED', ['PENDING']);
-    const updated = await this.repo.updatePurchaseOrderStatus(id, 'CONFIRMED');
+    const updated = await this.repo.updatePurchaseOrderStatus(id, 'CONFIRMED', {
+      confirmedAt: new Date(),
+    });
     logger.info('Purchase order confirmed', { id });
     return updated;
+  }
+
+  /**
+   * The supplier accepts its own PO from the portal, optionally with the date
+   * it plans to dispatch (not before today).
+   */
+  async supplierConfirmPurchaseOrder(
+    id: number,
+    supplierId: number,
+    data: { dispatchDate?: Date | null | undefined; note?: string | null | undefined },
+  ): Promise<PurchaseOrderDto> {
+    const existing = await this.getOwnPurchaseOrder(id, supplierId);
+    this.assertPOTransition(existing.status, 'CONFIRMED', ['PENDING']);
+    if (data.dispatchDate)
+      assertNotBeforeOrderDate(data.dispatchDate, new Date(), 'dispatchDate', 'Dispatch date');
+    const updated = await this.repo.updatePurchaseOrderStatus(id, 'CONFIRMED', {
+      confirmedAt: new Date(),
+      dispatchDate: data.dispatchDate ?? null,
+      supplierNote: data.note ?? null,
+    });
+    logger.info('Purchase order confirmed by supplier', { id, supplierId });
+    return updated;
+  }
+
+  /** The supplier marks its own confirmed PO dispatched; DVS store still marks it delivered. */
+  async supplierDispatchPurchaseOrder(
+    id: number,
+    supplierId: number,
+    data: { dispatchDate?: Date | null | undefined; note?: string | null | undefined },
+  ): Promise<PurchaseOrderDto> {
+    const existing = await this.getOwnPurchaseOrder(id, supplierId);
+    this.assertPOTransition(existing.status, 'IN_TRANSIT', ['CONFIRMED']);
+    const now = new Date();
+    const updated = await this.repo.updatePurchaseOrderStatus(id, 'IN_TRANSIT', {
+      dispatchedAt: now,
+      dispatchDate: data.dispatchDate ?? now,
+      ...(data.note !== undefined && { supplierNote: data.note }),
+    });
+    logger.info('Purchase order dispatched by supplier', { id, supplierId });
+    return updated;
+  }
+
+  /** A PO that belongs to this supplier; another supplier's PO is "not found". */
+  private async getOwnPurchaseOrder(id: number, supplierId: number): Promise<PurchaseOrderDto> {
+    const po = await this.getPurchaseOrderOrThrow(id);
+    if (po.supplierId !== supplierId) throw new NotFoundError('Purchase order not found');
+    return po;
   }
 
   async markInTransit(id: number): Promise<PurchaseOrderDto> {

@@ -153,8 +153,8 @@ export function orderTimeline(order: ClientOrderDto): { label: string; date: str
   const reached = rank[order.status] ?? -1;
   return [
     { label: 'Order placed', date: order.orderDate, done: reached >= 0 },
-    { label: 'Approved', date: null, done: reached >= 1 },
-    { label: 'In production', date: null, done: reached >= 2 },
+    { label: 'Approved', date: order.approvedAt ?? null, done: reached >= 1 },
+    { label: 'In production', date: order.productionStartedAt ?? null, done: reached >= 2 },
     { label: 'Dispatched', date: order.dispatchDate, done: reached >= 3 },
     { label: 'Delivered', date: order.deliveryDate, done: reached >= 4 },
   ];

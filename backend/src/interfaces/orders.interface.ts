@@ -67,6 +67,8 @@ export interface ClientOrderDto {
   requiredDate: Date | null;
   dispatchDate: Date | null;
   deliveryDate: Date | null;
+  approvedAt: Date | null;
+  productionStartedAt: Date | null;
   status: ClientOrderStatus;
   notes: string | null;
   dispatchNote: string | null;
@@ -107,6 +109,10 @@ export interface PurchaseOrderDto {
   orderDate: Date;
   expectedDelivery: Date | null;
   actualDelivery: Date | null;
+  confirmedAt: Date | null; // supplier accepted it
+  dispatchDate: Date | null; // planned, then actual, dispatch date
+  dispatchedAt: Date | null;
+  supplierNote: string | null;
   status: PurchaseOrderStatus;
   notes: string | null;
   createdById: number | null;

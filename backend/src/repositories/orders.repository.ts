@@ -83,6 +83,8 @@ const clientOrderSelect = {
   requiredDate: true,
   dispatchDate: true,
   deliveryDate: true,
+  approvedAt: true,
+  productionStartedAt: true,
   status: true,
   notes: true,
   dispatchNote: true,
@@ -106,6 +108,10 @@ const purchaseOrderSelect = {
   orderDate: true,
   expectedDelivery: true,
   actualDelivery: true,
+  confirmedAt: true,
+  dispatchDate: true,
+  dispatchedAt: true,
+  supplierNote: true,
   status: true,
   notes: true,
   createdById: true,
@@ -144,6 +150,8 @@ function toClientOrderDto(r: PrismaClientOrder): ClientOrderDto {
     requiredDate: r.requiredDate,
     dispatchDate: r.dispatchDate,
     deliveryDate: r.deliveryDate,
+    approvedAt: r.approvedAt,
+    productionStartedAt: r.productionStartedAt,
     status: r.status as ClientOrderStatus,
     notes: r.notes,
     dispatchNote: r.dispatchNote,
@@ -169,6 +177,10 @@ function toPurchaseOrderDto(r: PrismaPurchaseOrder): PurchaseOrderDto {
     orderDate: r.orderDate,
     expectedDelivery: r.expectedDelivery,
     actualDelivery: r.actualDelivery,
+    confirmedAt: r.confirmedAt,
+    dispatchDate: r.dispatchDate,
+    dispatchedAt: r.dispatchedAt,
+    supplierNote: r.supplierNote,
     status: r.status as PurchaseOrderStatus,
     notes: r.notes,
     createdById: r.createdById,
@@ -537,6 +549,8 @@ export class OrdersRepository {
     id: number,
     status: ClientOrderStatus,
     extra?: Partial<{
+      approvedAt: Date;
+      productionStartedAt: Date;
       dispatchDate: Date;
       deliveryDate: Date;
       dispatchNote: string | null;
@@ -644,7 +658,13 @@ export class OrdersRepository {
   async updatePurchaseOrderStatus(
     id: number,
     status: PurchaseOrderStatus,
-    extra?: Partial<{ actualDelivery: Date }>,
+    extra?: Partial<{
+      actualDelivery: Date;
+      confirmedAt: Date;
+      dispatchDate: Date | null;
+      dispatchedAt: Date;
+      supplierNote: string | null;
+    }>,
   ): Promise<PurchaseOrderDto> {
     const raw = await prisma.purchaseOrder.update({
       where: { id },

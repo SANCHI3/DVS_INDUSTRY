@@ -486,6 +486,10 @@ model ClientOrder {
   dispatchDate DateTime?
   deliveryDate DateTime?
 
+  // Timeline for the client portal
+  approvedAt          DateTime?
+  productionStartedAt DateTime?
+
   status ClientOrderStatus @default(PENDING)
 
   notes         String?
@@ -518,6 +522,12 @@ model PurchaseOrder {
   orderDate        DateTime  @default(now())
   expectedDelivery DateTime?
   actualDelivery   DateTime?
+
+  // Set by the supplier from their portal
+  confirmedAt  DateTime? // supplier accepted the PO
+  dispatchDate DateTime? // planned, then actual, dispatch date
+  dispatchedAt DateTime? // supplier marked it dispatched
+  supplierNote String?
 
   status PurchaseOrderStatus @default(PENDING)
 

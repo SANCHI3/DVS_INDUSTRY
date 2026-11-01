@@ -143,7 +143,7 @@ export function ReportsPage() {
 
   const generate = async (id: ReportId) => {
     const fetcher = fetchers[id];
-    if (!fetcher) { setErrors((state) => ({ ...state, [id]: "Unavailable from current backend APIs." })); return; }
+    if (!fetcher) { setErrors((state) => ({ ...state, [id]: "This report is not available for your role." })); return; }
     setLoading((state) => ({ ...state, [id]: true }));
     setErrors((state) => ({ ...state, [id]: "" }));
     try {

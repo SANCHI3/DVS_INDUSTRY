@@ -21,6 +21,7 @@ import {
   createPurchaseOrderSchema,
   updatePurchaseOrderSchema,
   purchaseOrderIdParamSchema,
+  supplierPurchaseOrderActionSchema,
   purchaseOrderQuerySchema,
 } from '../validators/orders.validator';
 import { ROLES } from '../constants';
@@ -268,6 +269,30 @@ router.patch(
   authorize(...STORE_WRITE),
   validateRequest({ params: purchaseOrderIdParamSchema, body: updatePurchaseOrderSchema }),
   asyncHandler(OrdersController.updatePurchaseOrder),
+);
+
+/**
+ * PATCH /api/v1/orders/purchase-orders/:id/supplier-confirm
+ * The supplier accepts its own PO (PENDING → CONFIRMED). Body: { dispatchDate?, note? }
+ * Access: SUPPLIER (only its own purchase orders)
+ */
+router.patch(
+  '/purchase-orders/:id/supplier-confirm',
+  authorize(ROLES.SUPPLIER),
+  validateRequest({ params: purchaseOrderIdParamSchema, body: supplierPurchaseOrderActionSchema }),
+  asyncHandler(OrdersController.supplierConfirmPurchaseOrder),
+);
+
+/**
+ * PATCH /api/v1/orders/purchase-orders/:id/supplier-dispatch
+ * The supplier marks its own PO dispatched (CONFIRMED → IN_TRANSIT). DVS store marks delivery.
+ * Access: SUPPLIER (only its own purchase orders)
+ */
+router.patch(
+  '/purchase-orders/:id/supplier-dispatch',
+  authorize(ROLES.SUPPLIER),
+  validateRequest({ params: purchaseOrderIdParamSchema, body: supplierPurchaseOrderActionSchema }),
+  asyncHandler(OrdersController.supplierDispatchPurchaseOrder),
 );
 
 /** PATCH /api/v1/orders/purchase-orders/:id/confirm */
