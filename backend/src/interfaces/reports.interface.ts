@@ -300,6 +300,43 @@ export interface ProductionReport {
   rows: ProductionReportRow[];
 }
 
+// ── Security report ───────────────────────────────────────────
+export interface SecurityReportRow {
+  incidentNumber: string;
+  title: string;
+  type: string;
+  severity: string;
+  status: string;
+  department: string;
+  location: string;
+  reportedBy: string;
+  assignedTo: string;
+  occurredAt: string;
+  resolvedAt: string;
+  resolutionHours: string;
+}
+
+export interface SecurityReport {
+  generatedAt: string;
+  period: string;
+  summary: {
+    totalIncidents: number;
+    open: number;
+    investigating: number;
+    resolved: number;
+    closed: number;
+    critical: number;
+    high: number;
+    avgResolutionHours: string;
+    totalAlerts: number;
+    activeAlerts: number;
+    acknowledgedAlerts: number;
+    byType: Array<{ type: string; incidents: number }>;
+    byDepartment: Array<{ department: string; incidents: number; open: number; critical: number }>;
+  };
+  rows: SecurityReportRow[];
+}
+
 // ── Attendance report ─────────────────────────────────────────
 
 export interface AttendanceReportRow {

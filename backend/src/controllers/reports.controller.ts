@@ -88,3 +88,9 @@ export async function getProductionReport(req: Request, res: Response): Promise<
   const report = await svc.getProductionReport(buildFilters(q));
   sendSuccess(res, report, 200, 'Production report generated');
 }
+
+export async function getSecurityReport(req: Request, res: Response): Promise<void> {
+  const q = req.query as unknown as ReportQueryInput;
+  const report = await svc.getSecurityReport(buildFilters(q));
+  sendSuccess(res, report, 200, 'Security report generated');
+}

@@ -4,13 +4,13 @@ import { PageHeader, Card, CardHeader, Btn, StatusBadge } from "../shared/UI";
 import { toast } from "sonner";
 import {
   getAttendanceReport, getClientReport, getInventoryReport, getOrdersReport,
-  getProductionReport, getScrapReport, getSupplierReport, getWorkforceReport,
+  getProductionReport, getScrapReport, getSecurityReport, getSupplierReport, getWorkforceReport,
   type AttendanceReport, type ClientReport, type InventoryReport, type OrdersReport,
-  type ProductionReport, type ScrapReport, type SupplierReport, type WorkforceReport,
+  type ProductionReport, type ScrapReport, type SecurityReport, type SupplierReport, type WorkforceReport,
 } from "../../../lib/services/reports.service";
 import { downloadCSV } from "../../../lib/csv";
 
-type ReportPayload = InventoryReport | WorkforceReport | OrdersReport | ScrapReport | SupplierReport | ClientReport | ProductionReport | AttendanceReport;
+type ReportPayload = InventoryReport | WorkforceReport | OrdersReport | ScrapReport | SupplierReport | ClientReport | ProductionReport | AttendanceReport | SecurityReport;
 type ReportId = "production" | "inventory" | "workforce" | "orders" | "scrap" | "supplier" | "client" | "attendance" | "security";
 type ReportFilters = { fromDate?: string; toDate?: string; departmentId?: number };
 
@@ -23,6 +23,7 @@ const reportTypes: Array<{ id: ReportId; title: string; desc: string; icon: stri
   { id: "scrap", title: "Scrap Report", desc: "Scrap records grouped by department and material", icon: "♻", color: "#E65100" },
   { id: "supplier", title: "Supplier Report", desc: "Supplier ratings and purchase-order counts", icon: "🚚", color: "#546E7A" },
   { id: "client", title: "Client Report", desc: "Client order counts and delivered revenue", icon: "🏢", color: "#283593" },
+  { id: "security", title: "Security Report", desc: "Incidents by status and severity, resolution time, alert counts", icon: "🛡", color: "#B71C1C" },
 ];
 
 const fetchers: Partial<Record<ReportId, (filters: ReportFilters) => Promise<ReportPayload>>> = {
@@ -34,6 +35,7 @@ const fetchers: Partial<Record<ReportId, (filters: ReportFilters) => Promise<Rep
   scrap: (filters) => getScrapReport(filters),
   supplier: (filters) => getSupplierReport(filters),
   client: (filters) => getClientReport(filters),
+  security: (filters) => getSecurityReport(filters),
 };
 
 function rowsToCSV(rows: Array<Record<string, unknown>>): string[][] {
@@ -129,7 +131,7 @@ export function ReportsPage() {
           {reportTypes.map((item) => {
             const loaded = Boolean(reports[item.id]);
             const error = errors[item.id];
-            const unavailable = item.id === "security";
+            const unavailable = !fetchers[item.id];
             return <div key={item.id} className="p-5 rounded-lg" style={{ background: "#FFFFFF", border: "1px solid #E8E2E0" }}><div className="flex items-start justify-between mb-3"><span className="text-2xl">{item.icon}</span>{loaded && <StatusBadge status="ready" label="Loaded" />}</div><h3 style={{ fontSize: "0.875rem", fontWeight: 600, marginBottom: "0.4rem" }}>{item.title}</h3><p style={{ fontSize: "0.72rem", color: "#7A6C6A", lineHeight: 1.55, minHeight: "2.2rem" }}>{item.desc}</p>{error && <p style={{ fontSize: "0.72rem", color: "#C0392B", marginTop: "0.5rem" }}>{error}</p>}<div className="flex gap-1.5 mt-3"><button disabled={unavailable || loading[item.id]} onClick={() => generate(item.id)} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-md" style={{ background: unavailable || loading[item.id] ? "#F5F0EF" : item.color, color: unavailable || loading[item.id] ? "#7A6C6A" : "#fff", fontSize: "0.72rem", fontWeight: 600, border: "none", cursor: unavailable || loading[item.id] ? "not-allowed" : "pointer" }}>{unavailable ? "Unavailable" : loading[item.id] ? "Loading..." : "Load Report"}</button>{loaded && <button onClick={() => setPreview(item.id)} className="px-2 py-1.5 rounded-md" style={{ background: "#F0F4FF", color: "#1565C0", border: "none" }}><Eye size={12} /></button>}</div></div>;
           })}
         </div>

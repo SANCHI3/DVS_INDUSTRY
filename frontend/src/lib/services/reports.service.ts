@@ -56,6 +56,13 @@ export interface ProductionReport {
   rows: Array<{ workOrderNumber: string; product: string; department: string; priority: string; status: string; targetQty: string; producedQty: string; rejectedQty: string; scrapQty: string; completionRate: string; scheduledStart: string; scheduledEnd: string; actualStart: string; actualEnd: string }>;
 }
 
+export interface SecurityReport {
+  generatedAt: string;
+  period: string;
+  summary: { totalIncidents: number; open: number; investigating: number; resolved: number; closed: number; critical: number; high: number; avgResolutionHours: string; totalAlerts: number; activeAlerts: number; acknowledgedAlerts: number; byType: Array<{ type: string; incidents: number }>; byDepartment: Array<{ department: string; incidents: number; open: number; critical: number }> };
+  rows: Array<{ incidentNumber: string; title: string; type: string; severity: string; status: string; department: string; location: string; reportedBy: string; assignedTo: string; occurredAt: string; resolvedAt: string; resolutionHours: string }>;
+}
+
 export interface AttendanceReport {
   generatedAt: string;
   period: string;
@@ -100,5 +107,10 @@ export async function getAttendanceReport(params?: ReportQuery & { sortBy?: stri
 
 export async function getProductionReport(params?: ReportQuery): Promise<ProductionReport> {
   const res = await api.get<{ success: true; data: ProductionReport }>('/reports/production', { params });
+  return unwrap(res);
+}
+
+export async function getSecurityReport(params?: ReportQuery): Promise<SecurityReport> {
+  const res = await api.get<{ success: true; data: SecurityReport }>('/reports/security', { params });
   return unwrap(res);
 }

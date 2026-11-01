@@ -10,6 +10,7 @@ import type {
   AttendanceReport,
   AttendanceReportFilters,
   ProductionReport,
+  SecurityReport,
   ReportFilters,
 } from '../interfaces';
 import * as dashboardReports from './reports/dashboard';
@@ -17,6 +18,7 @@ import * as inventoryReports from './reports/inventory';
 import * as workforceReports from './reports/workforce';
 import * as ordersReports from './reports/orders';
 import * as productionReports from './reports/production';
+import * as securityReports from './reports/security';
 
 /**
  * Report and dashboard queries. Each report lives in services/reports/; this
@@ -61,5 +63,9 @@ export class ReportsService {
 
   getProductionReport(filters: ReportFilters): Promise<ProductionReport> {
     return productionReports.getProductionReport(filters);
+  }
+
+  getSecurityReport(filters: ReportFilters): Promise<SecurityReport> {
+    return securityReports.getSecurityReport(filters);
   }
 }

@@ -22,6 +22,7 @@ const ALL_ROLES = [
 const REPORT_ROLES = [ROLES.ADMIN, ROLES.MANAGER] as const;
 const STORE_ROLES = [ROLES.ADMIN, ROLES.MANAGER, ROLES.STORE] as const;
 const HR_ROLES = [ROLES.ADMIN, ROLES.MANAGER, ROLES.HR] as const;
+const SECURITY_ROLES = [ROLES.ADMIN, ROLES.MANAGER, ROLES.PRODUCTION] as const;
 
 // ════════════════════════════════════════════════════════════════
 // DASHBOARD
@@ -157,6 +158,19 @@ router.get(
   authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.PRODUCTION),
   validateRequest({ query: reportQuerySchema }),
   asyncHandler(ReportsController.getProductionReport),
+);
+
+/**
+ * GET /api/v1/reports/security
+ * Security incidents with status/severity counts, resolution time and alerts.
+ * Query: ?fromDate ?toDate ?departmentId
+ * Access: ADMIN, MANAGER, PRODUCTION (same as security read access)
+ */
+router.get(
+  '/security',
+  authorize(...SECURITY_ROLES),
+  validateRequest({ query: reportQuerySchema }),
+  asyncHandler(ReportsController.getSecurityReport),
 );
 
 export default router;
