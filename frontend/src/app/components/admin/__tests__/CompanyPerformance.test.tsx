@@ -121,7 +121,7 @@ describe("Monthly target", () => {
     expect(vi.mocked(saveProductionTarget).mock.calls[0]![1].expectedUpdatedAt).toBe(target.updatedAt);
   });
 
-  it.each(["PRODUCTION", "HR"])("lets %s view but not edit targets", async (r) => {
+  it.each(["PRODUCTION"])("lets %s view but not edit targets", async (r) => {
     role(r);
     render(<ProductionPage />);
     expect(await screen.findByText("3,100 pcs")).toBeTruthy();
@@ -170,14 +170,13 @@ describe("Work orders", () => {
     await waitFor(() => expect(transitionStatus).toHaveBeenCalledWith(7, "RELEASED"));
   });
 
-  it("hides work-order editing from HR", async () => {
+  it("gives HR employees and attendance only, without work orders", async () => {
     role("HR");
-    render(<ProductionPage />);
-    await screen.findByText("WO-0007");
-    expect(screen.queryByRole("button", { name: /New Work Order/ })).toBeNull();
-    expect(screen.queryByLabelText("Change status of WO-0007")).toBeNull();
-    expect(screen.queryByRole("button", { name: "Edit WO-0007" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Delete WO-0007" })).toBeNull();
+    render(<ProductionPage section="workforce" />);
+    expect(screen.queryByRole("button", { name: "Company Performance" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Workforce Management" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Attendance" })).toBeTruthy();
+    expect(getWorkOrders).not.toHaveBeenCalledWith(expect.objectContaining({ status: "all", pageSize: 20 }));
   });
 
   it("edits a work order with its saved values and sends only the changes", async () => {

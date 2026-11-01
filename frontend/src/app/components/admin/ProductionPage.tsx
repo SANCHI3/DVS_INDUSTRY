@@ -25,14 +25,23 @@ import { getDepartments } from "../../../lib/services/departments.service";
 import { getEmployees } from "../../../lib/services/employees.service";
 import { getEmployeeOutputSummary } from "../../../lib/services/workforce.service";
 import { workOrderStatusLabel } from "../../../lib/workOrderStatus";
+import { productionTabs, type ProductionTab } from "../../../lib/permissions";
 
 function formatQty(value: string | number) {
   const n = Number(value);
   return Number.isFinite(n) ? n.toLocaleString("en-IN", { maximumFractionDigits: 3 }) : String(value);
 }
 
-export function ProductionPage() {
-  const [tab, setTab] = useState("performance");
+const TAB_LABELS: Record<ProductionTab, string> = {
+  performance: "Company Performance",
+  workforce: "Workforce Management",
+  attendance: "Attendance",
+};
+
+/** "production": work orders and output (plus workforce for managers); "workforce": HR's employees and attendance. */
+export function ProductionPage({ section = "production" }: { section?: "production" | "workforce" }) {
+  const tabs = useMemo(() => productionTabs(getStoredBackendRole(), section), [section]);
+  const [tab, setTab] = useState<string>(() => tabs[0] ?? "performance");
   const [addRequest, setAddRequest] = useState(0);
   const perms = useMemo(() => workforcePermissions(getStoredBackendRole()), []);
   const prod = useMemo(() => productionPermissions(getStoredBackendRole()), []);
@@ -111,8 +120,8 @@ export function ProductionPage() {
   return (
     <div className="p-4 sm:p-6">
       <PageHeader
-        title="Production & Workforce Management"
-        subtitle="Monitor output, workforce efficiency, and attendance across all departments"
+        title={section === "workforce" ? "Workforce" : "Production & Workforce Management"}
+        subtitle={section === "workforce" ? "Employees, shifts and attendance" : "Monitor output, workforce efficiency, and attendance across all departments"}
         actions={
           perms.editEmployees ? (
             <Btn size="sm" onClick={() => { setTab("workforce"); setAddRequest((n) => n + 1); }}><Plus size={14} /> Add Employee</Btn>
@@ -121,11 +130,7 @@ export function ProductionPage() {
       />
 
       <TabBar
-        tabs={[
-          { id: "performance", label: "Company Performance" },
-          { id: "workforce", label: "Workforce Management" },
-          { id: "attendance", label: "Attendance" },
-        ]}
+        tabs={tabs.map((id) => ({ id, label: TAB_LABELS[id] }))}
         active={tab}
         onChange={setTab}
       />
@@ -133,7 +138,7 @@ export function ProductionPage() {
       <div className="mt-5">
         {demo.data && <DemoDataBanner employees={demo.data.employees} workOrders={demo.data.workOrders} />}
 
-        {tab === "performance" && (
+        {tab === "performance" && tabs.includes("performance") && (
           <div>
             {kpis.waking && <div className="mb-3"><InlineNotice tone="info">The server is starting up after being idle. Data will appear in up to a minute.</InlineNotice></div>}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-3">

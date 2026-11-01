@@ -12,6 +12,9 @@ export interface AuthenticatedRequest extends Request {
     email: string;
     fullName?: string;
     role: string; // role name e.g. "ADMIN"
+    /** Portal logins: the company the account belongs to (null = match by email). */
+    supplierId?: number | null;
+    clientId?: number | null;
   };
 }
 

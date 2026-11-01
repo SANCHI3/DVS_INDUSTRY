@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -27,6 +27,8 @@ import { eventTypeLabel, incidentHeadline, isRetiredIncidentType } from "../../.
 import { detectionCountsByType, sortNeedsAttention, upsertUnresolved } from "../../../lib/needsAttention";
 import { IncidentEvidenceDialog } from "./IncidentEvidenceDialog";
 import { onServerWaking, withServerWake } from "../../../lib/api";
+import { getStoredBackendRole } from "../../../lib/auth";
+import { securityActions } from "../../../lib/permissions";
 
 const tabs = [
   { id: "live", label: "Live Monitoring" },
@@ -117,6 +119,8 @@ function LiveBadge({ status }: { status: StreamStatus }) {
 }
 
 export function SecurityPage() {
+  // Production can follow incidents but only admins and managers act on them
+  const actions = useMemo(() => securityActions(getStoredBackendRole()), []);
   const [tab, setTab] = useState("live");
   const [filter, setFilter] = useState<(typeof filters)[number]>("all");
   const [kpis, setKpis] = useState<SecurityKPIs | null>(null);
@@ -156,7 +160,8 @@ export function SecurityPage() {
       wake(() => getIncidents({ pageSize: 50, sortBy: "occurredAt", sortOrder: "desc" })),
       wake(() => getIncidents({ status: "OPEN", pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" })),
       wake(() => getIncidents({ status: "INVESTIGATING", pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" })),
-      wake(() => getEligibleEmployees()),
+      // Only roles that can assign incidents need the list of assignees
+      securityActions(getStoredBackendRole()).manageIncidents ? wake(() => getEligibleEmployees()) : Promise.resolve([] as UserDto[]),
     ]).then(([kpiResult, incidentResult, openResult, investigatingResult, userResult]) => {
       stopListening();
       setWaking(false);
@@ -290,7 +295,9 @@ export function SecurityPage() {
     return <span style={{ color: "#9A8A88", fontSize: "0.75rem" }}>No action</span>;
   };
 
-  const renderAssignment = (incident: DisplayIncident) => (
+  const renderAssignment = (incident: DisplayIncident) => !actions.manageIncidents
+    ? <span style={{ color: incident.assigned === "Unassigned" ? "#9A8A88" : "#4A4A4A", fontSize: "0.76rem" }}>{incident.assigned}</span>
+    : (
     <select
       value={incident.assignedToId ?? ""}
       disabled={usersError || assigningIncidentId === incident.numericId}
@@ -419,7 +426,7 @@ export function SecurityPage() {
                 searchable
                 paginate={10}
                 emptyMsg={incidentsLoading ? "Loading incidents..." : incidentsError ? "Unable to load incidents." : "No incidents available."}
-                columns={[{ key: "id", label: "Incident ID" }, { key: "datetime", label: "Date & Time" }, { key: "location", label: "Location" }, { key: "type", label: "Event Type" }, { key: "aiSummary", label: "AI Summary" }, { key: "confidence", label: "Confidence" }, { key: "severity", label: "Severity" }, { key: "status", label: "Status" }, { key: "assigned", label: "Assigned To" }, { key: "actions", label: "Actions" }]}
+                columns={[{ key: "id", label: "Incident ID" }, { key: "datetime", label: "Date & Time" }, { key: "location", label: "Location" }, { key: "type", label: "Event Type" }, { key: "aiSummary", label: "AI Summary" }, { key: "confidence", label: "Confidence" }, { key: "severity", label: "Severity" }, { key: "status", label: "Status" }, { key: "assigned", label: "Assigned To" }, ...(actions.manageIncidents ? [{ key: "actions", label: "Actions" }] : [])]}
                 rows={filteredIncidents.map((incident) => ({
                   id: <button onClick={() => setSelectedIncidentId(incident.numericId)} title="View evidence" style={{ color: "#A52A2A", fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", fontWeight: 700, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>{incident.id}</button>,
                   datetime: <div><p style={{ color: "#302725", fontSize: "0.78rem", fontWeight: 600 }}>{incident.dateTime.date}</p><p style={{ color: "#9A8A88", fontSize: "0.7rem" }}>{incident.dateTime.time}</p></div>,

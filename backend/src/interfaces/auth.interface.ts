@@ -83,6 +83,9 @@ export interface CreateUserData {
   password: string; // plain text — service will hash it
   phone?: string | null;
   roleId: number;
+  /** Portal logins: the supplier or client company (matched by email when absent). */
+  supplierId?: number | null;
+  clientId?: number | null;
 }
 
 export interface UpdateUserData {

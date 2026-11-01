@@ -67,6 +67,8 @@ export class UserRepository implements IUserRepository {
         password: data.password, // already hashed by service
         phone: data.phone ?? null,
         roleId: data.roleId,
+        supplierId: data.supplierId ?? null,
+        clientId: data.clientId ?? null,
       },
       select: userSelect,
     });

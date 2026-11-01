@@ -42,6 +42,9 @@ export const registerSchema = z.object({
   password: passwordField,
   phone: phoneField,
   roleId: z.number().int().positive('roleId must be a positive integer'),
+  // Portal logins: which supplier or client company the account belongs to
+  supplierId: z.number().int().positive().optional(),
+  clientId: z.number().int().positive().optional(),
 });
 
 export const loginSchema = z.object({

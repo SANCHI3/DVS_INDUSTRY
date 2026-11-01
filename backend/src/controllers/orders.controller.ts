@@ -37,7 +37,7 @@ function isClientRequest(req: AuthenticatedRequest): boolean {
 
 async function getRequestClient(req: AuthenticatedRequest) {
   if (req.user === undefined) throw new ForbiddenError('Authenticated client context is required');
-  return svc.getClientByEmail(req.user.email);
+  return svc.getClientForAccount(req.user);
 }
 
 function isSupplierRequest(req: AuthenticatedRequest): boolean {
@@ -47,7 +47,7 @@ function isSupplierRequest(req: AuthenticatedRequest): boolean {
 async function getRequestSupplier(req: AuthenticatedRequest) {
   if (req.user === undefined)
     throw new ForbiddenError('Authenticated supplier context is required');
-  return svc.getSupplierByEmail(req.user.email);
+  return svc.getSupplierForAccount(req.user);
 }
 
 async function assertClientOrderAccess(req: AuthenticatedRequest, id: number) {

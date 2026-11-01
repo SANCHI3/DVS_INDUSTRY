@@ -13,7 +13,7 @@ function readHash(): string | null {
  * reload stays on the same page and the browser's Back button moves between
  * sections. Each section change adds one history entry.
  */
-export function useSectionHash(fallback: string): [string, (section: string) => void] {
+export function useSectionHash(fallback: string): [string, (section: string, options?: { replace?: boolean }) => void] {
   const [section, setSectionState] = useState(() => readHash() ?? fallback);
 
   useEffect(() => {
@@ -22,9 +22,12 @@ export function useSectionHash(fallback: string): [string, (section: string) => 
     return () => window.removeEventListener("hashchange", onHashChange);
   }, [fallback]);
 
-  const setSection = useCallback((next: string) => {
+  const setSection = useCallback((next: string, options?: { replace?: boolean }) => {
     setSectionState(next);
-    if (readHash() !== next) window.history.pushState(null, "", `#${next}`);
+    if (readHash() === next) return;
+    // replace: correct the address without adding a Back step (e.g. a forbidden link)
+    if (options?.replace) window.history.replaceState(null, "", `#${next}`);
+    else window.history.pushState(null, "", `#${next}`);
   }, []);
 
   return [section, setSection];

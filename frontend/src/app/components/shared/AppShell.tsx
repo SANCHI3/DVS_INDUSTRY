@@ -5,10 +5,11 @@ import { useERP, type ERPNotification } from "../admin/ERPContext";
 import type { PortalNotification } from "../../../lib/portalInsights";
 import { AskDvs } from "./AskDvs";
 import { getStoredBackendRole } from "../../../lib/auth";
+import { baseSection, roleLabel, sectionsFor } from "../../../lib/permissions";
 import {
   LayoutDashboard, Factory, Shield, Package, ShoppingCart, BarChart3, UserCircle, LogOut,
   Menu, X, Bell, Search, Cpu, Building2, Truck, UserCheck, FileText, MessageSquare, Star,
-  ShoppingBag, MapPin, Headphones, Sparkles,
+  ShoppingBag, MapPin, Headphones, Sparkles, Users,
 } from "lucide-react";
 
 export type UserRole = "admin" | "supplier" | "client";
@@ -21,28 +22,26 @@ interface NavItem {
   children?: { id: string; label: string }[];
 }
 
-// Flat navigation for Admin (no dropdowns)
-const adminNavFlat: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "production", label: "Production", icon: Factory },
-  { id: "security", label: "AI Security", icon: Shield },
-  { id: "inventory", label: "Inventory", icon: Package },
-  { id: "orders", label: "Orders & Supply", icon: ShoppingCart },
-  { id: "reports", label: "Reports Center", icon: BarChart3 },
-  { id: "analytics", label: "Smart Analytics", icon: Sparkles },
-  { id: "users", label: "User Management", icon: UserCheck },
-  { id: "profile", label: "My Profile", icon: UserCircle },
-];
+// Every staff section; each role sees the ones lib/permissions.ts allows
+const staffNavItems: Record<string, NavItem> = {
+  dashboard: { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  production: { id: "production", label: "Production", icon: Factory },
+  workforce: { id: "workforce", label: "Workforce", icon: Users },
+  security: { id: "security", label: "AI Security", icon: Shield },
+  inventory: { id: "inventory", label: "Inventory", icon: Package },
+  orders: { id: "orders", label: "Orders & Supply", icon: ShoppingCart },
+  reports: { id: "reports", label: "Reports Center", icon: BarChart3 },
+  analytics: { id: "analytics", label: "Smart Analytics", icon: Sparkles },
+  users: { id: "users", label: "User Management", icon: UserCheck },
+};
 
-// Production role navigation (only production module)
-const productionNav: NavItem[] = [
-  { id: "production", label: "Production", icon: Factory },
-];
-
-// Store role navigation (only orders module)
-const storeNav: NavItem[] = [
-  { id: "orders", label: "Orders & Supply", icon: ShoppingCart },
-];
+/** Sidebar for a staff login: its allowed sections, then My Profile. */
+export function staffNavigation(backendRole: string | null): NavItem[] {
+  return [
+    ...sectionsFor(backendRole).map((id) => staffNavItems[id]!),
+    { id: "profile", label: "My Profile", icon: UserCircle },
+  ];
+}
 
 const supplierNav: NavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -64,8 +63,7 @@ const clientNav: NavItem[] = [
   { id: "reports", label: "Reports", icon: BarChart3 },
 ];
 
-const navByRole: Record<UserRole, NavItem[]> = {
-  admin: adminNavFlat,
+const navByRole: Record<"supplier" | "client", NavItem[]> = {
   supplier: supplierNav,
   client: clientNav,
 };
@@ -91,6 +89,7 @@ function initials(name: string): string {
 
 interface AppShellProps {
   role: UserRole;
+  /** @deprecated Staff access comes from the signed-in user's backend role. */
   userRole?: SystemUserRole;
   /** Name for the sidebar card: the user (admin roles) or the company (portals). */
   userName?: string | undefined;
@@ -114,7 +113,7 @@ function relativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export function AppShell({ role, userRole, userName, portalNotifications, activeSection, onSectionChange, onOpenProfile, onLogout, children }: AppShellProps) {
+export function AppShell({ role, userName, portalNotifications, activeSection, onSectionChange, onOpenProfile, onLogout, children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -135,20 +134,11 @@ export function AppShell({ role, userRole, userName, portalNotifications, active
     try { localStorage.setItem(`${SEEN_KEY}:${role}`, now); } catch { /* storage blocked */ }
   };
   
-  // Get navigation based on userRole if it's an admin-type role
-  const getNavigation = (): NavItem[] => {
-    if (role === "admin" && userRole) {
-      if (userRole === "production") return productionNav;
-      if (userRole === "store") return storeNav;
-      return adminNavFlat;
-    }
-    return navByRole[role];
-  };
-
-  const nav = getNavigation();
+  const backendRole = getStoredBackendRole();
+  const nav = role === "admin" ? staffNavigation(backendRole) : navByRole[role];
   const accentColor = roleColors[role];
   const searchResults = searchQuery.length >= 2 ? nav.filter((n) => n.label.toLowerCase().includes(searchQuery.toLowerCase())) : [];
-  const displayRoleLabel = userRole ? roleLabels[userRole] : roleLabels[role];
+  const displayRoleLabel = role === "admin" ? roleLabel(backendRole) : roleLabels[role];
 
   const handleNavClick = (item: NavItem) => {
     // For flat navigation (admin), just navigate directly
@@ -172,7 +162,7 @@ export function AppShell({ role, userRole, userName, portalNotifications, active
         {sidebarOpen && (
           <div>
             <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1C1C1C", letterSpacing: "0.04em" }}>DVS INDUSTRIES</div>
-            <div style={{ fontSize: "0.65rem", color: accentColor, letterSpacing: "0.06em" }}>{roleLabels[role].toUpperCase()}</div>
+            <div style={{ fontSize: "0.65rem", color: accentColor, letterSpacing: "0.06em" }}>{displayRoleLabel.toUpperCase()}</div>
           </div>
         )}
       </div>
@@ -181,7 +171,7 @@ export function AppShell({ role, userRole, userName, portalNotifications, active
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {nav.map((item) => {
           const Icon = item.icon;
-          const isActive = activeSection === item.id;
+          const isActive = baseSection(activeSection) === item.id;
 
           return (
             <div key={item.id}>

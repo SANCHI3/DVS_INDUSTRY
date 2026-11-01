@@ -6,6 +6,8 @@ import { isApiError } from "../../../lib/api";
 import { deactivateUser, getRoles, getUsers, registerUser, updateUser, type RoleDto, type UserDto } from "../../../lib/services/users.service";
 import { getAuditLogs } from "../../../lib/services/audit.service";
 import { Modal } from "../shared/Modal";
+import { useApiData } from "../../../lib/useApiData";
+import { getClients, getSuppliers } from "../../../lib/services/orders.service";
 import { InquiriesPanel } from "./InquiriesPanel";
 
 type IconProps = { size?: number; color?: string };
@@ -53,6 +55,15 @@ export function UserManagementPage() {
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
   const [creatingUser, setCreatingUser] = useState(false);
   const [newUser, setNewUser]       = useState({ name: "", email: "", password: "", role: "admin", roleId: 1, dept: "Management", status: "active" });
+  // Supplier/client logins: which company they belong to ("" = match by email)
+  const [companyId, setCompanyId] = useState("");
+  const companyKind = newUser.role === "supplier" ? "supplier" : newUser.role === "client" ? "client" : null;
+  const companies = useApiData(
+    async () => companyKind === "supplier"
+      ? (await getSuppliers({ pageSize: 100 })).data.map((c) => ({ id: c.id, name: c.name, email: c.email }))
+      : (await getClients({ pageSize: 100 })).data.map((c) => ({ id: c.id, name: c.name, email: c.email })),
+    [companyKind], "load companies", showAdd && companyKind !== null,
+  );
 
   const mapUsers = (items: UserDto[]): User[] => items.map((user) => ({
     id: String(user.id),
@@ -117,7 +128,10 @@ export function UserManagementPage() {
         email: normalizedEmail,
         password: newUser.password,
         roleId: selectedRole.id,
+        ...(companyId && companyKind === "supplier" && { supplierId: Number(companyId) }),
+        ...(companyId && companyKind === "client" && { clientId: Number(companyId) }),
       });
+      setCompanyId("");
       toast.success("User account created successfully.");
       setShowAdd(false);
       setNewUser({ name: "", email: "", password: "", role: "admin", roleId: 1, dept: "Management", status: "active" });
@@ -193,6 +207,16 @@ export function UserManagementPage() {
               </select>
             </div>
           </div>
+          {companyKind && (
+            <div>
+              <label style={labelStyle} htmlFor="new-user-company">{companyKind === "supplier" ? "Supplier company" : "Client company"}</label>
+              <select id="new-user-company" style={fieldStyle} value={companyId} onChange={(e) => setCompanyId(e.target.value)} disabled={companies.loading}>
+                <option value="">{companies.loading ? "Loading…" : "Match by email address"}</option>
+                {(companies.data ?? []).map((c) => <option key={c.id} value={c.id}>{c.name}{c.email ? ` (${c.email})` : ""}</option>)}
+              </select>
+              <p style={{ fontSize: "0.7rem", color: "#9A8A88", marginTop: "0.25rem" }}>The portal only shows this company's orders and messages.</p>
+            </div>
+          )}
           <div>
             <label style={labelStyle}>Department</label>
             <select style={fieldStyle} value={newUser.dept} onChange={(e) => setNewUser({ ...newUser, dept: e.target.value })}>

@@ -49,6 +49,8 @@ export async function authenticate(
       email: true,
       fullName: true,
       isActive: true,
+      supplierId: true,
+      clientId: true,
       role: { select: { name: true } },
     },
   });
@@ -57,6 +59,13 @@ export async function authenticate(
     throw new UnauthorizedError('Account not found or deactivated');
   }
 
-  req.user = { id: user.id, email: user.email, fullName: user.fullName, role: user.role.name };
+  req.user = {
+    id: user.id,
+    email: user.email,
+    fullName: user.fullName,
+    role: user.role.name,
+    supplierId: user.supplierId ?? null,
+    clientId: user.clientId ?? null,
+  };
   next();
 }

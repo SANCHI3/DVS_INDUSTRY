@@ -39,6 +39,8 @@ export async function register(req: Request, res: Response): Promise<void> {
     password: body.password,
     phone: body.phone ?? null,
     roleId: body.roleId,
+    ...(body.supplierId !== undefined && { supplierId: body.supplierId }),
+    ...(body.clientId !== undefined && { clientId: body.clientId }),
   });
   sendCreated(res, user, 'User registered successfully');
 }

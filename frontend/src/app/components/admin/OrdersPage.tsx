@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast as showSonnerToast } from "sonner";
 import { Plus, Download, Eye, CheckCircle2, Truck } from "lucide-react";
 import { PageHeader, Card, CardHeader, KPICard, StatusBadge, Btn, DataTable, TabBar } from "../shared/UI";
@@ -10,7 +10,8 @@ import {
 } from "../../../lib/services/orders.service";
 import { downloadCSV } from "../../../lib/csv";
 import { getStoredBackendRole } from "../../../lib/auth";
-import { PortalInbox, PORTAL_STAFF_ROLES } from "./orders/PortalInbox";
+import { PortalInbox } from "./orders/PortalInbox";
+import { orderActions } from "../../../lib/permissions";
 
 import {
   parseMoney, parseQuantity, POModal, OrderDetailModal, DispatchModal, NewClientOrderModal, type ClientOrder, type SupplierOrder,
@@ -18,6 +19,8 @@ import {
 import { formatINR } from "../../../lib/format";
 
 export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => void }) {
+  // Buttons the signed-in role can use (the backend rejects the rest)
+  const actions = useMemo(() => orderActions(getStoredBackendRole()), []);
   const [tab, setTab]                       = useState("client-orders");
   const [clientOrders, setClientOrders]     = useState<ClientOrder[]>([]);
   const [supplierOrders, setSupplierOrders] = useState<SupplierOrder[]>([]);
@@ -45,7 +48,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
     const [coRes, poRes, statsRes, clientRes, supplierRes] = await Promise.all([
       getClientOrders({ pageSize: 50, sortOrder: "desc" }).catch(() => null),
       getPurchaseOrders({ pageSize: 50, sortOrder: "desc" }).catch(() => null),
-      getOrderStats().catch(() => null),
+      (orderActions(getStoredBackendRole()).viewStatistics ? getOrderStats() : Promise.resolve(null)).catch(() => null),
       getClients({ pageSize: 100 }).catch(() => null),
       getSuppliers({ pageSize: 100 }).catch(() => null),
     ]);
@@ -159,8 +162,8 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
       <OrderDetailModal
         order={selectedOrder}
         onClose={() => setSelectedOrder(null)}
-        onApprove={() => handleApprove(selectedOrder.id)}
-        onDispatch={() => { setDispatchOrder(selectedOrder); setSelectedOrder(null); }}
+        {...(actions.approveClientOrder && { onApprove: () => handleApprove(selectedOrder.id) })}
+        {...(actions.dispatchClientOrder && { onDispatch: () => { setDispatchOrder(selectedOrder); setSelectedOrder(null); } })}
       />
     )}
     {dispatchOrder && (
@@ -178,24 +181,24 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
         actions={
           <div className="flex gap-2">
             <Btn variant="secondary" size="sm" onClick={handleExport}><Download size={14} /> Export</Btn>
-            <Btn size="sm" onClick={() => setShowNewOrder(true)}><Plus size={14} /> New Order</Btn>
+            {actions.createClientOrder && <Btn size="sm" onClick={() => setShowNewOrder(true)}><Plus size={14} /> New Order</Btn>}
           </div>
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+      {actions.viewStatistics && <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
         <KPICard label="Active Client Orders" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats ? String(apiStats.clientOrders.total - apiStats.clientOrders.delivered - apiStats.clientOrders.cancelled) : "—"} sub="in progress" accent="#A52A2A" />
         <KPICard label="Pending Supplier POs" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats ? String(apiStats.purchaseOrders.pending) : "—"} sub="awaiting processing" accent="#E65100" trendDir="down" />
         <KPICard label="Dispatched Orders" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats ? String(apiStats.clientOrders.dispatched) : "—"} accent="#1565C0" />
         <KPICard label="Fulfillment Rate" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats?.fulfillmentRate ?? "—"} accent="#2E7D32" />
-      </div>
+      </div>}
 
       <TabBar
         tabs={[
           { id: "client-orders", label: "Client Orders" },
           { id: "supplier-orders", label: "Supplier Orders" },
           { id: "supply-chain", label: "Supply Chain Flow" },
-          ...(PORTAL_STAFF_ROLES.includes(getStoredBackendRole() ?? "") ? [{ id: "portal-messages", label: "Portal Messages" }] : []),
+          ...(actions.portalMessages ? [{ id: "portal-messages", label: "Portal Messages" }] : []),
         ]}
         active={tab}
         onChange={setTab}
@@ -208,7 +211,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
             <CardHeader
               title="Client Orders"
               subtitle={ordersLoading ? "Loading orders..." : ordersError ? "Unable to load orders" : `${clientOrders.length} total orders`}
-              actions={<Btn size="sm" onClick={() => setShowNewOrder(true)}><Plus size={13} /> New Order</Btn>}
+              actions={actions.createClientOrder ? <Btn size="sm" onClick={() => setShowNewOrder(true)}><Plus size={13} /> New Order</Btn> : undefined}
             />
             <DataTable
               searchable
@@ -238,10 +241,10 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
                 actions: (
                   <div className="flex gap-1.5">
                     <button onClick={() => setSelectedOrder(o)} title="View details" className="p-1.5 rounded" style={{ background: "#F0F4FF", color: "#1565C0" }}><Eye size={12} /></button>
-                    {o.status === "pending" && (
+                    {o.status === "pending" && actions.approveClientOrder && (
                       <button onClick={() => handleApprove(o.id)} title="Approve order" className="p-1.5 rounded" style={{ background: "#E8F5E9", color: "#2E7D32" }}><CheckCircle2 size={12} /></button>
                     )}
-                    {o.status === "approved" && (
+                    {o.status === "approved" && actions.dispatchClientOrder && (
                       <button onClick={() => setDispatchOrder(o)} title="Dispatch order" className="p-1.5 rounded" style={{ background: "#FFF3E0", color: "#E65100" }}><Truck size={12} /></button>
                     )}
                   </div>
@@ -257,7 +260,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
             <CardHeader
               title="Purchase Orders"
               subtitle="Supplier procurement tracking"
-              actions={<Btn size="sm" onClick={() => setShowNewPO(true)}><Plus size={13} /> Create PO</Btn>}
+              actions={actions.managePurchaseOrders ? <Btn size="sm" onClick={() => setShowNewPO(true)}><Plus size={13} /> Create PO</Btn> : undefined}
             />
             <DataTable
               columns={[

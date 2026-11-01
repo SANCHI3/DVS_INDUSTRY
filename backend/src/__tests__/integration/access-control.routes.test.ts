@@ -30,7 +30,7 @@ vi.mock('../../lib/prismaClient', () => ({
       create: vi.fn(),
       update: vi.fn(),
     },
-    supplier: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+    supplier: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     purchaseOrder: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     portalMessage: { findMany: vi.fn(), groupBy: vi.fn() },
     auditLog: { create: vi.fn().mockResolvedValue({}) },
@@ -52,15 +52,17 @@ vi.mock('../../logger', () => ({
   },
 }));
 
-const USERS: Record<string, { id: number; email: string; role: string }> = {
+const USERS: Record<string, { id: number; email: string; role: string; supplierId?: number }> = {
   perception: { id: 9, email: 'perception@test.com', role: 'PERCEPTION_SERVICE' },
   sales: { id: 4, email: 'sales@test.com', role: 'SALES' },
   supplier: { id: 7, email: 'vendor@acme.test', role: 'SUPPLIER' },
+  // A login linked to supplier 5, though its email matches supplier 3
+  linked: { id: 8, email: 'vendor@acme.test', role: 'SUPPLIER', supplierId: 5 },
 };
 
 vi.mock('../../utils/token', () => ({
   verifyAccessToken: vi.fn((token: string) => {
-    const u = { perception: 9, sales: 4, supplier: 7 }[token];
+    const u = { perception: 9, sales: 4, supplier: 7, linked: 8 }[token];
     if (u === undefined) throw new Error('invalid');
     return { sub: u, email: '', role: '' };
   }),
@@ -131,7 +133,15 @@ beforeEach(() => {
   fn(prisma.user.findUnique).mockImplementation(({ where }: { where: { id: number } }) => {
     const u = Object.values(USERS).find((x) => x.id === where.id);
     return Promise.resolve(
-      u && { id: u.id, email: u.email, fullName: u.email, isActive: true, role: { name: u.role } },
+      u && {
+        id: u.id,
+        email: u.email,
+        fullName: u.email,
+        isActive: true,
+        supplierId: u.supplierId ?? null,
+        clientId: null,
+        role: { name: u.role },
+      },
     );
   });
 });
@@ -217,6 +227,18 @@ describe('supplier scoping', () => {
     const where = fn(prisma.purchaseOrder.findMany).mock.calls[0][0].where;
     expect(JSON.stringify(where)).toContain('"supplierId":3');
     expect(JSON.stringify(where)).not.toContain('99');
+  });
+
+  it('uses the supplier linked to the login rather than the email match', async () => {
+    fn(prisma.supplier.findUnique).mockResolvedValue(supplierRow(5, 'other@acme.test'));
+    const res = await request(app)
+      .get('/api/v1/orders/purchase-orders')
+      .set('Authorization', 'Bearer linked');
+
+    expect(res.status).toBe(200);
+    const where = fn(prisma.purchaseOrder.findMany).mock.calls[0][0].where;
+    expect(JSON.stringify(where)).toContain('"supplierId":5');
+    expect(prisma.supplier.findFirst).not.toHaveBeenCalled();
   });
 
   it('blocks suppliers from client orders', async () => {

@@ -19,6 +19,9 @@ vi.mock('../../lib/prismaClient', () => ({
 const orders = {
   getSupplierByEmail: vi.fn(),
   getClientByEmail: vi.fn(),
+  // Linked company first; these mocks fall back to the email lookups
+  getSupplierForAccount: vi.fn((a: { email: string }) => orders.getSupplierByEmail(a.email)),
+  getClientForAccount: vi.fn((a: { email: string }) => orders.getClientByEmail(a.email)),
   getSupplierById: vi.fn(),
   getClientById: vi.fn(),
 };
@@ -55,6 +58,12 @@ describe('PortalService', () => {
     orders.getSupplierById.mockResolvedValue({ id: 7 });
     orders.getClientById.mockResolvedValue({ id: 9 });
     svc = new PortalService();
+  });
+
+  it('uses the company linked to the portal login', async () => {
+    const linked = { ...supplierUser, supplierId: 7 };
+    await svc.resolveParty(linked, { supplierId: 99 });
+    expect(orders.getSupplierForAccount).toHaveBeenCalledWith(linked);
   });
 
   it('gives a supplier its own conversation, ignoring any id it asks for', async () => {

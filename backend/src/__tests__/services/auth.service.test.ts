@@ -34,6 +34,8 @@ vi.mock('../../lib/prismaClient', () => ({
       count: vi.fn(),
     },
     role: { findUnique: vi.fn(), findMany: vi.fn() },
+    supplier: { findFirst: vi.fn() },
+    client: { findFirst: vi.fn() },
     refreshToken: { create: vi.fn(), findUnique: vi.fn(), delete: vi.fn(), deleteMany: vi.fn() },
     $queryRawUnsafe: vi.fn().mockResolvedValue([{ max: null }]),
     $transaction: vi.fn((fns: unknown[]) => Promise.all(fns as Promise<unknown>[])),
@@ -127,6 +129,85 @@ describe('AuthService', () => {
       await expect(
         svc.register({ fullName: 'X', email: 'admin@test.com', password: 'pass', roleId: 1 }),
       ).rejects.toThrow(ConflictError);
+    });
+
+    it('links a new supplier login to the supplier with the same email', async () => {
+      (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 7,
+        name: 'SUPPLIER',
+      });
+      (prisma.supplier.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 12 });
+      (prisma.user.create as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
+
+      await svc.register({ fullName: 'Mal', email: 'Sales@Mal.in', password: 'pass', roleId: 7 });
+
+      expect(prisma.supplier.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { email: { equals: 'Sales@Mal.in', mode: 'insensitive' }, deletedAt: null },
+        }),
+      );
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ supplierId: 12, clientId: null }),
+        }),
+      );
+    });
+
+    it('uses the client the admin chose, and rejects one that does not exist', async () => {
+      (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 8,
+        name: 'CLIENT',
+      });
+      (prisma.user.create as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
+      const client = prisma.client.findFirst as ReturnType<typeof vi.fn>;
+
+      client.mockResolvedValueOnce({ id: 4 });
+      await svc.register({
+        fullName: 'CES',
+        email: 'buyer@ces.in',
+        password: 'pass',
+        roleId: 8,
+        clientId: 4,
+      });
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ clientId: 4, supplierId: null }),
+        }),
+      );
+
+      client.mockResolvedValueOnce(null);
+      await expect(
+        svc.register({
+          fullName: 'X',
+          email: 'x@ces.in',
+          password: 'pass',
+          roleId: 8,
+          clientId: 99,
+        }),
+      ).rejects.toThrow(BadRequestError);
+    });
+
+    it('never links a staff account to a company', async () => {
+      (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+      (prisma.role.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(mockRole);
+      (prisma.user.create as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
+
+      await svc.register({
+        fullName: 'A',
+        email: 'a@dvs.in',
+        password: 'pass',
+        roleId: 1,
+        supplierId: 3,
+      });
+
+      expect(prisma.supplier.findFirst).not.toHaveBeenCalled();
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ supplierId: null, clientId: null }),
+        }),
+      );
     });
 
     it('throws BadRequestError if roleId does not exist', async () => {

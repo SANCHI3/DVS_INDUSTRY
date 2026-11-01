@@ -31,7 +31,8 @@ import {
 } from '../utils/token';
 import { sendPasswordResetEmail } from '../utils/mailer';
 import { logger } from '../logger';
-import { REFRESH_ROTATION_GRACE_MS } from '../constants';
+import { REFRESH_ROTATION_GRACE_MS, ROLES } from '../constants';
+import { prisma } from '../lib/prismaClient';
 
 const PASSWORD_RESET_TTL_MS = 15 * 60 * 1_000;
 
@@ -66,8 +67,54 @@ export class AuthService {
     }
 
     const hashedPassword = await bcrypt.hash(data.password, env.BCRYPT_SALT_ROUNDS);
+    const company = await this.portalCompany(role.name, data);
 
-    return this.userRepo.create({ ...data, password: hashedPassword });
+    return this.userRepo.create({ ...data, ...company, password: hashedPassword });
+  }
+
+  /**
+   * A supplier or client login is tied to its company when it is created:
+   * the one the admin chose, or the company with the same email. Staff
+   * accounts never carry a company link.
+   */
+  private async portalCompany(
+    roleName: string,
+    data: CreateUserData,
+  ): Promise<{ supplierId: number | null; clientId: number | null }> {
+    const none = { supplierId: null, clientId: null };
+    if (roleName === ROLES.SUPPLIER) {
+      if (data.supplierId != null) {
+        const supplier = await prisma.supplier.findFirst({
+          where: { id: data.supplierId, deletedAt: null },
+          select: { id: true },
+        });
+        if (supplier === null) throw new BadRequestError('The chosen supplier does not exist');
+        return { ...none, supplierId: supplier.id };
+      }
+      const match = await prisma.supplier.findFirst({
+        where: { email: { equals: data.email, mode: 'insensitive' }, deletedAt: null },
+        orderBy: { id: 'asc' },
+        select: { id: true },
+      });
+      return { ...none, supplierId: match?.id ?? null };
+    }
+    if (roleName === ROLES.CLIENT) {
+      if (data.clientId != null) {
+        const client = await prisma.client.findFirst({
+          where: { id: data.clientId, deletedAt: null },
+          select: { id: true },
+        });
+        if (client === null) throw new BadRequestError('The chosen client does not exist');
+        return { ...none, clientId: client.id };
+      }
+      const match = await prisma.client.findFirst({
+        where: { email: { equals: data.email, mode: 'insensitive' }, deletedAt: null },
+        orderBy: { id: 'asc' },
+        select: { id: true },
+      });
+      return { ...none, clientId: match?.id ?? null };
+    }
+    return none;
   }
 
   async getUsers(): Promise<UserDto[]> {

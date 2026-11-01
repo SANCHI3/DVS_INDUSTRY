@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Download, FileText, Eye, X } from "lucide-react";
 import { PageHeader, Card, CardHeader, Btn, StatusBadge } from "../shared/UI";
 import { toast } from "sonner";
@@ -10,6 +10,8 @@ import {
 } from "../../../lib/services/reports.service";
 import { downloadCSV } from "../../../lib/csv";
 import { formatINR } from "../../../lib/format";
+import { getStoredBackendRole } from "../../../lib/auth";
+import { reportsFor } from "../../../lib/permissions";
 
 type ReportPayload = InventoryReport | WorkforceReport | OrdersReport | ScrapReport | SupplierReport | ClientReport | ProductionReport | AttendanceReport | SecurityReport;
 type ReportId = "production" | "inventory" | "workforce" | "orders" | "scrap" | "supplier" | "client" | "attendance" | "security";
@@ -89,6 +91,8 @@ function PreviewModal({ report, title, onClose, onPrint, onCSV }: { report: Repo
 }
 
 export function ReportsPage() {
+  // Only reports this role may load
+  const allowedReports = useMemo(() => reportsFor(getStoredBackendRole()), []);
   const [filters, setFilters] = useState<ReportFilters>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -132,7 +136,7 @@ export function ReportsPage() {
           <span style={{ fontSize: "0.72rem", color: "#7A6C6A" }}>Filters apply when a report is loaded.</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {reportTypes.map((item) => {
+          {reportTypes.filter((item) => allowedReports.includes(item.id)).map((item) => {
             const loaded = Boolean(reports[item.id]);
             const error = errors[item.id];
             const unavailable = !fetchers[item.id];

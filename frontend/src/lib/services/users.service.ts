@@ -35,6 +35,9 @@ export async function registerUser(input: {
   email: string;
   password: string;
   roleId: number;
+  /** Supplier/client logins: their company (the server matches by email when absent). */
+  supplierId?: number;
+  clientId?: number;
 }): Promise<UserDto> {
   const res = await api.post<{ success: true; data: UserDto }>('/auth/register', input);
   return unwrap(res);

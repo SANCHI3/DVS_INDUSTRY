@@ -14,6 +14,8 @@ export interface PortalActor {
   id: number;
   email: string;
   role: string;
+  supplierId?: number | null;
+  clientId?: number | null;
 }
 
 /** Roles that answer supplier and client messages on behalf of DVS. */
@@ -35,10 +37,10 @@ export class PortalService {
 
   async resolveParty(actor: PortalActor, requested: PartyRequest): Promise<PortalParty> {
     if (actor.role === ROLES.SUPPLIER) {
-      return { kind: 'supplier', id: (await this.orders.getSupplierByEmail(actor.email)).id };
+      return { kind: 'supplier', id: (await this.orders.getSupplierForAccount(actor)).id };
     }
     if (actor.role === ROLES.CLIENT) {
-      return { kind: 'client', id: (await this.orders.getClientByEmail(actor.email)).id };
+      return { kind: 'client', id: (await this.orders.getClientForAccount(actor)).id };
     }
     // Staff: the named supplier or client must exist (404 otherwise)
     if (requested.supplierId !== undefined) {

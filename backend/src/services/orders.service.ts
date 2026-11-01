@@ -163,6 +163,33 @@ export class OrdersService {
     return supplier;
   }
 
+  /**
+   * The supplier a portal login belongs to: its linked supplier, or for
+   * accounts created before the link existed, the supplier with its email.
+   */
+  async getSupplierForAccount(account: {
+    email: string;
+    supplierId?: number | null | undefined;
+  }): Promise<SupplierDto> {
+    if (account.supplierId != null) {
+      const linked = await this.repo.findSupplierById(account.supplierId);
+      if (linked !== null) return linked;
+    }
+    return this.getSupplierByEmail(account.email);
+  }
+
+  /** The client a portal login belongs to (linked id first, email as fallback). */
+  async getClientForAccount(account: {
+    email: string;
+    clientId?: number | null | undefined;
+  }): Promise<ClientDto> {
+    if (account.clientId != null) {
+      const linked = await this.repo.findClientById(account.clientId);
+      if (linked !== null) return linked;
+    }
+    return this.getClientByEmail(account.email);
+  }
+
   async getClientByEmail(email: string): Promise<ClientDto> {
     const client = await this.repo.findClientByEmail(email);
     if (client === null) throw new NotFoundError('No client profile is linked to this account');

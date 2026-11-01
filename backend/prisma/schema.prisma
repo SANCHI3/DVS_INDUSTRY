@@ -33,8 +33,15 @@ model User {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  role                Role                 @relation(fields: [roleId], references: [id])
-  refreshTokens       RefreshToken[]
+  role          Role           @relation(fields: [roleId], references: [id])
+  refreshTokens RefreshToken[]
+
+  // Portal logins: the supplier or client company this account belongs to.
+  // Set when the account is created (matched by email when not chosen).
+  supplierId          Int?
+  supplier            Supplier?            @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  clientId            Int?
+  client              Client?              @relation(fields: [clientId], references: [id], onDelete: SetNull)
   portalMessages      PortalMessage[]
   passwordResetTokens PasswordResetToken[]
 
@@ -43,14 +50,16 @@ model User {
 
   @@index([roleId])
   @@index([email])
+  @@index([supplierId])
+  @@index([clientId])
 }
 
 model RefreshToken {
-  id        Int      @id @default(autoincrement())
-  token     String   @unique
-  userId    Int
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  id         Int       @id @default(autoincrement())
+  token      String    @unique
+  userId     Int
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
   /// Set when the token is rotated; it stays valid for a short grace period
   /// so a refresh whose response was lost can be retried.
   replacedAt DateTime?
@@ -379,7 +388,7 @@ model PartSpec {
 // ───────────────────────────────────────────────────────────────
 
 model Inquiry {
-  id      Int     @id @default(autoincrement())
+  id      Int           @id @default(autoincrement())
   name    String
   company String?
   email   String
@@ -427,6 +436,7 @@ model Supplier {
 
   purchaseOrders PurchaseOrder[]
   portalMessages PortalMessage[]
+  portalUsers    User[]
 
   @@index([code])
   @@index([isActive])
@@ -451,6 +461,7 @@ model Client {
 
   clientOrders   ClientOrder[]
   portalMessages PortalMessage[]
+  portalUsers    User[]
 
   @@index([code])
   @@index([isActive])
@@ -624,13 +635,13 @@ model SecurityIncident {
   id             Int    @id @default(autoincrement())
   incidentNumber String @unique // e.g. INC-0001
 
-  title       String
-  description String
-  aiSummary   String?
-  type        IncidentType
+  title           String
+  description     String
+  aiSummary       String?
+  type            IncidentType
   confidenceScore Float?
-  severity    IncidentSeverity @default(MEDIUM)
-  status      IncidentStatus   @default(OPEN)
+  severity        IncidentSeverity @default(MEDIUM)
+  status          IncidentStatus   @default(OPEN)
 
   // Location / scope
   location       String?

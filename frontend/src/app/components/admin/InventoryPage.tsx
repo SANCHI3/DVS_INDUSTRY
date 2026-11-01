@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart,
@@ -15,6 +15,8 @@ import { Modal } from "../shared/Modal";
 
 import { ProductionCalculator, type InventoryMaterial } from "./inventory/ProductionCalculator";
 import { formatINR, formatINRCompact } from "../../../lib/format";
+import { inventoryActions } from "../../../lib/permissions";
+import { getStoredBackendRole } from "../../../lib/auth";
 
 /* ══════════════════════════════════════════════
    MAIN INVENTORY PAGE
@@ -50,6 +52,8 @@ function toInventoryMaterial(material: MaterialDto): InventoryMaterial {
 }
 
 export function InventoryPage() {
+  // Managers read inventory; Store and admins change it
+  const actions = useMemo(() => inventoryActions(getStoredBackendRole()), []);
   const [tab, setTab]                   = useState("overview");
   const [materials, setMaterials]       = useState<InventoryMaterial[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(true);
@@ -232,7 +236,7 @@ export function InventoryPage() {
         actions={
           <div className="flex gap-2">
             <Btn variant="secondary" size="sm" onClick={handleExport}><Download size={14} /> Export</Btn>
-            <Btn size="sm" onClick={() => setShowAddMaterial(true)}><Plus size={14} /> Add Material</Btn>
+            {actions.editMaterials && <Btn size="sm" onClick={() => setShowAddMaterial(true)}><Plus size={14} /> Add Material</Btn>}
           </div>
         }
       />
@@ -377,7 +381,7 @@ export function InventoryPage() {
                 <p style={{ fontSize: "0.9rem", fontWeight: 600 }}>Parts Master</p>
                 <p style={{ fontSize: "0.775rem", color: "#7A6C6A" }}>Raw-material grade, strip size and yield per strip and per sheet</p>
               </div>
-              <Btn size="sm" onClick={() => setShowAddPart(true)}><Plus size={14} /> Add Part</Btn>
+              {actions.editParts && <Btn size="sm" onClick={() => setShowAddPart(true)}><Plus size={14} /> Add Part</Btn>}
             </div>
             <DataTable
               searchable
