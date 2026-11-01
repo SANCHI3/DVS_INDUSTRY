@@ -3,8 +3,9 @@ import type { AuthenticatedRequest } from '../types';
 import type { AdminUpdateUserData } from '../interfaces';
 import { AuthService } from '../services';
 import { sendSuccess, sendCreated, sendNoContent } from '../utils/response';
-import { UnauthorizedError } from '../errors';
 import { REFRESH_TOKEN_COOKIE, COOKIE_OPTIONS } from '../constants';
+import { env } from '../config/env';
+import { parseExpiresInMs } from '../utils/token';
 import type {
   RegisterInput,
   LoginInput,
@@ -15,6 +16,18 @@ import type {
 } from '../validators';
 
 const authService = new AuthService();
+
+/**
+ * The refresh cookie lives as long as the refresh token. Without a max age it
+ * would be a session cookie, dropped when the browser closes while the app
+ * still shows the user as signed in.
+ */
+function setRefreshCookie(res: Response, refreshToken: string): void {
+  res.cookie(REFRESH_TOKEN_COOKIE, refreshToken, {
+    ...COOKIE_OPTIONS,
+    maxAge: parseExpiresInMs(env.REFRESH_TOKEN_EXPIRES_IN),
+  });
+}
 
 // ── Register ──────────────────────────────────────────────────────────────────
 
@@ -60,7 +73,7 @@ export async function login(req: Request, res: Response): Promise<void> {
   res.locals['auditActor'] = { id: user.id, email: user.email, role: user.role.name };
 
   // Refresh token → secure HttpOnly cookie
-  res.cookie(REFRESH_TOKEN_COOKIE, tokens.refreshToken, COOKIE_OPTIONS);
+  setRefreshCookie(res, tokens.refreshToken);
 
   sendSuccess(res, { user, accessToken: tokens.accessToken }, 200, 'Login successful');
 }
@@ -83,14 +96,17 @@ export async function logout(req: Request, res: Response): Promise<void> {
 export async function refreshTokens(req: Request, res: Response): Promise<void> {
   const token: string | undefined = req.cookies[REFRESH_TOKEN_COOKIE] as string | undefined;
 
+  // No cookie simply means "not signed in" (e.g. a visitor, or after
+  // logout): answer without an error status so the browser logs nothing.
   if (token === undefined) {
-    throw new UnauthorizedError('No refresh token provided');
+    sendNoContent(res);
+    return;
   }
 
   const tokens = await authService.refreshTokens(token);
 
   // Rotate cookie
-  res.cookie(REFRESH_TOKEN_COOKIE, tokens.refreshToken, COOKIE_OPTIONS);
+  setRefreshCookie(res, tokens.refreshToken);
 
   sendSuccess(res, { accessToken: tokens.accessToken }, 200, 'Tokens refreshed');
 }

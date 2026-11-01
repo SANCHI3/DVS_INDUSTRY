@@ -107,6 +107,19 @@ describe("after a reload with a signed-in user", () => {
   });
 });
 
+describe("refresh without a session cookie", () => {
+  beforeEach(() => localStorage.setItem("dvs_user", JSON.stringify({ id: 1 })));
+  afterEach(() => localStorage.clear());
+
+  it("treats the server's 204 as signed out, without sending the request", async () => {
+    const seen = fakeServer({ "/auth/refresh": [{ status: 204, data: "" }] });
+
+    await expect(api.get("/inventory")).rejects.toMatchObject({ status: 401 });
+    expect(expired).toHaveBeenCalledTimes(1);
+    expect(seen.map((r) => r.url)).toEqual(["/api/v1/auth/refresh"]);
+  });
+});
+
 describe("isServerStarting", () => {
   it("is true only for no response and gateway errors", () => {
     for (const status of [0, 502, 503, 504]) {

@@ -9,6 +9,8 @@ import {
   type OrderStatistics, type ClientDto, type SupplierDto,
 } from "../../../lib/services/orders.service";
 import { downloadCSV } from "../../../lib/csv";
+import { getStoredBackendRole } from "../../../lib/auth";
+import { PortalInbox, PORTAL_STAFF_ROLES } from "./orders/PortalInbox";
 
 import {
   parseMoney, parseQuantity, POModal, OrderDetailModal, DispatchModal, NewClientOrderModal, type ClientOrder, type SupplierOrder,
@@ -192,6 +194,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
           { id: "client-orders", label: "Client Orders" },
           { id: "supplier-orders", label: "Supplier Orders" },
           { id: "supply-chain", label: "Supply Chain Flow" },
+          ...(PORTAL_STAFF_ROLES.includes(getStoredBackendRole() ?? "") ? [{ id: "portal-messages", label: "Portal Messages" }] : []),
         ]}
         active={tab}
         onChange={setTab}
@@ -296,6 +299,9 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
             </div>
           </Card>
         )}
+
+        {/* ── PORTAL MESSAGES ── */}
+        {tab === "portal-messages" && <PortalInbox suppliers={suppliers} clients={clients} />}
       </div>
     </div>
     </>

@@ -1,7 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
-import { useERP } from "../admin/ERPContext";
+import { useMemo, useState } from "react";
+import { useERP, type ERPNotification } from "../admin/ERPContext";
+import type { PortalNotification } from "../../../lib/portalInsights";
 import { AskDvs } from "./AskDvs";
 import { getStoredBackendRole } from "../../../lib/auth";
 import {
@@ -91,8 +92,10 @@ function initials(name: string): string {
 interface AppShellProps {
   role: UserRole;
   userRole?: SystemUserRole;
-  /** Signed-in user's name for the sidebar card (admin, production and store). */
-  userName?: string;
+  /** Name for the sidebar card: the user (admin roles) or the company (portals). */
+  userName?: string | undefined;
+  /** Supplier/client portals: notifications derived from their own orders and messages. */
+  portalNotifications?: PortalNotification[];
   activeSection: string;
   onSectionChange: (section: string) => void;
   /** When set, the sidebar user card opens the user's profile. */
@@ -101,13 +104,36 @@ interface AppShellProps {
   children: ReactNode;
 }
 
-export function AppShell({ role, userRole, userName, activeSection, onSectionChange, onOpenProfile, onLogout, children }: AppShellProps) {
+const SEEN_KEY = "dvs_portal_notifications_seen";
+
+function readSeen(role: string): string {
+  try { return localStorage.getItem(`${SEEN_KEY}:${role}`) ?? ""; } catch { return ""; }
+}
+
+function relativeTime(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+export function AppShell({ role, userRole, userName, portalNotifications, activeSection, onSectionChange, onOpenProfile, onLogout, children }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const erp = useERP();
+  // Portal notifications count as read once the bell was opened after them
+  const [portalSeen, setPortalSeen] = useState(() => readSeen(role));
+  const notifications: ERPNotification[] = useMemo(() => portalNotifications === undefined
+    ? erp.notifications
+    : portalNotifications.map((n) => ({ id: n.id, msg: n.msg, type: n.type, time: relativeTime(n.at), read: n.at <= portalSeen })),
+  [portalNotifications, erp.notifications, portalSeen]);
+  const unreadCount = portalNotifications === undefined ? erp.unreadCount : notifications.filter((n) => !n.read).length;
+  const markAllRead = () => {
+    if (portalNotifications === undefined) { erp.markAllRead(); return; }
+    const now = new Date().toISOString();
+    setPortalSeen(now);
+    try { localStorage.setItem(`${SEEN_KEY}:${role}`, now); } catch { /* storage blocked */ }
+  };
   
   // Get navigation based on userRole if it's an admin-type role
   const getNavigation = (): NavItem[] => {
@@ -186,7 +212,7 @@ export function AppShell({ role, userRole, userName, activeSection, onSectionCha
       {/* User + Logout */}
       <div className="px-3 py-4" style={{ borderTop: "1px solid #E8E2E0" }}>
         {sidebarOpen && (() => {
-          const cardName = role === "admin" ? (userName || "My account") : role === "supplier" ? "Steel Corp Ltd" : "Reliance Eng.";
+          const cardName = userName || (role === "admin" ? "My account" : role === "supplier" ? "Supplier account" : "Client account");
           const badge = role === "admin" ? (initials(userName ?? "") || "AD") : role === "supplier" ? "SP" : "CL";
           const content = (
             <>
@@ -319,17 +345,17 @@ export function AppShell({ role, userRole, userName, activeSection, onSectionCha
             {/* Notifications */}
             <div className="relative">
               <button
-                onClick={() => { setShowNotifs(!showNotifs); if (!showNotifs) erp.markAllRead(); }}
+                onClick={() => { setShowNotifs(!showNotifs); if (!showNotifs) markAllRead(); }}
                 className="relative p-2 rounded-md transition-colors"
                 style={{ color: "#4A4A4A" }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = "#F5F0EF"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
                 <Bell size={18} />
-                {erp.unreadCount > 0 && (
+                {unreadCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center"
                     style={{ background: "#A52A2A", fontSize: "0.6rem", color: "#fff", fontWeight: 700 }}>
-                    {erp.unreadCount}
+                    {unreadCount > 99 ? "99+" : unreadCount}
                   </span>
                 )}
               </button>
@@ -343,10 +369,10 @@ export function AppShell({ role, userRole, userName, activeSection, onSectionCha
                     </button>
                   </div>
                   <div style={{ maxHeight: "320px", overflowY: "auto" }}>
-                    {erp.notifications.length === 0 ? (
-                      <p style={{ padding: "2rem", textAlign: "center", color: "#9A8A88", fontSize: "0.8rem" }}>Notifications unavailable — no notification backend is configured.</p>
+                    {notifications.length === 0 ? (
+                      <p style={{ padding: "2rem", textAlign: "center", color: "#9A8A88", fontSize: "0.8rem" }}>No notifications yet.</p>
                     ) : (
-                      erp.notifications.slice(0, 10).map((n) => (
+                      notifications.slice(0, 10).map((n) => (
                         <div key={n.id} className="flex items-start gap-3 px-4 py-3" style={{ borderBottom: "1px solid #F7F3F2", background: n.read ? "transparent" : "#FDFBFB", opacity: n.read ? 0.75 : 1 }}>
                           <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: n.type === "critical" ? "#C0392B" : n.type === "warn" ? "#E65100" : n.type === "success" ? "#2E7D32" : "#1565C0" }} />
                           <div className="flex-1 min-w-0">

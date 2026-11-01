@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import type { AuthenticatedRequest } from '../types';
 import { OrdersService } from '../services/orders.service';
 import { sendSuccess, sendCreated, sendNoContent } from '../utils/response';
-import { ForbiddenError } from '../errors';
+import { BadRequestError, ForbiddenError } from '../errors';
 import type {
   CreateSupplierInput,
   UpdateSupplierInput,
@@ -359,7 +359,11 @@ export async function deliverClientOrder(req: Request, res: Response): Promise<v
 
 export async function cancelClientOrder(req: AuthenticatedRequest, res: Response): Promise<void> {
   const id = parseId(req.params['id']);
-  await assertClientOrderAccess(req, id);
+  const order = await assertClientOrderAccess(req, id);
+  // Once DVS has approved an order, only DVS staff can cancel it
+  if (isClientRequest(req) && order.status !== 'PENDING') {
+    throw new BadRequestError('This order is already being processed. Contact DVS to cancel it.');
+  }
   sendSuccess(res, await svc.cancelClientOrder(id), 200, 'Order cancelled');
 }
 

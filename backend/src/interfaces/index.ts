@@ -9,3 +9,4 @@ export * from './production.interface';
 export * from './reports.interface';
 export * from './security.interface';
 export * from './workforce.interface';
+export * from './portal.interface';

@@ -118,6 +118,22 @@ describe('POST /api/v1/auth/login', () => {
     expect(res.body.data.user.email).toBe('admin@test.com');
   });
 
+  it('sets a refresh cookie that outlives the browser session', async () => {
+    (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
+    (bcrypt.compare as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    (prisma.refreshToken.create as ReturnType<typeof vi.fn>).mockResolvedValue({});
+    (prisma.user.update as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
+
+    const res = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'admin@test.com', password: 'Secret@1234' });
+
+    const cookie = String(res.headers['set-cookie']);
+    expect(cookie).toContain('dvs_rt=test-refresh-token');
+    expect(cookie).toContain('Max-Age=604800');
+    expect(cookie).toContain('HttpOnly');
+  });
+
   it('returns 401 for wrong password', async () => {
     (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
     (bcrypt.compare as ReturnType<typeof vi.fn>).mockResolvedValue(false);
@@ -166,6 +182,13 @@ describe('POST /api/v1/auth/logout', () => {
   it('returns 401 without token', async () => {
     const res = await request(app).post('/api/v1/auth/logout');
     expect(res.status).toBe(401);
+  });
+});
+
+describe('POST /api/v1/auth/refresh', () => {
+  it('answers 204 (not signed in) when there is no refresh cookie', async () => {
+    const res = await request(app).post('/api/v1/auth/refresh');
+    expect(res.status).toBe(204);
   });
 });
 

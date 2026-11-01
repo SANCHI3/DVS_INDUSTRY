@@ -100,9 +100,24 @@ function hasStoredUser(): boolean {
   }
 }
 
+/** The server has no session for this browser (it answered 204, not 401). */
+class NoSessionError extends Error {
+  constructor() {
+    super('Not signed in');
+  }
+}
+
 /** True when the server refused the refresh (not merely unreachable or starting). */
 function isRefusedRefresh(err: unknown): boolean {
+  if (err instanceof NoSessionError) return true;
   return axios.isAxiosError(err) && err.response !== undefined && err.response.status < 500;
+}
+
+function refusedRefreshError(err: unknown): ApiError {
+  if (err instanceof NoSessionError) {
+    return { status: 401, code: 'UNAUTHORIZED', message: 'Your session has ended. Please sign in again' };
+  }
+  return normaliseError(err as AxiosError);
 }
 
 /**
@@ -119,7 +134,7 @@ export async function ensureAccessToken(): Promise<string | null> {
   } catch (err) {
     if (isRefusedRefresh(err)) {
       endSession();
-      throw normaliseError(err as AxiosError);
+      throw refusedRefreshError(err);
     }
     return null;
   }
@@ -139,11 +154,13 @@ api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
 let refreshPromise: Promise<string> | null = null;
 
 async function postRefresh(): Promise<string> {
-  const res = await axios.post<{ data: { accessToken: string } }>(
+  const res = await axios.post<{ data: { accessToken: string } } | ''>(
     `${API_BASE}/auth/refresh`,
     {},
     { withCredentials: true },
   );
+  // 204: no refresh cookie, so nobody is signed in in this browser
+  if (res.status === 204 || res.data === '') throw new NoSessionError();
   const token = res.data.data.accessToken;
   setAccessToken(token);
   return token;

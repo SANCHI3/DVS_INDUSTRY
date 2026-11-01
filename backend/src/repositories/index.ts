@@ -8,3 +8,4 @@ export { OrdersRepository } from './orders.repository';
 export { WorkforceRepository } from './workforce.repository';
 export { PasswordResetTokenRepository } from './passwordResetToken.repository';
 export { StoredFileRepository } from './storedFile.repository';
+export { PortalRepository } from './portal.repository';

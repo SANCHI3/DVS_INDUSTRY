@@ -1,6 +1,6 @@
 /**
  * Access-control regression tests: perception-service incident reporting,
- * external incident numbers, and supplier data scoping.
+ * external incident numbers, supplier data scoping and portal messages.
  */
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import request from 'supertest';
@@ -32,6 +32,7 @@ vi.mock('../../lib/prismaClient', () => ({
     },
     supplier: { findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     purchaseOrder: { findFirst: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+    portalMessage: { findMany: vi.fn(), groupBy: vi.fn() },
     auditLog: { create: vi.fn().mockResolvedValue({}) },
     $queryRawUnsafe: vi.fn().mockResolvedValue([{ max: null }]),
     $transaction: vi.fn((arg: unknown) =>
@@ -223,5 +224,42 @@ describe('supplier scoping', () => {
       .get('/api/v1/orders/client-orders')
       .set('Authorization', 'Bearer supplier');
     expect(res.status).toBe(403);
+  });
+});
+
+describe('portal messages', () => {
+  beforeEach(() => {
+    fn(prisma.supplier.findFirst).mockResolvedValue(supplierRow(3, 'vendor@acme.test'));
+    fn(prisma.portalMessage.findMany).mockResolvedValue([]);
+    fn(prisma.portalMessage.groupBy).mockResolvedValue([]);
+  });
+
+  it('keeps a supplier in its own conversation whatever id it sends', async () => {
+    const res = await request(app)
+      .get('/api/v1/portal/messages?supplierId=99')
+      .set('Authorization', 'Bearer supplier');
+
+    expect(res.status).toBe(200);
+    expect(fn(prisma.portalMessage.findMany).mock.calls[0][0].where).toEqual({ supplierId: 3 });
+  });
+
+  it('keeps the staff inbox away from suppliers', async () => {
+    const res = await request(app)
+      .get('/api/v1/portal/threads')
+      .set('Authorization', 'Bearer sales');
+    expect(res.status).toBe(200);
+
+    const blocked = await request(app)
+      .get('/api/v1/portal/threads')
+      .set('Authorization', 'Bearer supplier');
+    expect(blocked.status).toBe(403);
+  });
+
+  it('refuses a message naming both a supplier and a client', async () => {
+    const res = await request(app)
+      .post('/api/v1/portal/messages')
+      .set('Authorization', 'Bearer sales')
+      .send({ supplierId: 3, clientId: 4, body: 'Hi' });
+    expect(res.status).toBe(422);
   });
 });
