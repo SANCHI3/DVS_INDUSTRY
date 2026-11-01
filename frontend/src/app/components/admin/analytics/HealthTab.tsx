@@ -31,7 +31,7 @@ export function HealthTab() {
         <Card>
           <CardHeader title="Plant Health Index" subtitle="Weighted score across five operational pillars" />
           <div className="flex flex-col items-center p-5">
-            <ScoreRing score={data.score} grade={data.grade} />
+            <ScoreRing score={data.score ?? 0} grade={data.grade} />
             <p style={{ fontSize: "0.75rem", color: INK.muted, textAlign: "center", marginTop: 8 }}>
               Missing pillars (no data yet) are left out and the remaining weights rescaled.
             </p>
@@ -44,10 +44,10 @@ export function HealthTab() {
               <div key={c.key}>
                 <div className="flex justify-between" style={{ fontSize: "0.8125rem" }}>
                   <span style={{ fontWeight: 600, color: INK.primary }}>{c.label} <span style={{ color: INK.muted, fontWeight: 400 }}>· weight {Math.round(c.weight * 100)}%</span></span>
-                  <span style={{ fontWeight: 700, color: INK.primary }}>{c.score.toFixed(0)}</span>
+                  <span style={{ fontWeight: 700, color: INK.primary }}>{c.score == null ? "—" : c.score.toFixed(0)}</span>
                 </div>
                 <div style={{ height: 8, background: INK.grid, borderRadius: 999, marginTop: 4, overflow: "hidden" }}>
-                  <div style={{ width: `${Math.min(100, c.score)}%`, height: "100%", borderRadius: 999, background: c.score >= 70 ? "#A52A2A" : "#E65100" }} />
+                  <div style={{ width: `${Math.min(100, c.score ?? 0)}%`, height: "100%", borderRadius: 999, background: (c.score ?? 0) >= 70 ? "#A52A2A" : "#E65100" }} />
                 </div>
                 <p style={{ fontSize: "0.74rem", color: INK.muted, marginTop: 3 }}>{c.detail}</p>
               </div>

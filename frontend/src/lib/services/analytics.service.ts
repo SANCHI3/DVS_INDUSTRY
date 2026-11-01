@@ -148,9 +148,10 @@ export interface ProductionPerformance {
 
 export interface PlantHealth {
   generatedAt: string;
-  score: number;
+  // null only if the server could not compute a score; the page must not crash on it
+  score: number | null;
   grade: 'A' | 'B' | 'C' | 'D';
-  components: Array<{ key: string; label: string; score: number; weight: number; detail: string }>;
+  components: Array<{ key: string; label: string; score: number | null; weight: number; detail: string }>;
   safetyQualityCorrelation: { r: number | null; departments: number; note: string };
   incidentsByType: Array<{ type: string; count: number }>;
   insights: Insight[];

@@ -84,7 +84,7 @@ export interface IncidentRow {
 }
 
 export interface AttendanceRow {
-  status: 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LATE' | 'LEAVE';
+  status: 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LATE' | 'LEAVE' | 'WEEK_OFF';
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -838,16 +838,19 @@ export function buildPlantHealth(input: {
     score: round(safetyScore(last30), 1),
     detail: `${last30.length} incident(s); severity-weighted (critical = 8x low)`,
   });
-  if (input.attendance.length > 0) {
+  // Weekly offs are not working days, so they neither help nor hurt the rate
+  const workingDays = input.attendance.filter((a) => a.status !== 'WEEK_OFF');
+  if (workingDays.length > 0) {
     const credit = { PRESENT: 1, LATE: 0.75, HALF_DAY: 0.5, LEAVE: 0, ABSENT: 0 } as const;
     const rate =
-      input.attendance.reduce((s, a) => s + credit[a.status], 0) / input.attendance.length;
+      workingDays.reduce((s, a) => s + (credit[a.status as keyof typeof credit] ?? 0), 0) /
+      workingDays.length;
     components.push({
       key: 'workforce',
       label: 'Workforce attendance',
       weight: 0.1,
       score: round(100 * rate, 1),
-      detail: `${input.attendance.length} attendance records in the last 30 days`,
+      detail: `${workingDays.length} working-day attendance records in the last 30 days`,
     });
   }
 

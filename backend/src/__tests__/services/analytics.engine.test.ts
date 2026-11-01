@@ -335,5 +335,17 @@ describe('engine', () => {
       'safety',
       'workforce',
     ]);
+
+    // Weekly offs are skipped, not scored as NaN (which reached the client as null)
+    const withWeekOff = buildPlantHealth({
+      inventory: intel,
+      production: perf,
+      incidents: [],
+      attendance: [{ status: 'PRESENT' }, { status: 'WEEK_OFF' }, { status: 'ABSENT' }],
+      now: NOW,
+    });
+    const workforce = withWeekOff.components.find((c) => c.key === 'workforce');
+    expect(workforce?.score).toBe(50);
+    expect(Number.isFinite(withWeekOff.score)).toBe(true);
   });
 });
