@@ -36,6 +36,9 @@ const departments = ["Management", "Operations", "Security", "Production", "Qual
 const fieldStyle: React.CSSProperties = { width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #E8E2E0", borderRadius: "0.4rem", fontSize: "0.8375rem", outline: "none", background: "#fff" };
 const labelStyle: React.CSSProperties = { fontSize: "0.72rem", fontWeight: 600, color: "#4E342E", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "0.3rem" };
 
+// The CCTV AI's machine account, never a person: not offered for new users
+const MACHINE_ROLE = "perception_service";
+
 export function UserManagementPage() {
   const [activeTab, setActiveTab]   = useState<"users" | "permissions" | "logs">("users");
   const [search, setSearch]         = useState("");
@@ -178,7 +181,7 @@ export function UserManagementPage() {
             <div>
               <label style={labelStyle}>Role</label>
               <select style={fieldStyle} value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}>
-                {roles.map(r => <option key={r.id} value={r.name.toLowerCase()}>{r.name}</option>)}
+                {roles.filter((r) => r.name.toLowerCase() !== MACHINE_ROLE).map(r => <option key={r.id} value={r.name.toLowerCase()}>{r.name}</option>)}
               </select>
             </div>
             <div>
@@ -214,7 +217,7 @@ export function UserManagementPage() {
             <div>
               <label style={labelStyle}>Role</label>
               <select style={fieldStyle} value={editUser.role} onChange={(e) => setEditUser({ ...editUser, role: e.target.value })}>
-                {roles.map((role) => <option key={role.id} value={role.name.toLowerCase()}>{role.name}</option>)}
+                {roles.filter((role) => role.name.toLowerCase() !== MACHINE_ROLE || editUser.role === MACHINE_ROLE).map((role) => <option key={role.id} value={role.name.toLowerCase()}>{role.name}</option>)}
               </select>
             </div>
             <div>
