@@ -23,7 +23,8 @@ import {
   type CompletionResult,
   type LlmClient,
 } from '../../assistant/llm';
-import { NO_RELIABLE_ANSWER, writeRequestReply } from '../../assistant/prompt';
+import { NO_RELIABLE_ANSWER, systemPrompt, writeRequestReply } from '../../assistant/prompt';
+import { ANSWER_BUDGET_MS } from '../../assistant/llm';
 import { checkGrounding, numbersIn } from '../../assistant/grounding';
 import type { ToolRun, AssistantUser } from '../../assistant/tools';
 import { executeTool } from '../../assistant/tools';
@@ -375,5 +376,81 @@ describe('createLlmClient', () => {
       message: expect.stringContaining('busy'),
     });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('empty results', () => {
+  it('accept "0" as grounded when the looked-up list is empty', () => {
+    expect(checkGrounding('There are 0 open falls right now.', ['{"incidents":[]}']).grounded).toBe(
+      true,
+    );
+    // Without an empty list nothing backs the 0
+    expect(checkGrounding('There are 0 open falls.', ['{"incidents":[{"id":5}]}']).grounded).toBe(
+      false,
+    );
+  });
+
+  it('accept a plain "none" answer, which has no numbers to check', () => {
+    expect(
+      checkGrounding('No materials are low on stock right now.', ['{"materials":[]}']).grounded,
+    ).toBe(true);
+  });
+
+  it('tell the model that an empty list means "none", not "not found"', () => {
+    expect(systemPrompt('Sunday, 1 November 2026', 'STORE')).toMatch(
+      /empty list .* real answer: say plainly that there are none/,
+    );
+  });
+
+  it('return the "none" answer to the user', async () => {
+    const { llm } = scriptedLlm([
+      { content: null, toolCalls: [toolCall('getLowStockMaterials')] },
+      text('No materials are low on stock right now.'),
+    ]);
+    const { svc } = service(
+      llm,
+      fakeExecute({ getLowStockMaterials: { lowStockCount: 0, materials: [] } }),
+    );
+    const result = await svc.ask('Which materials are low on stock?', STORE);
+    expect(result.answer).toBe('No materials are low on stock right now.');
+    expect(result.grounded).toBe(true);
+  });
+});
+
+describe('answer time budget', () => {
+  it('gives each model call only the time left in the budget', async () => {
+    const { llm, requests } = scriptedLlm([text('No materials are low on stock right now.')]);
+    await service(llm).svc.ask('Which materials are low on stock?', STORE);
+    expect(requests[0]!.timeoutMs).toBeGreaterThan(0);
+    expect(requests[0]!.timeoutMs).toBeLessThanOrEqual(ANSWER_BUDGET_MS);
+  });
+
+  it('stops with a timeout once the budget is spent, before another model call', async () => {
+    let clock = 1_000_000;
+    const now = vi.spyOn(Date, 'now').mockImplementation(() => clock);
+    const { llm } = scriptedLlm([
+      { content: null, toolCalls: [toolCall('getLowStockMaterials')] },
+      text('never reached'),
+    ]);
+    const slowExecute = vi.fn(async (name: string, args: unknown): Promise<ToolRun> => {
+      clock += ANSWER_BUDGET_MS + 1; // the tool run used up the whole budget
+      return {
+        name,
+        args: args as Record<string, unknown>,
+        module: 'Inventory',
+        result: LOW_STOCK,
+      };
+    });
+    try {
+      await expect(
+        service(llm, slowExecute).svc.ask('Which materials are low on stock?', STORE),
+      ).rejects.toMatchObject({
+        code: 'ASSISTANT_TIMEOUT',
+        statusCode: 504,
+      });
+      expect(llm.complete).toHaveBeenCalledTimes(1);
+    } finally {
+      now.mockRestore();
+    }
   });
 });

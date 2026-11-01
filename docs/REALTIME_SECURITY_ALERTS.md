@@ -29,7 +29,7 @@ second, and why each stage exists. Model accuracy is covered separately in
  ERP backend (Express + PostgreSQL)
    POST  /security/incidents            create (CONFIRMED only)
    PATCH /security/incidents/escalate   raise severity / confidence, never lower
-        │  in-process event bus
+        │  event bus (in memory; Postgres LISTEN/NOTIFY across PM2 workers)
         ▼
    GET   /security/stream               Server-Sent Events push
         │
@@ -103,8 +103,10 @@ policy itself, which is the deliberate trade-off against false alarms.
 
 ## 5. Known limitations
 
-* The event bus is in-process: with several backend instances it must move to
-  Postgres `LISTEN/NOTIFY` or Redis pub/sub (`backend/src/lib/securityEvents.ts`).
+* With several backend processes (PM2 cluster mode, or `SECURITY_EVENT_BUS=postgres`)
+  events travel through Postgres `LISTEN/NOTIFY` (`backend/src/lib/securityEvents.ts`),
+  using `DIRECT_URL` because LISTEN does not survive a transaction pooler. While
+  that listener reconnects, each process still delivers its own events.
 * Two genuinely separate fights on one camera inside the de-duplication window
   are reported as one incident.
 * The serious-fall watch stops if the person is out of view for more than 8 s,

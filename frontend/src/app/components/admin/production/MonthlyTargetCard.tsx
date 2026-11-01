@@ -7,7 +7,7 @@ import {
   deleteProductionTarget, getMonthlyPerformance, saveProductionTarget, type MonthlyPerformance,
   type ProductionTargetDto, type ThresholdCheck,
 } from "../../../../lib/services/production.service";
-import { useApiData } from "../../../../lib/useApiData";
+import { useApiData, type ApiData } from "../../../../lib/useApiData";
 import type { ProductionPermissions } from "../../../../lib/workforce";
 import { DialogFrame, Field, InlineNotice, LoadingLine, PrimaryButton, SecondaryButton, filterStyle, inputStyle } from "../workforce/formControls";
 
@@ -168,14 +168,18 @@ function TargetDialog({ month, target, canDelete, onClose, onSaved }: {
 
 // ── Card ─────────────────────────────────────────────────────────────────────
 
-export function MonthlyTargetCard({ month, onMonthChange, perms, onSaved }: {
+export function MonthlyTargetCard({ month, onMonthChange, perms, onSaved, current }: {
   month: string;
+  /** The page's own load of this month, reused instead of a second request. */
+  current?: { month: string; data: ApiData<MonthlyPerformance> };
   onMonthChange: (month: string) => void;
   perms: ProductionPermissions;
   /** A target was saved or removed; refresh anything that compares against it. */
   onSaved: () => void;
 }) {
-  const perf = useApiData<MonthlyPerformance>(() => getMonthlyPerformance(month), [month], "load the monthly target");
+  const shared = current !== undefined && current.month === month;
+  const own = useApiData<MonthlyPerformance>(() => getMonthlyPerformance(month), [month], "load the monthly target", !shared);
+  const perf = shared ? current.data : own;
   const [editing, setEditing] = useState(false);
   const p = perf.data;
   const t = p?.target ?? null;
@@ -267,7 +271,7 @@ export function MonthlyTargetCard({ month, onMonthChange, perms, onSaved }: {
           target={t}
           canDelete={perms.deleteTargets}
           onClose={() => { setEditing(false); perf.reload(); }}
-          onSaved={(message) => { toast.success(message); setEditing(false); perf.reload(); onSaved(); }}
+          onSaved={(message) => { toast.success(message); setEditing(false); if (!shared) perf.reload(); onSaved(); }}
         />
       )}
     </Card>

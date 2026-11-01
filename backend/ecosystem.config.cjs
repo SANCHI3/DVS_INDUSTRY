@@ -5,6 +5,9 @@ module.exports = {
       script: './dist/server.js',
       // Rate limiting is per process (in-memory). Use PM2_INSTANCES=1 for
       // exact limits, or add a shared store before scaling out.
+      // Live incident events are shared between workers automatically
+      // through Postgres LISTEN/NOTIFY (src/lib/securityEvents.ts); the
+      // listener uses DIRECT_URL, so set it to a non-pooled connection.
       instances: process.env.PM2_INSTANCES || 'max',
       exec_mode: 'cluster',
       autorestart: true,

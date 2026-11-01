@@ -63,6 +63,17 @@ export function isApiError(err: unknown): err is ApiError {
   );
 }
 
+/**
+ * Codes for failures that never got an answer from the API:
+ * TIMEOUT (no answer in time), OFFLINE (this device has no connection),
+ * NETWORK_ERROR (could not connect, or a proxy answered instead of the API).
+ */
+function transportCode(error: AxiosError): string {
+  if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') return 'TIMEOUT';
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return 'OFFLINE';
+  return 'NETWORK_ERROR';
+}
+
 function normaliseError(error: AxiosError): ApiError {
   const data = error.response?.data as {
     error?: { code?: string; message?: string; details?: unknown };
@@ -70,10 +81,39 @@ function normaliseError(error: AxiosError): ApiError {
 
   return {
     status:  error.response?.status ?? 0,
-    code:    data?.error?.code    ?? 'NETWORK_ERROR',
+    code:    data?.error?.code    ?? transportCode(error),
     message: data?.error?.message ?? error.message ?? 'An unexpected error occurred',
     details: data?.error?.details,
   };
+}
+
+// ── Server waking signal ──────────────────────────────────────────────────────
+
+const wakingListeners = new Set<() => void>();
+
+/** Called whenever a request is being retried because the server is starting. */
+export function onServerWaking(listener: () => void): () => void {
+  wakingListeners.add(listener);
+  return () => { wakingListeners.delete(listener); };
+}
+
+function announceServerWaking(): void {
+  for (const listener of wakingListeners) listener();
+}
+
+/** Waits before each automatic retry of a read (GET) request. */
+export const READ_RETRY_DELAYS_MS = [2_000, 5_000];
+
+/**
+ * A read that failed because the API was asleep or unreachable is safe to
+ * send again: it changes nothing. Writes are never retried automatically.
+ */
+function isRetryableRead(config: AxiosRequestConfig | undefined, error: AxiosError): boolean {
+  if (config === undefined) return false;
+  const method = (config.method ?? 'get').toLowerCase();
+  if (method !== 'get' && method !== 'head') return false;
+  const status = error.response?.status;
+  return status === undefined || status === 502 || status === 503 || status === 504;
 }
 
 // ── Create instance ────────────────────────────────────────────────────────────
@@ -203,7 +243,19 @@ api.interceptors.response.use(
   async (error: AxiosError | ApiError) => {
     // Already normalised (the request interceptor ended the session)
     if (!axios.isAxiosError(error)) return Promise.reject(error);
-    const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined;
+    const original = error.config as (AxiosRequestConfig & { _retry?: boolean; _attempt?: number }) | undefined;
+
+    // Reads are retried with a growing wait while a sleeping server starts
+    if (original !== undefined && isRetryableRead(original, error)) {
+      const attempt = original._attempt ?? 0;
+      const delay = READ_RETRY_DELAYS_MS[attempt];
+      if (delay !== undefined) {
+        original._attempt = attempt + 1;
+        announceServerWaking();
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return api(original);
+      }
+    }
 
     // Only attempt refresh for 401s that are NOT auth endpoints themselves
     if (
@@ -264,6 +316,24 @@ async function healthOk(): Promise<boolean> {
   }
 }
 
+/**
+ * Whether the server can send email (password-reset links). null while the
+ * server cannot be reached; waits for a sleeping server to start.
+ */
+export async function isMailConfigured(): Promise<boolean | null> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE}/health`, { cache: 'no-store' });
+      if (res.ok) {
+        const body = (await res.json()) as { mail?: unknown };
+        return typeof body.mail === 'boolean' ? body.mail : null;
+      }
+    } catch { /* not reachable yet */ }
+    if (attempt === 0 && !(await waitForServer())) return null;
+  }
+  return null;
+}
+
 /** Starts the API early (e.g. while the visitor is still on the home page). */
 export function warmUpServer(): void {
   void healthOk();
@@ -309,6 +379,8 @@ export function describeApiError(err: unknown, action: string): string {
   let reason: string;
   if (!isApiError(err)) {
     reason = err instanceof Error ? err.message : "an unexpected error occurred";
+  } else if (err.code === 'OFFLINE') {
+    reason = "this device is offline. Check your internet connection and try again";
   } else if (isServerStarting(err)) {
     reason = "the server did not respond in time (it may still be starting after being idle). Wait a minute and try again";
   } else if (err.status === 401) {
@@ -320,7 +392,7 @@ export function describeApiError(err: unknown, action: string): string {
       .map((d) => (d.field ? `${d.field}: ${d.message ?? "invalid"}` : d.message ?? "invalid"))
       .join("; ");
   } else {
-    reason = err.status >= 500 ? `${err.message} (server error ${err.status})` : err.message;
+    reason = err.status >= 500 ? "something went wrong on our side. Please try again in a moment" : err.message;
   }
   return `Could not ${action}: ${reason.replace(/\.$/, "")}.`;
 }

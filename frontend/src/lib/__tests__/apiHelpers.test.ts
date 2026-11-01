@@ -12,7 +12,7 @@ describe("describeApiError", () => {
     expect(describeApiError(apiError(403, "FORBIDDEN"), "load attendance")).toBe("Could not load attendance: your role does not have access to this.");
     expect(describeApiError(apiError(409, "CONFLICT", 'Employee with code "EMP-1" already exists'), "create the employee"))
       .toBe('Could not create the employee: Employee with code "EMP-1" already exists.');
-    expect(describeApiError(apiError(500, "INTERNAL_ERROR", "Database unavailable"), "load KPIs")).toContain("(server error 500)");
+    expect(describeApiError(apiError(500, "INTERNAL_ERROR", "Database unavailable"), "load KPIs")).toBe("Could not load KPIs: something went wrong on our side. Please try again in a moment.");
   });
 
   it("lists validation problems by field", () => {

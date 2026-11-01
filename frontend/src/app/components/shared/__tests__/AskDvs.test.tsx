@@ -8,7 +8,7 @@ vi.mock("../../../../lib/services/assistant.service", () => ({
 }));
 
 import { askAssistant, getAssistantStatus } from "../../../../lib/services/assistant.service";
-import { AskDvs, exampleQuestions } from "../AskDvs";
+import { AskDvs, errorText, exampleQuestions } from "../AskDvs";
 
 const status = vi.mocked(getAssistantStatus);
 const ask = vi.mocked(askAssistant);
@@ -80,5 +80,24 @@ describe("exampleQuestions", () => {
     expect(exampleQuestions("PRODUCTION")).toContain("How many units did we produce today?");
     expect(exampleQuestions("MANAGER")).toEqual(expect.arrayContaining(["Which suppliers are late?", "Any open safety incidents?"]));
     expect(exampleQuestions("STORE")).not.toContain("Any open safety incidents?");
+  });
+});
+
+describe("Ask DVS error messages", () => {
+  it("tells a timeout, being offline, a sleeping server and a server fault apart", () => {
+    expect(errorText({ status: 0, code: "TIMEOUT", message: "timeout of 60000ms exceeded" })).toBe("That took too long — please try again.");
+    expect(errorText({ status: 504, code: "ASSISTANT_TIMEOUT", message: "x" })).toBe("That took too long — please try again.");
+    expect(errorText({ status: 0, code: "OFFLINE", message: "Network Error" })).toMatch(/You're offline/);
+    expect(errorText({ status: 502, code: "NETWORK_ERROR", message: "Bad Gateway" })).toMatch(/may be starting up/);
+    expect(errorText({ status: 500, code: "INTERNAL", message: "Prisma error" })).toBe("Something went wrong on our side. Please try again.");
+  });
+
+  it("shows Thinking while the answer is on its way", async () => {
+    ask.mockReturnValue(new Promise(() => {}));
+    render(<AskDvs backendRole="ADMIN" />);
+    fireEvent.click(screen.getByRole("button", { name: /Ask DVS/ }));
+    fireEvent.change(await screen.findByRole("textbox"), { target: { value: "Which materials are low?" } });
+    fireEvent.submit(screen.getByRole("textbox").closest("form")!);
+    expect(await screen.findByText(/Thinking/)).toBeTruthy();
   });
 });

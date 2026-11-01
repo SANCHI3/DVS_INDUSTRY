@@ -12,7 +12,7 @@ export function systemPrompt(today: string, role: string): string {
     '- Answer in 1 to 4 short sentences, in plain everyday words, in the same language the question was written in.',
     '- Use ONLY the names and numbers in the data you looked up for this question. Never guess, estimate or invent anything.',
     '- Every number you write must be one that appears in the looked-up data. Do not calculate new totals, averages or differences.',
-    '- If the data has nothing relevant, say you could not find that information.',
+    '- An empty list or a count of 0 in the looked-up data is a real answer: say plainly that there are none, for example "No materials are low on stock right now." Only say you could not find something when the looked-up data does not cover the question at all.',
     '- Do not use technical words and never mention tools, functions, APIs, databases, JSON or field names.',
     "- Only answer questions about this factory's own data (stock, orders, suppliers, production, attendance, safety incidents, plant health). Politely decline anything else, such as general knowledge, chat or other companies.",
     '- You cannot make changes. If asked to create, approve, edit, cancel or delete something, say you can only look things up and name the page to use: Inventory, Orders & Supply, Production, AI Security or User Management.',
@@ -26,7 +26,7 @@ export const INVALID_TOOL_CALL_INSTRUCTION =
   'Your last tool call was rejected because its arguments were not allowed. Call the tool again with only the allowed values. If no allowed value means what the user asked, leave that optional argument out. The error was:';
 
 export const REGROUND_INSTRUCTION =
-  'Rewrite your answer using only numbers that appear exactly in the data you looked up. If the data does not contain a number you need, say you could not find it. Keep it to 1 to 4 short sentences.';
+  'Rewrite your answer using only numbers that appear exactly in the data you looked up. If the data does not contain a number you need, say you could not find it. An empty list in the data means there are none: say so. Keep it to 1 to 4 short sentences.';
 
 const WRITE_VERBS =
   'create|add|make|raise|place|approve|reject|delete|remove|cancel|update|change|edit|modify|set|mark|assign|unassign|dispatch|deliver|close|resolve|record|enter|book|register|deactivate|activate|reset';

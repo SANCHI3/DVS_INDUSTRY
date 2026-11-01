@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Shield, Package, Building2, Eye, EyeOff, ArrowLeft, Lock, Mail, ChevronRight,
   AlertCircle, CheckCircle2, Factory, ShoppingCart,
 } from "lucide-react";
 import { login as apiLogin, type FrontendRole } from "../../lib/auth";
-import api, { isServerStarting, waitForServer } from "../../lib/api";
+import api, { isMailConfigured, isServerStarting, waitForServer } from "../../lib/api";
 
 type Role = "admin" | "supplier" | "client" | "production" | "store";
 type AuthMode = "login" | "forgot";
@@ -88,6 +88,14 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [waking, setWaking] = useState(false);
+  // Reset links need outgoing mail; without it, point people to an administrator
+  const [mailOk, setMailOk] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void isMailConfigured().then((ok) => { if (!cancelled) setMailOk(ok); });
+    return () => { cancelled = true; };
+  }, []);
 
   const role = portalFor(selectedRole);
   const Icon = role.icon;
@@ -397,12 +405,17 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
               </div>
 
               {/* Forgot password link */}
-              {mode === "login" && (
+              {mode === "login" && mailOk === true && (
                 <div className="text-right mt-2">
                   <button type="button" onClick={() => { setMode("forgot"); reset(); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.775rem", color: role.color, fontWeight: 500 }}>
                     Forgot password?
                   </button>
                 </div>
+              )}
+              {mode === "login" && mailOk === false && (
+                <p className="text-right mt-2" style={{ fontSize: "0.775rem", color: "#7A6C6A" }}>
+                  Forgot your password? Ask your administrator to reset it.
+                </p>
               )}
 
               {/* Submit button */}

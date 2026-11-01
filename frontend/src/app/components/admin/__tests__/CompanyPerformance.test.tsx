@@ -254,3 +254,18 @@ describe("Work orders", () => {
     expect(screen.queryByRole("button", { name: "Delete WO-0007" })).toBeNull();
   });
 });
+
+describe("Loading the Production page", () => {
+  it("requests each dataset once", async () => {
+    render(<ProductionPage />);
+    expect(await screen.findByText("3,100 pcs")).toBeTruthy();
+    await waitFor(() => expect(getWorkOrders).toHaveBeenCalled());
+    const listCalls = vi.mocked(getWorkOrders).mock.calls.filter(([params]) => !params?.search);
+    expect({
+      trend: vi.mocked(getProductionTrend).mock.calls.length,
+      monthlyPerformance: vi.mocked(getMonthlyPerformance).mock.calls.length,
+      workOrderList: listCalls.length,
+      kpis: vi.mocked(getProductionKPIs).mock.calls.length,
+    }).toEqual({ trend: 1, monthlyPerformance: 1, workOrderList: 1, kpis: 1 });
+  });
+});

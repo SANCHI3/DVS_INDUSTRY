@@ -26,6 +26,7 @@ import { subscribeSecurityStream, subscribeStreamStatus, type StreamStatus } fro
 import { eventTypeLabel, incidentHeadline, isRetiredIncidentType } from "../../../lib/incidentLabels";
 import { detectionCountsByType, sortNeedsAttention, upsertUnresolved } from "../../../lib/needsAttention";
 import { IncidentEvidenceDialog } from "./IncidentEvidenceDialog";
+import { onServerWaking, withServerWake } from "../../../lib/api";
 
 const tabs = [
   { id: "live", label: "Live Monitoring" },
@@ -135,7 +136,14 @@ export function SecurityPage() {
   const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
   const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(null);
 
+  const [waking, setWaking] = useState(false);
+
   const loadAll = () => {
+    setWaking(false);
+    // A sleeping server is woken and every request sent again, instead of
+    // showing "Couldn't load" on each card after the first timeout
+    const wake = <T,>(request: () => Promise<T>) => withServerWake(request, () => setWaking(true));
+    const stopListening = onServerWaking(() => setWaking(true));
     setKpisLoading(true);
     setIncidentsLoading(true);
     setUnresolvedLoading(true);
@@ -144,12 +152,14 @@ export function SecurityPage() {
     setUnresolvedError(false);
 
     Promise.allSettled([
-      getSecurityKPIs(),
-      getIncidents({ pageSize: 50, sortBy: "occurredAt", sortOrder: "desc" }),
-      getIncidents({ status: "OPEN", pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" }),
-      getIncidents({ status: "INVESTIGATING", pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" }),
-      getEligibleEmployees(),
+      wake(() => getSecurityKPIs()),
+      wake(() => getIncidents({ pageSize: 50, sortBy: "occurredAt", sortOrder: "desc" })),
+      wake(() => getIncidents({ status: "OPEN", pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" })),
+      wake(() => getIncidents({ status: "INVESTIGATING", pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" })),
+      wake(() => getEligibleEmployees()),
     ]).then(([kpiResult, incidentResult, openResult, investigatingResult, userResult]) => {
+      stopListening();
+      setWaking(false);
       if (kpiResult.status === "fulfilled") setKpis(kpiResult.value);
       else setKpisError(true);
       if (incidentResult.status === "fulfilled") setIncidents(incidentResult.value.data);
@@ -306,6 +316,12 @@ export function SecurityPage() {
             </>
           }
         />
+
+        {waking && (
+          <p role="status" className="mb-4 rounded-lg px-4 py-3" style={{ background: "#FFF8E1", color: "#7A5B00", fontSize: "0.8rem", border: "1px solid #FFE8A3" }}>
+            Starting the server… it sleeps when idle and can take up to a minute. This page will fill in by itself.
+          </p>
+        )}
 
         <section className="mb-7 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <KPICard label="Open Incidents" value={kpiValue(kpisLoading, kpisError, kpis?.openIncidents)} sub={kpis ? `${kpis.investigatingIncidents} investigating` : undefined} icon={FileWarning} accent="#A52A2A" />

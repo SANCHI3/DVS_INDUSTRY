@@ -198,4 +198,9 @@ describe('GET /api/v1/health', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
   });
+
+  it('says whether outgoing mail is configured (no SMTP_HOST in tests)', async () => {
+    const res = await request(app).get('/api/v1/health');
+    expect(res.body.mail).toBe(false);
+  });
 });

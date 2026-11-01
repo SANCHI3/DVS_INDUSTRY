@@ -16,6 +16,8 @@ import { AuditRepository } from '../repositories/audit.repository';
 import { logger } from '../logger';
 import { checkGrounding } from './grounding';
 import {
+  ANSWER_BUDGET_MS,
+  assistantTimeoutError,
   createLlmClient,
   InvalidToolCallError,
   type ChatMessage,
@@ -179,6 +181,13 @@ export class AssistantService {
     ];
     const runs: ToolRun[] = [];
     const evidence: string[] = [question, day(now) ?? ''];
+    // Every model call shares one time budget, so the whole answer ends in time
+    const deadline = Date.now() + ANSWER_BUDGET_MS;
+    const timeLeft = (): number => {
+      const left = deadline - Date.now();
+      if (left <= 0) throw assistantTimeoutError();
+      return left;
+    };
 
     let answer: string;
     let correctedToolCall = false;
@@ -188,6 +197,7 @@ export class AssistantService {
       try {
         reply = await llm.complete({
           messages,
+          timeoutMs: timeLeft(),
           ...(specs.length > 0 ? { tools: specs, toolChoice: canUseTools ? 'auto' : 'none' } : {}),
         });
       } catch (err) {
@@ -239,6 +249,7 @@ export class AssistantService {
       messages.push({ role: 'user', content: REGROUND_INSTRUCTION });
       const retry = await llm.complete({
         messages,
+        timeoutMs: timeLeft(),
         ...(specs.length > 0 ? { tools: specs, toolChoice: 'none' as const } : {}),
       });
       const retried = tidy(retry.content);

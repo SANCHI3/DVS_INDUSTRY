@@ -127,7 +127,7 @@ Access JWTs are not stored in PostgreSQL. They are short-lived browser tokens. R
 
 Uploaded profile images are stored in PostgreSQL (the `StoredFile` table), because hosts such as Render wipe the server's disk on every deploy. They are served at `/uploads/profiles/<file>` as before; images uploaded earlier to `backend/uploads/profiles/` are still served from disk. The upload checks the file's actual bytes, so only real JPEG, PNG and WebP images are accepted (5 MB max).
 
-Password-reset tokens are currently kept in backend memory. They expire after 15 minutes but are lost if the backend restarts. A database table or Redis should be added before using password reset in production.
+Password-reset tokens are stored in PostgreSQL (the `PasswordResetToken` table), so they survive a backend restart; each expires after 15 minutes and works once. The reset email is sent only when SMTP is set up (`SMTP_HOST` and the other `SMTP_*` variables on Render). Without it the login page hides "Forgot password?" and tells people to ask an administrator; the health check (`GET /api/v1/health`) reports `"mail": true|false`.
 
 ## 6. How New Records Are Created
 
@@ -311,6 +311,12 @@ The local project is not the same thing as a production deployment. DNS, certifi
   emails are sent over SMTP when `SMTP_HOST` is set (logged in development)
 - Real-time security alerts: SSE stream, live Security page, priority popup on
   every page, incident escalation API (see `docs/REALTIME_SECURITY_ALERTS.md`)
+- Live incident events work across PM2 cluster workers: they are relayed
+  through Postgres LISTEN/NOTIFY (`backend/src/lib/securityEvents.ts`; the
+  listener uses `DIRECT_URL`). A single process (Render) keeps them in memory;
+  `SECURITY_EVENT_BUS=postgres|memory` overrides the choice
+- Website contact form saves inquiries (`Inquiry` table) and lists them under
+  User Management → Inquiries; `INQUIRY_NOTIFY_EMAIL` gets an email when SMTP is set
 - One-command fresh-clone setup (`scripts/setup.mjs`) and demo logins for every role
 - Frontend unit tests (Vitest) for the alert rules and stream parser
 - Frontend dependency audit: 0 vulnerabilities

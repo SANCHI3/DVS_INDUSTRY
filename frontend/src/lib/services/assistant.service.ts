@@ -13,7 +13,10 @@ export async function getAssistantStatus(): Promise<{ configured: boolean }> {
   return unwrap(res);
 }
 
+/** An answer can take several model calls; the server stops itself at 50 s. */
+export const ASK_TIMEOUT_MS = 60_000;
+
 export async function askAssistant(question: string): Promise<AssistantAnswer> {
-  const res = await api.post<{ success: true; data: AssistantAnswer }>('/assistant/ask', { question });
+  const res = await api.post<{ success: true; data: AssistantAnswer }>('/assistant/ask', { question }, { timeout: ASK_TIMEOUT_MS });
   return unwrap(res);
 }

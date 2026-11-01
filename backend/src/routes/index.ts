@@ -48,15 +48,26 @@ router.use(`${API_PREFIX}/security`, securityRouter);
 router.use(`${API_PREFIX}/workforce`, workforceRouter);
 
 // ── Health check ──────────────────────────────────────────────────────────────
+// Whether outgoing mail is set up: the login page hides "Forgot password?"
+// when no reset email could be sent. Reveals nothing beyond yes/no.
+const mailConfigured = (): boolean => (env.SMTP_HOST ?? '').trim() !== '';
+
 router.get(`${API_PREFIX}/health`, async (_req, res) => {
   if (env.NODE_ENV === 'test') {
-    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+    res
+      .status(200)
+      .json({ status: 'ok', mail: mailConfigured(), timestamp: new Date().toISOString() });
     return;
   }
 
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.status(200).json({ status: 'ok', database: 'ok', timestamp: new Date().toISOString() });
+    res.status(200).json({
+      status: 'ok',
+      database: 'ok',
+      mail: mailConfigured(),
+      timestamp: new Date().toISOString(),
+    });
   } catch {
     res.status(503).json({
       status: 'degraded',

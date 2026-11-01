@@ -15,6 +15,8 @@ import { env } from './config/env';
 import app from './app';
 import { prisma } from './lib/prismaClient';
 import { logger } from './logger';
+import { Client } from 'pg';
+import { sharedBusWanted, startSecurityEventBus } from './lib/securityEvents';
 
 const server = app.listen(env.PORT, () => {
   logger.info(`🚀  Server running`, {
@@ -24,6 +26,37 @@ const server = app.listen(env.PORT, () => {
   });
 });
 
+// ── Live incident events across processes ──────────────────────────────────
+// Under PM2 cluster mode (or SECURITY_EVENT_BUS=postgres) incident events go
+// through Postgres LISTEN/NOTIFY so every worker's dashboards receive them.
+// A single process keeps them in memory, which also lets an idle Neon
+// database suspend (a held LISTEN connection would keep it awake).
+let stopEventBus: (() => Promise<void>) | null = null;
+if (sharedBusWanted()) {
+  // LISTEN needs a direct connection; a transaction pooler drops it
+  const listenUrl = process.env['DIRECT_URL'] ?? env.DATABASE_URL;
+  void startSecurityEventBus({
+    createClient: () => {
+      const client = new Client({ connectionString: listenUrl });
+      return {
+        connect: () => client.connect(),
+        query: (sql) => client.query(sql),
+        onNotification: (listener) => client.on('notification', listener),
+        onError: (listener) => client.on('error', listener),
+        end: () => client.end(),
+      };
+    },
+    notify: (channel, payload) => prisma.$executeRaw`SELECT pg_notify(${channel}, ${payload})`,
+    onError: (err) =>
+      logger.error('Security event bus error', {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+  }).then((stop) => {
+    stopEventBus = stop;
+    logger.info('Security events relayed through Postgres LISTEN/NOTIFY');
+  });
+}
+
 // ── Graceful shutdown ──────────────────────────────────────────────────────
 
 function shutdown(signal: string): void {
@@ -31,8 +64,8 @@ function shutdown(signal: string): void {
 
   // Stop accepting new connections
   server.close(() => {
-    void prisma
-      .$disconnect()
+    void (stopEventBus?.() ?? Promise.resolve())
+      .then(() => prisma.$disconnect())
       .then(() => {
         logger.info('Prisma disconnected. Bye 👋');
         process.exit(0);

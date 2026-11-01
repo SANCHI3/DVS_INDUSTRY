@@ -5,6 +5,19 @@
 import { AppError } from '../errors';
 
 export const LLM_TIMEOUT_MS = 30_000;
+/**
+ * Whole-answer budget across every model call for one question. The browser
+ * waits 60 s for /assistant/ask, so the server gives up first and says so.
+ */
+export const ANSWER_BUDGET_MS = 50_000;
+
+export function assistantTimeoutError(): AppError {
+  return new AppError(
+    'That took too long. Please try again, or ask a shorter question.',
+    504,
+    'ASSISTANT_TIMEOUT',
+  );
+}
 /** Longest rate-limit pause worth waiting for before telling the user to try later. */
 export const MAX_RATE_LIMIT_WAIT_MS = 10_000;
 
@@ -27,6 +40,8 @@ export interface ToolSpec {
 export interface CompletionRequest {
   messages: ChatMessage[];
   tools?: ToolSpec[];
+  /** Abort this call after this many ms (capped at LLM_TIMEOUT_MS). */
+  timeoutMs?: number;
   /** 'none' forces a text answer even when tools are listed. */
   toolChoice?: 'auto' | 'none';
 }
@@ -81,6 +96,7 @@ export function createLlmClient(config: LlmConfig, fetchImpl: typeof fetch = fet
     messages,
     tools,
     toolChoice = 'auto',
+    timeoutMs = LLM_TIMEOUT_MS,
   }: CompletionRequest): Promise<Response> {
     try {
       return await fetchImpl(url, {
@@ -92,17 +108,16 @@ export function createLlmClient(config: LlmConfig, fetchImpl: typeof fetch = fet
           temperature: 0,
           ...(tools && tools.length > 0 ? { tools, tool_choice: toolChoice } : {}),
         }),
-        signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+        signal: AbortSignal.timeout(Math.max(1, Math.min(timeoutMs, LLM_TIMEOUT_MS))),
       });
     } catch (err) {
       const timedOut =
         err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError');
+      if (timedOut) throw assistantTimeoutError();
       throw new AppError(
-        timedOut
-          ? 'The assistant took too long to answer. Please try again.'
-          : 'The assistant service could not be reached. Please try again later.',
-        timedOut ? 504 : 502,
-        timedOut ? 'ASSISTANT_TIMEOUT' : 'ASSISTANT_UNAVAILABLE',
+        'The assistant service could not be reached. Please try again later.',
+        502,
+        'ASSISTANT_UNAVAILABLE',
       );
     }
   }

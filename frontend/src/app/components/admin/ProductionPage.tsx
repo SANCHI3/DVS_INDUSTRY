@@ -151,6 +151,7 @@ export function ProductionPage() {
               onMonthChange={setTargetMonth}
               perms={prod}
               onSaved={() => monthTarget.reload()}
+              current={{ month: thisMonth, data: monthTarget }}
             />
 
             <Card className="mb-5">

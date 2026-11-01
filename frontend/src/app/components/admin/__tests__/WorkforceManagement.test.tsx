@@ -84,7 +84,7 @@ describe("Workforce Management table", () => {
   it("explains a failed load instead of showing an empty table", async () => {
     vi.mocked(getEmployees).mockRejectedValue({ status: 500, code: "INTERNAL_ERROR", message: "Database unavailable" });
     render(<WorkforceManagement />);
-    expect(await screen.findByText(/Could not load employees: Database unavailable \(server error 500\)/)).toBeTruthy();
+    expect(await screen.findByText("Could not load employees: something went wrong on our side. Please try again in a moment.")).toBeTruthy();
     expect(screen.getByRole("button", { name: /Try Again/ })).toBeTruthy();
   });
 

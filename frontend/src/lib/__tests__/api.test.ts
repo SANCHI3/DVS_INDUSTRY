@@ -2,10 +2,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import axios, { AxiosError, type AxiosAdapter, type InternalAxiosRequestConfig } from "axios";
 import api, {
-  SESSION_EXPIRED_EVENT, clearAccessToken, getAccessToken, isServerStarting, setAccessToken,
+  SESSION_EXPIRED_EVENT, clearAccessToken, describeApiError, getAccessToken, isServerStarting, onServerWaking, setAccessToken,
 } from "../api";
 
-type Reply = { status: number; data?: unknown } | "network-down";
+type Reply = { status: number; data?: unknown } | "network-down" | "timeout";
 
 /** Answers requests by URL; every request is recorded with its token. */
 function fakeServer(routes: Record<string, Reply[]>) {
@@ -17,6 +17,7 @@ function fakeServer(routes: Record<string, Reply[]>) {
     const reply = key ? routes[key].shift() : undefined;
     if (reply === undefined) throw new Error(`unexpected request ${url}`);
     if (reply === "network-down") throw new AxiosError("Network Error", "ERR_NETWORK", config);
+    if (reply === "timeout") throw new AxiosError("timeout of 15000ms exceeded", "ECONNABORTED", config);
     const response = { status: reply.status, statusText: "", data: reply.data ?? {}, headers: {}, config };
     if (reply.status >= 400) {
       throw new AxiosError("fail", "ERR_BAD_RESPONSE", config, undefined, response);
@@ -131,5 +132,60 @@ describe("isServerStarting", () => {
     // A proxy's own 500 (plain text, no API error body)
     expect(isServerStarting({ status: 500, code: "NETWORK_ERROR", message: "" })).toBe(true);
     expect(isServerStarting(new Error("x"))).toBe(false);
+  });
+});
+
+describe("reads while the server is starting", () => {
+  beforeEach(() => { setAccessToken("t"); vi.useFakeTimers(); });
+  afterEach(() => vi.useRealTimers());
+
+  it("retries a GET after a gateway error and says the server is waking", async () => {
+    const waking = vi.fn();
+    const stop = onServerWaking(waking);
+    const seen = fakeServer({ "/security/kpis": [{ status: 502 }, "timeout", { status: 200, data: { ok: 1 } }] });
+
+    const pending = api.get("/security/kpis");
+    await vi.advanceTimersByTimeAsync(7_000);
+
+    expect((await pending).data).toEqual({ ok: 1 });
+    expect(seen).toHaveLength(3);
+    expect(waking).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
+  it("gives up after two retries with the gateway error", async () => {
+    const seen = fakeServer({ "/orders": [{ status: 503 }, { status: 503 }, { status: 503 }] });
+    const pending = api.get("/orders").catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(7_000);
+    expect(await pending).toMatchObject({ status: 503 });
+    expect(seen).toHaveLength(3);
+  });
+
+  it("never retries a write, which might already have been applied", async () => {
+    const seen = fakeServer({ "/orders": [{ status: 502 }] });
+    await expect(api.post("/orders", {})).rejects.toMatchObject({ status: 502 });
+    expect(seen).toHaveLength(1);
+  });
+
+  it("does not retry a real answer such as 404", async () => {
+    const seen = fakeServer({ "/orders/9": [{ status: 404 }] });
+    await expect(api.get("/orders/9")).rejects.toMatchObject({ status: 404 });
+    expect(seen).toHaveLength(1);
+  });
+
+  it("labels a timeout as TIMEOUT", async () => {
+    fakeServer({ "/slow": ["timeout", "timeout", "timeout"] });
+    const pending = api.get("/slow").catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(7_000);
+    expect(await pending).toMatchObject({ status: 0, code: "TIMEOUT" });
+  });
+});
+
+describe("describeApiError", () => {
+  it("speaks plainly about server faults and being offline", () => {
+    expect(describeApiError({ status: 500, code: "INTERNAL", message: "Prisma P2002" }, "load orders"))
+      .toBe("Could not load orders: something went wrong on our side. Please try again in a moment.");
+    expect(describeApiError({ status: 0, code: "OFFLINE", message: "Network Error" }, "load orders"))
+      .toMatch(/this device is offline/);
   });
 });

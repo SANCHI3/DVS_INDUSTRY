@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, MessageCircleQuestion, Send, X } from "lucide-react";
-import { isApiError } from "../../../lib/api";
+import { isApiError, isServerStarting } from "../../../lib/api";
 import { askAssistant, getAssistantStatus } from "../../../lib/services/assistant.service";
 
 /** Example questions per backend role; they match the data each role may see. */
@@ -24,10 +24,13 @@ type Message =
 
 type Status = "checking" | "ready" | "not-configured";
 
-function errorText(error: unknown): string {
+export function errorText(error: unknown): string {
   if (isApiError(error)) {
     if (error.code === "ASSISTANT_NOT_CONFIGURED") return "Assistant not configured. Ask an administrator to add the assistant key.";
-    if (error.status === 0) return "Could not reach the server. Check your connection and try again.";
+    if (error.code === "TIMEOUT" || error.code === "ASSISTANT_TIMEOUT") return "That took too long — please try again.";
+    if (error.code === "OFFLINE") return "You're offline. Check your internet connection and try again.";
+    if (isServerStarting(error)) return "Couldn't reach the server — it may be starting up. Please try again in a minute.";
+    if (error.status >= 500) return "Something went wrong on our side. Please try again.";
     if (error.message) return error.message;
   }
   return "Something went wrong. Please try again.";
@@ -165,7 +168,7 @@ export function AskDvs({ backendRole }: { backendRole: string }) {
                 )}
                 {asking && (
                   <div className="self-start flex items-center gap-2 rounded-lg px-3 py-2" style={{ background: "#F5F0EF", color: "#7A6C6A", fontSize: "0.8rem" }}>
-                    <Loader2 size={14} className="animate-spin" /> Looking that up...
+                    <Loader2 size={14} className="animate-spin" /> Thinking…
                   </div>
                 )}
               </>

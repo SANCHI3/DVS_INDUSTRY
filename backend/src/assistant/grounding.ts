@@ -49,6 +49,8 @@ export interface GroundingResult {
 
 export function checkGrounding(answer: string, evidenceTexts: string[]): GroundingResult {
   const evidence = evidenceTexts.flatMap(numbersIn);
+  // An empty list in the data supports "0" / "none": "There are 0 open falls."
+  if (evidenceTexts.some((t) => /\[\s*\]/.test(t))) evidence.push(0);
   const unsupported = numbersIn(answer).filter((n) => !matchesEvidence(n, evidence));
   return { grounded: unsupported.length === 0, unsupported };
 }

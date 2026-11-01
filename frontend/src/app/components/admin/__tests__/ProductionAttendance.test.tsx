@@ -140,7 +140,7 @@ describe("Production page", () => {
   it("keeps working sections visible when one request fails, and says why it failed", async () => {
     vi.mocked(getProductionKPIs).mockRejectedValue({ status: 500, code: "INTERNAL_ERROR", message: "Database unavailable" });
     render(<ProductionPage />);
-    expect(await screen.findByText(/Could not load production KPIs: Database unavailable/)).toBeTruthy();
+    expect(await screen.findByText("Could not load production KPIs: something went wrong on our side. Please try again in a moment.")).toBeTruthy();
     expect(screen.getAllByText("Unavailable").length).toBe(4);
     expect(await screen.findByText("No work orders have been created yet.")).toBeTruthy();
     expect(screen.getByText("No work-order output has been recorded in the last 7 days.")).toBeTruthy();

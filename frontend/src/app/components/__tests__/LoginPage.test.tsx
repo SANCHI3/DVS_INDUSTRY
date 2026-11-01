@@ -7,10 +7,11 @@ vi.mock("../../../lib/auth", () => ({ login: vi.fn() }));
 vi.mock("../../../lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof ApiModule>()),
   waitForServer: vi.fn(),
+  isMailConfigured: vi.fn().mockResolvedValue(true),
 }));
 
 import { login } from "../../../lib/auth";
-import { waitForServer } from "../../../lib/api";
+import { isMailConfigured, waitForServer } from "../../../lib/api";
 import { LoginPage } from "../LoginPage";
 
 const apiLogin = vi.mocked(login);
@@ -85,5 +86,20 @@ describe("Login page", () => {
     render(<LoginPage initialRole="admin" onNavigateHome={vi.fn()} onLoginSuccess={vi.fn()} />);
     expect(screen.getByLabelText(/Email Address/).getAttribute("autocomplete")).toBe("username");
     expect(screen.getByLabelText(/Password/).getAttribute("autocomplete")).toBe("current-password");
+  });
+});
+
+describe("Forgot password", () => {
+  it("is offered when the server can send email", async () => {
+    vi.mocked(isMailConfigured).mockResolvedValue(true);
+    render(<LoginPage initialRole="admin" onNavigateHome={vi.fn()} onLoginSuccess={vi.fn()} />);
+    expect(await screen.findByRole("button", { name: "Forgot password?" })).toBeTruthy();
+  });
+
+  it("points to an administrator when email is not set up", async () => {
+    vi.mocked(isMailConfigured).mockResolvedValue(false);
+    render(<LoginPage initialRole="admin" onNavigateHome={vi.fn()} onLoginSuccess={vi.fn()} />);
+    expect(await screen.findByText("Forgot your password? Ask your administrator to reset it.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Forgot password?" })).toBeNull();
   });
 });

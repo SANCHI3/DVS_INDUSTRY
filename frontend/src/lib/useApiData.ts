@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { describeApiError, isApiError, withServerWake } from "./api";
+import { describeApiError, isApiError, onServerWaking, withServerWake } from "./api";
 
 export interface ApiData<T> {
   data: T | null;
@@ -28,7 +28,11 @@ export function useApiData<T>(load: () => Promise<T>, deps: unknown[], action: s
     if (!enabled) return;
     let cancelled = false;
     setState((s) => ({ ...s, loading: true, waking: false, error: null, forbidden: false }));
-    withServerWake(load, () => { if (!cancelled) setState((s) => ({ ...s, waking: true })); })
+    const markWaking = () => { if (!cancelled) setState((s) => (s.loading ? { ...s, waking: true } : s)); };
+    // Reads retry on their own while the server starts; say so straight away
+    const stopListening = onServerWaking(markWaking);
+    withServerWake(load, markWaking)
+      .finally(stopListening)
       .then((data) => {
         if (!cancelled) setState({ data, loading: false, waking: false, error: null, forbidden: false });
       })
