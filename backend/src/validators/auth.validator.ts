@@ -91,6 +91,8 @@ export const adminUpdateUserSchema = z.object({
   fullName: z.string().min(2).max(100).trim().optional(),
   email: emailField.optional(),
   roleId: z.number().int().positive().optional(),
+  // false deactivates (sessions end), true reactivates
+  isActive: z.boolean().optional(),
 });
 
 // ── Exported types inferred from schemas ──────────────────────────────────────

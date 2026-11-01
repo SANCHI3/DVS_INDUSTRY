@@ -3,6 +3,7 @@ import type {
   SupplierDto,
   ClientDto,
   ClientOrderDto,
+  ClientOrderDetail,
   PurchaseOrderDto,
   SupplierListResult,
   ClientListResult,
@@ -23,7 +24,7 @@ import type {
   CreatePurchaseOrderData,
   UpdatePurchaseOrderData,
 } from '../interfaces';
-import { ConflictError, NotFoundError, BadRequestError } from '../errors';
+import { ConflictError, NotFoundError, BadRequestError, ValidationError } from '../errors';
 import { logger } from '../logger';
 
 /**
@@ -46,6 +47,33 @@ import { logger } from '../logger';
  *     PENDING → CONFIRMED → IN_TRANSIT → DELIVERED
  *     Any → CANCELLED (if not yet DELIVERED)
  */
+/** Midnight UTC of the day `d` falls on: dates are compared by calendar day. */
+function dayOf(d: Date): number {
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+/**
+ * A required-by or expected-delivery date cannot be before the order date
+ * (e.g. PO-TEST-001: expected 15 Sept, ordered 25 Sept). Same day is fine.
+ */
+export function assertNotBeforeOrderDate(
+  date: Date | null | undefined,
+  orderDate: Date,
+  field: string,
+  label: string,
+): void {
+  if (date == null || dayOf(date) >= dayOf(orderDate)) return;
+  const shown = orderDate.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+  throw new ValidationError(`${label} cannot be before the order date`, [
+    { field, message: `${label} cannot be before the order date (${shown})` },
+  ]);
+}
+
 export class OrdersService {
   private readonly repo: OrdersRepository;
 
@@ -237,6 +265,7 @@ export class OrdersService {
     if (!client.isActive) {
       throw new BadRequestError('Cannot create order for an inactive client');
     }
+    assertNotBeforeOrderDate(data.requiredDate, new Date(), 'requiredDate', 'Required-by date');
     const order = await this.repo.createClientOrder(data);
     logger.info('Client order created', {
       id: order.id,
@@ -250,6 +279,12 @@ export class OrdersService {
     if (['DISPATCHED', 'DELIVERED', 'CANCELLED'].includes(existing.status)) {
       throw new BadRequestError(`Cannot edit an order with status "${existing.status}"`);
     }
+    assertNotBeforeOrderDate(
+      data.requiredDate,
+      existing.orderDate,
+      'requiredDate',
+      'Required-by date',
+    );
     const updated = await this.repo.updateClientOrder(id, data);
     logger.info('Client order updated', { id });
     return updated;
@@ -257,6 +292,11 @@ export class OrdersService {
 
   async getClientOrderById(id: number): Promise<ClientOrderDto> {
     return this.getClientOrderOrThrow(id);
+  }
+
+  /** The order plus its linked work orders, for dispatch readiness and tracking. */
+  async getClientOrderDetail(order: ClientOrderDto): Promise<ClientOrderDetail> {
+    return { ...order, workOrders: await this.repo.findLinkedWorkOrders(order.id) };
   }
 
   async getAllClientOrders(filters: ClientOrderFilters): Promise<ClientOrderListResult> {
@@ -335,6 +375,12 @@ export class OrdersService {
     if (!supplier.isActive) {
       throw new BadRequestError('Cannot create PO for an inactive supplier');
     }
+    assertNotBeforeOrderDate(
+      data.expectedDelivery,
+      new Date(),
+      'expectedDelivery',
+      'Expected delivery',
+    );
     const po = await this.repo.createPurchaseOrder(data);
     logger.info('Purchase order created', {
       id: po.id,
@@ -348,6 +394,12 @@ export class OrdersService {
     if (['DELIVERED', 'CANCELLED'].includes(existing.status)) {
       throw new BadRequestError(`Cannot edit a PO with status "${existing.status}"`);
     }
+    assertNotBeforeOrderDate(
+      data.expectedDelivery,
+      existing.orderDate,
+      'expectedDelivery',
+      'Expected delivery',
+    );
     const updated = await this.repo.updatePurchaseOrder(id, data);
     logger.info('Purchase order updated', { id });
     return updated;

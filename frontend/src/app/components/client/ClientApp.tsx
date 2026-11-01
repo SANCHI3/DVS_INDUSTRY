@@ -22,6 +22,7 @@ import { getPortalMessages, type PortalMessageDto } from "../../../lib/services/
 import {
   clientNotifications, clientOrderTrend, orderTimeline, orderedProducts, type PortalNotification,
 } from "../../../lib/portalInsights";
+import { useConfirm } from "../shared/ConfirmDialog";
 
 const ACCENT = "#1565C0";
 const NO_PROFILE = "No client record matches this login's email. Ask DVS to set it on your client record.";
@@ -188,8 +189,14 @@ function OrderManagement({ data, onRefresh, draft, onDraftUsed }: { data: Client
 
   const orders = data.orders.filter((order) => (tab === "active" ? isOpen(order) : !isOpen(order)));
 
+  const [confirmDialog, askConfirm] = useConfirm();
   const cancel = async (order: ClientOrderDto) => {
-    if (!window.confirm(`Cancel ${order.orderNumber}?`)) return;
+    if (!(await askConfirm({
+      title: `Cancel ${order.orderNumber}?`,
+      message: <>{order.product} · {order.quantity} {order.unit}. DVS will no longer produce this order.</>,
+      confirmLabel: "Cancel order",
+      danger: true,
+    }))) return;
     setCancelling(order.id);
     try {
       await cancelClientOrder(order.id);
@@ -201,6 +208,7 @@ function OrderManagement({ data, onRefresh, draft, onDraftUsed }: { data: Client
   };
 
   return <div className="p-6">
+    {confirmDialog}
     <PageHeader title="Order Management" subtitle="Place, track and review your orders with DVS Industries" actions={<Btn onClick={() => setDialog({ draft: null })} disabled={!data.profile}><Plus size={14} /> New Order</Btn>} />
     {dialog && data.profile && <NewOrderDialog clientId={data.profile.id} draft={dialog.draft} onClose={() => setDialog(null)} onCreated={onRefresh} />}
     <div className="flex gap-0 mb-5" style={{ borderBottom: "2px solid #E8E2E0" }}>{([["active", "Active Orders"], ["history", "Order History"]] as const).map(([id, label]) => <button key={id} onClick={() => setTab(id)} style={{ padding: "0.625rem 1rem", fontSize: "0.8375rem", fontWeight: tab === id ? 600 : 400, color: tab === id ? "#A52A2A" : "#7A6C6A", borderTop: "none", borderLeft: "none", borderRight: "none", borderBottom: `2px solid ${tab === id ? "#A52A2A" : "transparent"}`, marginBottom: "-2px", background: "transparent", cursor: "pointer" }}>{label}</button>)}</div>

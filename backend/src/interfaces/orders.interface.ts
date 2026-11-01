@@ -77,6 +77,21 @@ export interface ClientOrderDto {
   updatedAt: Date;
 }
 
+/** A work order producing (part of) a client order. */
+export interface LinkedWorkOrder {
+  id: number;
+  workOrderNumber: string;
+  status: string;
+  targetQuantity: number;
+  producedQty: number; // good output recorded so far
+  unit: string;
+}
+
+/** One client order with the work orders linked to it (detail view). */
+export interface ClientOrderDetail extends ClientOrderDto {
+  workOrders: LinkedWorkOrder[];
+}
+
 // ── Purchase Order ────────────────────────────────────────────────────────────
 
 export interface PurchaseOrderDto {
@@ -110,6 +125,7 @@ export interface OrdersStatistics {
     dispatched: number;
     delivered: number;
     cancelled: number;
+    overdue: number; // past the required-by date, not delivered or cancelled
     totalValue: string;
   };
   purchaseOrders: {
@@ -119,6 +135,7 @@ export interface OrdersStatistics {
     inTransit: number;
     delivered: number;
     cancelled: number;
+    overdue: number; // past the expected delivery, not delivered or cancelled
     totalCost: string;
   };
   fulfillmentRate: string;

@@ -18,6 +18,8 @@ import {
   getIncidents,
   transitionIncidentStatus,
   assignIncident,
+  bulkIncidentAction,
+  type BulkIncidentAction,
   type SecurityKPIs,
   type SecurityIncidentDto,
 } from "../../../lib/services/security.service";
@@ -26,10 +28,14 @@ import { subscribeSecurityStream, subscribeStreamStatus, type StreamStatus } fro
 import { eventTypeLabel, incidentHeadline, isRetiredIncidentType } from "../../../lib/incidentLabels";
 import { detectionCountsByType, sortNeedsAttention, upsertUnresolved } from "../../../lib/needsAttention";
 import { IncidentEvidenceDialog } from "./IncidentEvidenceDialog";
-import { onServerWaking, withServerWake } from "../../../lib/api";
+import { describeApiError, fetchAllPages, onServerWaking, withServerWake } from "../../../lib/api";
 import { getStoredBackendRole } from "../../../lib/auth";
 import { securityActions } from "../../../lib/permissions";
+import { useTabHash } from "../../../lib/useTabHash";
+import { downloadCSV } from "../../../lib/csv";
+import { Modal } from "../shared/Modal";
 
+const SECURITY_TABS = ["live", "incidents", "reports"];
 const tabs = [
   { id: "live", label: "Live Monitoring" },
   { id: "incidents", label: "Incident Center" },
@@ -47,6 +53,9 @@ type DisplayIncident = {
   description: string;
   confidence: string;
   status: string;
+  falseAlarm: boolean;
+  rawType: string;
+  occurredAt: string;
   severity: string;
   assigned: string;
   numericId: number;
@@ -101,6 +110,20 @@ const LIVE_BADGE: Record<StreamStatus, { label: string; color: string; backgroun
   forbidden: { label: "Live updates unavailable", color: "#7A6C6A", background: "#F3EFEE" },
 };
 
+/** "just now", "5 minutes ago", "3 hours ago", "2 days ago", "2 weeks ago". */
+export function timeAgo(iso: string, now: number = Date.now()): string {
+  const minutes = Math.max(0, Math.round((now - new Date(iso).getTime()) / 60_000));
+  if (minutes < 1) return "just now";
+  const unit = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"} ago`;
+  if (minutes < 60) return unit(minutes, "minute");
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return unit(hours, "hour");
+  const days = Math.round(hours / 24);
+  if (days < 14) return unit(days, "day");
+  if (days < 60) return unit(Math.round(days / 7), "week");
+  return unit(Math.round(days / 30), "month");
+}
+
 function LiveBadge({ status }: { status: StreamStatus }) {
   const badge = LIVE_BADGE[status];
   return (
@@ -121,8 +144,17 @@ function LiveBadge({ status }: { status: StreamStatus }) {
 export function SecurityPage() {
   // Production can follow incidents but only admins and managers act on them
   const actions = useMemo(() => securityActions(getStoredBackendRole()), []);
-  const [tab, setTab] = useState("live");
+  const [tab, setTab] = useTabHash("security", SECURITY_TABS);
   const [filter, setFilter] = useState<(typeof filters)[number]>("all");
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkAssignee, setBulkAssignee] = useState("");
+  const [falseAlarmFor, setFalseAlarmFor] = useState<number[] | null>(null);
+  const [falseAlarmReason, setFalseAlarmReason] = useState("");
   const [kpis, setKpis] = useState<SecurityKPIs | null>(null);
   const [incidents, setIncidents] = useState<SecurityIncidentDto[]>([]);
   // Unresolved incidents, loaded separately so older open ones are not lost
@@ -157,7 +189,7 @@ export function SecurityPage() {
 
     Promise.allSettled([
       wake(() => getSecurityKPIs()),
-      wake(() => getIncidents({ pageSize: 50, sortBy: "occurredAt", sortOrder: "desc" })),
+      wake(() => fetchAllPages((page) => getIncidents({ page, pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" }), 2_000).then((data) => ({ data }))),
       wake(() => getIncidents({ status: "OPEN", pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" })),
       wake(() => getIncidents({ status: "INVESTIGATING", pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" })),
       // Only roles that can assign incidents need the list of assignees
@@ -224,6 +256,9 @@ export function SecurityPage() {
     description: incident.description,
     confidence: incident.confidenceScore === null ? "—" : `${Math.round(incident.confidenceScore * 100)}%`,
     status: incident.status.toLowerCase(),
+    falseAlarm: incident.falseAlarm === true,
+    rawType: incident.type,
+    occurredAt: incident.occurredAt,
     severity: incident.severity.toLowerCase(),
     assigned: incident.assignedToName ?? "Unassigned",
     numericId: incident.id,
@@ -231,9 +266,24 @@ export function SecurityPage() {
     assignedToId: incident.assignedToId,
   }));
 
-  const filteredIncidents = filter === "all"
-    ? displayIncidents
-    : displayIncidents.filter((incident) => incident.status === filter);
+  const filteredIncidents = displayIncidents.filter((incident) => {
+    if (filter !== "all" && incident.status !== filter) return false;
+    if (severityFilter !== "all" && incident.severity !== severityFilter) return false;
+    if (typeFilter !== "all" && incident.rawType !== typeFilter) return false;
+    const day = incident.occurredAt.slice(0, 10);
+    if (fromDate && day < fromDate) return false;
+    if (toDate && day > toDate) return false;
+    return true;
+  });
+  const incidentTypes = [...new Set(incidents.map((i) => i.type))].filter((t) => !isRetiredIncidentType(t)).sort();
+  const selectable = filteredIncidents.filter((i) => i.rawStatus === "OPEN" || i.rawStatus === "INVESTIGATING");
+  const allSelected = selectable.length > 0 && selectable.every((i) => selected.has(i.numericId));
+  const toggle = (id: number) => setSelected((current) => {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const newestAi = incidents.find((incident) => incident.reportedByName === AI_REPORTER);
   const needsAttention = sortNeedsAttention(unresolved.filter((incident) => incident.reportedByName === AI_REPORTER));
   const latestDetections = incidents.filter((incident) => incident.reportedByName === AI_REPORTER).slice(0, 6);
   const selectedIncident = incidents.find((incident) => incident.id === selectedIncidentId)
@@ -247,6 +297,21 @@ export function SecurityPage() {
     setIncidents((current) => current.map((incident) => (incident.id === updated.id ? updated : incident)));
     setUnresolved((current) => upsertUnresolved(current, updated));
     getSecurityKPIs().then(setKpis).catch(() => undefined);
+  };
+
+  const runBulk = async (action: BulkIncidentAction, ids: number[], options: { reason?: string; assignedToId?: number } = {}) => {
+    if (ids.length === 0) return;
+    setBulkBusy(true);
+    try {
+      const result = await bulkIncidentAction(ids, action, options);
+      toast.success(`${result.done.length} incident(s) updated${result.skipped.length ? `, ${result.skipped.length} left as they were` : ""}.`);
+      setSelected(new Set());
+      loadAll();
+    } catch (err) {
+      toast.error(describeApiError(err, "update the incidents"));
+    } finally {
+      setBulkBusy(false);
+    }
   };
 
   const handleTransitionIncident = async (incidentId: number, status: "INVESTIGATING" | "RESOLVED" | "CLOSED") => {
@@ -266,26 +331,23 @@ export function SecurityPage() {
   };
 
   const exportIncidents = () => {
-    if (filteredIncidents.length === 0) { toast.error("No incident data available to export."); return; }
-    const headers = ["Incident ID", "Date & Time", "Location", "Event Type", "AI Summary", "Confidence", "Severity", "Status", "Assigned To"];
-    const rows = filteredIncidents.map((incident) => [
-      incident.id,
-      `${incident.dateTime.date} ${incident.dateTime.time}`,
-      incident.location,
-      incident.type,
-      incident.aiSummary ?? "",
-      incident.confidence,
-      incident.severity,
-      incident.status,
-      incident.assigned,
+    if (filteredIncidents.length === 0) { toast.error("No incidents to export."); return; }
+    // downloadCSV escapes cells that a spreadsheet would run as formulas
+    downloadCSV("DVS_security_incidents.csv", [
+      ["Incident ID", "Date & Time", "Location", "Event Type", "AI Summary", "Confidence", "Severity", "Status", "False alarm", "Assigned To"],
+      ...filteredIncidents.map((incident) => [
+        incident.id,
+        `${incident.dateTime.date} ${incident.dateTime.time}`,
+        incident.location,
+        incident.type,
+        incident.aiSummary ?? "",
+        incident.confidence,
+        incident.severity,
+        incident.status,
+        incident.falseAlarm ? "yes" : "",
+        incident.assigned,
+      ]),
     ]);
-    const csv = [headers, ...rows].map((row) => row.map((cell) => `"${cell.replace(/"/g, "\"\"")}"`).join(",")).join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = "DVS_security_incidents.csv";
-    anchor.click();
-    URL.revokeObjectURL(url);
   };
 
   const renderIncidentAction = (incident: DisplayIncident) => {
@@ -345,7 +407,12 @@ export function SecurityPage() {
         {tab === "live" && (
           <div className="space-y-5">
             <Card style={{ borderRadius: "0.75rem" }}>
-              <CardHeader title="Latest AI Detections" subtitle="Newest incidents reported by the CCTV perception service; updates live" actions={<LiveBadge status={streamStatus} />} />
+              <CardHeader title="Latest AI Detections" subtitle="Newest incidents reported by the CCTV perception service; updates live" actions={
+                <div className="flex items-center gap-2">
+                  {newestAi && <span style={{ color: "#837572", fontSize: "0.72rem" }}>Last detection: {timeAgo(newestAi.occurredAt)}</span>}
+                  <LiveBadge status={streamStatus} />
+                </div>
+              } />
               <div className="p-5">
                 {incidentsLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading detections...</p> : incidentsError ? <p style={{ color: "#C0392B", fontSize: "0.82rem" }}>Unable to load incidents.</p> : latestDetections.length === 0 ? <EmptyState icon={Camera} title="No AI detections yet" detail="When the perception service (camera or demo mode) confirms an event, it appears here within seconds together with a pop-up alert." /> : (
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -420,14 +487,45 @@ export function SecurityPage() {
               <div className="flex flex-wrap gap-2">{filters.map((item) => <button key={item} onClick={() => setFilter(item)} className="rounded-md px-3 py-1.5" style={{ background: filter === item ? "#A52A2A" : "#FBF8F7", color: filter === item ? "#FFFFFF" : "#665956", border: `1px solid ${filter === item ? "#A52A2A" : "#E7DEDA"}`, cursor: "pointer", fontSize: "0.74rem", fontWeight: 600, textTransform: "capitalize" }}>{item === "all" ? "All Incidents" : item}</button>)}</div>
               <Btn variant="secondary" size="sm" className="sm:ml-auto" onClick={exportIncidents}><Download size={13} /> Export CSV</Btn>
             </div>
+            <div className="flex flex-wrap items-end gap-3 rounded-xl border p-3" style={{ background: "#FFFFFF", borderColor: "#E7DEDA", fontSize: "0.74rem", color: "#665956" }}>
+              <label className="flex flex-col gap-1">Severity
+                <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value)} className="rounded-md px-2 py-1.5" style={{ border: "1px solid #E7DEDA" }}>
+                  <option value="all">All</option>{["critical", "high", "medium", "low"].map((v) => <option key={v} value={v}>{v.charAt(0).toUpperCase() + v.slice(1)}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">Type
+                <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="rounded-md px-2 py-1.5" style={{ border: "1px solid #E7DEDA" }}>
+                  <option value="all">All</option>{incidentTypes.map((t) => <option key={t} value={t}>{formatEventType(t)}</option>)}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1">From<input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-md px-2 py-1" style={{ border: "1px solid #E7DEDA" }} /></label>
+              <label className="flex flex-col gap-1">To<input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-md px-2 py-1" style={{ border: "1px solid #E7DEDA" }} /></label>
+            </div>
+            {actions.manageIncidents && selected.size > 0 && (
+              <div role="region" aria-label="Bulk actions" className="flex flex-wrap items-center gap-2 rounded-xl border p-3" style={{ background: "#FFF8F7", borderColor: "#F2D4CF" }}>
+                <strong style={{ fontSize: "0.8rem", color: "#302725" }}>{selected.size} selected</strong>
+                <Btn size="sm" variant="secondary" disabled={bulkBusy} onClick={() => void runBulk("investigate", [...selected])}>Mark investigating</Btn>
+                <Btn size="sm" variant="success" disabled={bulkBusy} onClick={() => void runBulk("resolve", [...selected])}>Resolve</Btn>
+                <Btn size="sm" variant="secondary" disabled={bulkBusy} onClick={() => { setFalseAlarmReason(""); setFalseAlarmFor([...selected]); }}>Mark as false alarm</Btn>
+                <label className="sr-only" htmlFor="bulk-assignee">Assign to</label>
+                <select id="bulk-assignee" value={bulkAssignee} onChange={(e) => setBulkAssignee(e.target.value)} className="rounded-md px-2 py-1.5" style={{ border: "1px solid #E7DEDA", fontSize: "0.76rem" }}>
+                  <option value="">Assign to…</option>{users.map((user) => <option key={user.id} value={user.id}>{user.fullName}</option>)}
+                </select>
+                <Btn size="sm" disabled={bulkBusy || !bulkAssignee} onClick={() => void runBulk("assign", [...selected], { assignedToId: Number(bulkAssignee) })}>Assign</Btn>
+                <button type="button" onClick={() => setSelected(new Set())} style={{ marginLeft: "auto", background: "none", border: "none", color: "#837572", fontSize: "0.75rem", cursor: "pointer" }}>Clear selection</button>
+              </div>
+            )}
             <Card style={{ borderRadius: "0.75rem", overflow: "hidden" }}>
               <CardHeader title="Incident Center" subtitle="Click an incident ID to see the camera evidence and the AI's explanation. Confidence is shown for AI-detected incidents." actions={<span style={{ color: "#9A8A88", fontSize: "0.72rem" }}>{filteredIncidents.length} records</span>} />
               <DataTable
                 searchable
                 paginate={10}
                 emptyMsg={incidentsLoading ? "Loading incidents..." : incidentsError ? "Unable to load incidents." : "No incidents available."}
-                columns={[{ key: "id", label: "Incident ID" }, { key: "datetime", label: "Date & Time" }, { key: "location", label: "Location" }, { key: "type", label: "Event Type" }, { key: "aiSummary", label: "AI Summary" }, { key: "confidence", label: "Confidence" }, { key: "severity", label: "Severity" }, { key: "status", label: "Status" }, { key: "assigned", label: "Assigned To" }, ...(actions.manageIncidents ? [{ key: "actions", label: "Actions" }] : [])]}
+                columns={[...(actions.manageIncidents ? [{ key: "select", label: <input type="checkbox" aria-label="Select all open incidents shown" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(selectable.map((i) => i.numericId)))} /> as unknown as string }] : []), { key: "id", label: "Incident ID" }, { key: "datetime", label: "Date & Time" }, { key: "location", label: "Location" }, { key: "type", label: "Event Type" }, { key: "aiSummary", label: "AI Summary" }, { key: "confidence", label: "Confidence" }, { key: "severity", label: "Severity" }, { key: "status", label: "Status" }, { key: "assigned", label: "Assigned To" }, ...(actions.manageIncidents ? [{ key: "actions", label: "Actions" }] : [])]}
                 rows={filteredIncidents.map((incident) => ({
+                  select: incident.rawStatus === "OPEN" || incident.rawStatus === "INVESTIGATING"
+                    ? <input type="checkbox" aria-label={`Select ${incident.id}`} checked={selected.has(incident.numericId)} onChange={() => toggle(incident.numericId)} />
+                    : null,
                   id: <button onClick={() => setSelectedIncidentId(incident.numericId)} title="View evidence" style={{ color: "#A52A2A", fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", fontWeight: 700, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>{incident.id}</button>,
                   datetime: <div><p style={{ color: "#302725", fontSize: "0.78rem", fontWeight: 600 }}>{incident.dateTime.date}</p><p style={{ color: "#9A8A88", fontSize: "0.7rem" }}>{incident.dateTime.time}</p></div>,
                   location: <span style={{ fontSize: "0.78rem" }}>{incident.location}</span>,
@@ -435,7 +533,7 @@ export function SecurityPage() {
                   aiSummary: incident.aiSummary ? <span style={{ color: "#665956", display: "block", fontSize: "0.75rem", lineHeight: 1.45, maxWidth: "18rem" }}>{incident.aiSummary}</span> : <span title="No AI summary; showing the built-in description" style={{ color: "#9A8A88", display: "block", fontSize: "0.74rem", lineHeight: 1.45, maxWidth: "18rem" }}>{incident.description}</span>,
                   confidence: <span style={{ color: incident.confidence === "—" ? "#AAA09D" : "#665956", fontSize: "0.74rem", fontWeight: 600 }}>{incident.confidence}</span>,
                   severity: <StatusBadge status={incident.severity} />,
-                  status: <StatusBadge status={incident.status} />,
+                  status: incident.falseAlarm ? <StatusBadge status="neutral" label="False alarm" /> : <StatusBadge status={incident.status} />,
                   assigned: renderAssignment(incident),
                   actions: renderIncidentAction(incident),
                 }))}
@@ -463,6 +561,17 @@ export function SecurityPage() {
           </div>
         )}
       </div>
+      {falseAlarmFor && (
+        <Modal title={`Mark ${falseAlarmFor.length} incident(s) as false alarms`} onClose={() => setFalseAlarmFor(null)} size="md">
+          <label htmlFor="false-alarm-reason" style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.35rem" }}>Why is it a false alarm?</label>
+          <textarea id="false-alarm-reason" rows={3} value={falseAlarmReason} onChange={(e) => setFalseAlarmReason(e.target.value)} placeholder="e.g. A worker bending down, not a fall" className="w-full rounded-md p-2" style={{ border: "1px solid #E7DEDA", fontSize: "0.85rem" }} />
+          <p style={{ fontSize: "0.72rem", color: "#837572", marginTop: "0.35rem" }}>They are resolved and the reason is kept on each incident.</p>
+          <div className="flex gap-2 mt-4">
+            <Btn variant="secondary" onClick={() => setFalseAlarmFor(null)}>Cancel</Btn>
+            <Btn disabled={bulkBusy || falseAlarmReason.trim().length < 3} onClick={() => { const ids = falseAlarmFor; setFalseAlarmFor(null); void runBulk("false_alarm", ids, { reason: falseAlarmReason.trim() }); }}>Mark as false alarm</Btn>
+          </div>
+        </Modal>
+      )}
       {selectedIncident && <IncidentEvidenceDialog incident={selectedIncident} onClose={() => setSelectedIncidentId(null)} />}
     </main>
   );

@@ -54,6 +54,8 @@ export interface SecurityIncidentDto {
   closedAt: Date | null;
   rootCause: string | null;
   correctiveAction: string | null;
+  falseAlarm: boolean;
+  falseAlarmReason: string | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
@@ -108,6 +110,8 @@ export interface UpdateIncidentData {
   closedAt?: Date | null | undefined;
   rootCause?: string | null | undefined;
   correctiveAction?: string | null | undefined;
+  falseAlarm?: boolean | undefined;
+  falseAlarmReason?: string | null | undefined;
 }
 
 export interface CreateIncidentUpdateData {
@@ -244,4 +248,14 @@ export interface SecurityKPIs {
 
   // Trend — last 7 days
   incidentTrend: Array<{ date: string; count: number }>;
+}
+
+// ── Bulk actions on incidents ─────────────────────────────────
+
+export type BulkIncidentAction = 'investigate' | 'resolve' | 'false_alarm' | 'assign';
+
+export interface BulkIncidentResult {
+  done: number[];
+  /** Incidents left as they were, with the reason (e.g. already closed). */
+  skipped: Array<{ id: number; reason: string }>;
 }

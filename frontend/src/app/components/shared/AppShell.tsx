@@ -1,11 +1,15 @@
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useERP, type ERPNotification } from "../admin/ERPContext";
 import type { PortalNotification } from "../../../lib/portalInsights";
 import { AskDvs } from "./AskDvs";
 import { getStoredBackendRole } from "../../../lib/auth";
-import { baseSection, roleLabel, sectionsFor } from "../../../lib/permissions";
+import { baseSection, canOpen, roleLabel, sectionsFor } from "../../../lib/permissions";
+import {
+  getNotifications, markNotificationsSeen, searchRecords, sectionForResult,
+  type SearchResult, type StaffNotification,
+} from "../../../lib/services/topbar.service";
 import {
   LayoutDashboard, Factory, Shield, Package, ShoppingCart, BarChart3, UserCircle, LogOut,
   Menu, X, Bell, Search, Cpu, Building2, Truck, UserCheck, FileText, MessageSquare, Star,
@@ -82,6 +86,14 @@ const roleColors: Record<UserRole, string> = {
   client: "#1565C0",
 };
 
+const SEARCH_KIND_LABEL: Record<SearchResult["kind"], string> = {
+  employee: "Employee",
+  "work-order": "Work order",
+  "client-order": "Client order",
+  "purchase-order": "Purchase order",
+  material: "Material",
+};
+
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
@@ -120,14 +132,38 @@ export function AppShell({ role, userName, portalNotifications, activeSection, o
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [showNotifs, setShowNotifs] = useState(false);
   const erp = useERP();
+  const isStaff = role === "admin";
+  const [staffFeed, setStaffFeed] = useState<StaffNotification[]>([]);
+  useEffect(() => {
+    if (!isStaff) return;
+    let cancelled = false;
+    const load = () => { getNotifications().then((feed) => { if (!cancelled) setStaffFeed(feed.items); }).catch(() => {}); };
+    load();
+    const timer = window.setInterval(load, 120_000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [isStaff]);
   // Portal notifications count as read once the bell was opened after them
   const [portalSeen, setPortalSeen] = useState(() => readSeen(role));
-  const notifications: ERPNotification[] = useMemo(() => portalNotifications === undefined
-    ? erp.notifications
-    : portalNotifications.map((n) => ({ id: n.id, msg: n.msg, type: n.type, time: relativeTime(n.at), read: n.at <= portalSeen })),
-  [portalNotifications, erp.notifications, portalSeen]);
-  const unreadCount = portalNotifications === undefined ? erp.unreadCount : notifications.filter((n) => !n.read).length;
+  const notifications: Array<ERPNotification & { section?: string }> = useMemo(() => {
+    if (portalNotifications !== undefined) {
+      return portalNotifications.map((n) => ({ id: n.id, msg: n.msg, type: n.type, time: relativeTime(n.at), read: n.at <= portalSeen }));
+    }
+    if (isStaff) {
+      return staffFeed.map((n) => ({
+        id: n.id, msg: n.message, type: n.severity, time: relativeTime(n.at), read: !n.unread, section: n.section,
+      }));
+    }
+    return erp.notifications;
+  }, [portalNotifications, erp.notifications, portalSeen, isStaff, staffFeed]);
+  const unreadCount = portalNotifications === undefined && !isStaff ? erp.unreadCount : notifications.filter((n) => !n.read).length;
   const markAllRead = () => {
+    if (isStaff && portalNotifications === undefined) {
+      if (staffFeed.some((n) => n.unread)) {
+        setStaffFeed((feed) => feed.map((n) => ({ ...n, unread: false })));
+        void markNotificationsSeen().catch(() => {});
+      }
+      return;
+    }
     if (portalNotifications === undefined) { erp.markAllRead(); return; }
     const now = new Date().toISOString();
     setPortalSeen(now);
@@ -138,6 +174,16 @@ export function AppShell({ role, userName, portalNotifications, activeSection, o
   const nav = role === "admin" ? staffNavigation(backendRole) : navByRole[role];
   const accentColor = roleColors[role];
   const searchResults = searchQuery.length >= 2 ? nav.filter((n) => n.label.toLowerCase().includes(searchQuery.toLowerCase())) : [];
+  const [recordResults, setRecordResults] = useState<SearchResult[]>([]);
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!isStaff || q.length < 2) { setRecordResults([]); return; }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      searchRecords(q).then((rows) => { if (!cancelled) setRecordResults(rows); }).catch(() => { if (!cancelled) setRecordResults([]); });
+    }, 250);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [searchQuery, isStaff]);
   const displayRoleLabel = role === "admin" ? roleLabel(backendRole) : roleLabels[role];
 
   const handleNavClick = (item: NavItem) => {
@@ -297,7 +343,8 @@ export function AppShell({ role, userName, portalNotifications, activeSection, o
           <div className="relative flex items-center gap-2 flex-1 max-w-md px-3 py-2 rounded-md" style={{ background: "#F5F0EF" }}>
             <Search size={15} color="#9A8A88" />
             <input
-              placeholder="Search modules, workers, orders..."
+              placeholder={isStaff ? "Search pages, people, orders, materials…" : "Search pages…"}
+              aria-label="Search"
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setShowSearchResults(true); }}
               onBlur={() => setTimeout(() => setShowSearchResults(false), 150)}
@@ -309,8 +356,16 @@ export function AppShell({ role, userName, portalNotifications, activeSection, o
                 <X size={13} />
               </button>
             )}
-            {showSearchResults && searchResults.length > 0 && (
+            {showSearchResults && (searchResults.length > 0 || recordResults.length > 0) && (
               <div className="absolute top-full left-0 right-0 mt-1 rounded-md overflow-hidden z-50" style={{ background: "#fff", border: "1px solid #E8E2E0", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
+                {recordResults.map((hit) => (
+                  <button key={`${hit.kind}-${hit.id}`} onMouseDown={() => { onSectionChange(sectionForResult(hit.kind, (s) => canOpen(backendRole, s))); setSearchQuery(""); setShowSearchResults(false); }}
+                    className="w-full flex flex-col px-4 py-2 transition-colors hover:bg-[#F5F0EF]"
+                    style={{ background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
+                    <span style={{ fontSize: "0.8375rem", color: "#1C1C1C", fontWeight: 600 }}>{hit.title}</span>
+                    <span style={{ fontSize: "0.72rem", color: "#7A6C6A" }}>{SEARCH_KIND_LABEL[hit.kind]} · {hit.subtitle}</span>
+                  </button>
+                ))}
                 {searchResults.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -335,6 +390,8 @@ export function AppShell({ role, userName, portalNotifications, activeSection, o
             {/* Notifications */}
             <div className="relative">
               <button
+                aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+                aria-expanded={showNotifs}
                 onClick={() => { setShowNotifs(!showNotifs); if (!showNotifs) markAllRead(); }}
                 className="relative p-2 rounded-md transition-colors"
                 style={{ color: "#4A4A4A" }}
@@ -360,16 +417,19 @@ export function AppShell({ role, userName, portalNotifications, activeSection, o
                   </div>
                   <div style={{ maxHeight: "320px", overflowY: "auto" }}>
                     {notifications.length === 0 ? (
-                      <p style={{ padding: "2rem", textAlign: "center", color: "#9A8A88", fontSize: "0.8rem" }}>No notifications yet.</p>
+                      <p style={{ padding: "2rem", textAlign: "center", color: "#9A8A88", fontSize: "0.8rem" }}>Nothing needs your attention right now.</p>
                     ) : (
                       notifications.slice(0, 10).map((n) => (
-                        <div key={n.id} className="flex items-start gap-3 px-4 py-3" style={{ borderBottom: "1px solid #F7F3F2", background: n.read ? "transparent" : "#FDFBFB", opacity: n.read ? 0.75 : 1 }}>
+                        <button key={n.id} type="button" disabled={!n.section}
+                          onClick={() => { if (n.section) { onSectionChange(n.section); setShowNotifs(false); } }}
+                          className="w-full flex items-start gap-3 px-4 py-3 text-left"
+                          style={{ borderBottom: "1px solid #F7F3F2", background: n.read ? "transparent" : "#FDFBFB", opacity: n.read ? 0.75 : 1, border: "none", cursor: n.section ? "pointer" : "default" }}>
                           <div className="w-2 h-2 rounded-full flex-shrink-0 mt-1.5" style={{ background: n.type === "critical" ? "#C0392B" : n.type === "warn" ? "#E65100" : n.type === "success" ? "#2E7D32" : "#1565C0" }} />
                           <div className="flex-1 min-w-0">
                             <p style={{ fontSize: "0.775rem", color: "#1C1C1C", lineHeight: 1.45 }}>{n.msg}</p>
                             <p style={{ fontSize: "0.68rem", color: "#9A8A88", marginTop: "0.2rem" }}>{n.time}</p>
                           </div>
-                        </div>
+                        </button>
                       ))
                     )}
                   </div>

@@ -43,7 +43,7 @@ export async function registerUser(input: {
   return unwrap(res);
 }
 
-export async function updateUser(id: number, input: { fullName?: string; email?: string; roleId?: number }): Promise<UserDto> {
+export async function updateUser(id: number, input: { fullName?: string; email?: string; roleId?: number; isActive?: boolean }): Promise<UserDto> {
   const res = await api.patch<{ success: true; data: UserDto }>(`/auth/users/${id}`, input);
   return unwrap(res);
 }

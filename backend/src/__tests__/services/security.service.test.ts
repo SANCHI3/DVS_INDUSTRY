@@ -30,6 +30,7 @@ vi.mock('../../lib/prismaClient', () => ({
       groupBy: vi.fn(),
     },
     incidentUpdate: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), delete: vi.fn() },
+    user: { findFirst: vi.fn() },
     securityAlert: {
       findUnique: vi.fn(),
       create: vi.fn(),
@@ -488,5 +489,76 @@ describe('SecurityService', () => {
 
       await expect(svc.deleteAlert(1)).resolves.not.toThrow();
     });
+  });
+});
+
+describe('bulk incident actions', () => {
+  const findFirst = prisma.securityIncident.findFirst as unknown as ReturnType<typeof vi.fn>;
+  const update = prisma.securityIncident.update as unknown as ReturnType<typeof vi.fn>;
+  const addUpdate = prisma.incidentUpdate.create as unknown as ReturnType<typeof vi.fn>;
+  const actor = { id: 1, name: 'Admin' };
+  let svc: InstanceType<typeof SecurityService>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    svc = new SecurityService();
+    findFirst.mockImplementation(({ where }: { where: { id: number } }) =>
+      Promise.resolve(
+        where.id === 3 ? makeIncident('CLOSED', { id: 3 }) : makeIncident('OPEN', { id: where.id }),
+      ),
+    );
+    update.mockImplementation(
+      ({ where, data }: { where: { id: number }; data: Record<string, unknown> }) =>
+        Promise.resolve(makeIncident((data['status'] as string) ?? 'OPEN', { id: where.id })),
+    );
+    addUpdate.mockResolvedValue({});
+  });
+
+  it('resolves many incidents, records each, and skips closed ones', async () => {
+    const result = await svc.bulkAction([1, 2, 3], 'resolve', actor);
+    expect(result.done).toEqual([1, 2]);
+    expect(result.skipped).toEqual([{ id: 3, reason: 'already closed' }]);
+    expect(addUpdate).toHaveBeenCalledTimes(2);
+  });
+
+  it('marks false alarms with the reason and resolves them', async () => {
+    await svc.bulkAction([1], 'false_alarm', actor, { reason: 'Camera saw a reflection' });
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 1 },
+        data: expect.objectContaining({
+          falseAlarm: true,
+          falseAlarmReason: 'Camera saw a reflection',
+        }),
+      }),
+    );
+    expect(addUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          comment: 'Marked as a false alarm: Camera saw a reflection',
+        }),
+      }),
+    );
+  });
+
+  it('needs a reason for false alarms', async () => {
+    await expect(svc.bulkAction([1], 'false_alarm', actor)).rejects.toThrow(BadRequestError);
+  });
+
+  it('assigns to an active person and moves open incidents to investigating', async () => {
+    (prisma.user.findFirst as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 7,
+      fullName: 'Ravi Patil',
+    });
+    const result = await svc.bulkAction([1], 'assign', actor, { assignedToId: 7 });
+    expect(result.done).toEqual([1]);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ assignedToId: 7, assignedToName: 'Ravi Patil' }),
+      }),
+    );
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: 'INVESTIGATING' }) }),
+    );
   });
 });

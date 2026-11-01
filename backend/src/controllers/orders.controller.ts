@@ -307,7 +307,8 @@ export async function getAllClientOrders(req: AuthenticatedRequest, res: Respons
 }
 
 export async function getClientOrderById(req: AuthenticatedRequest, res: Response): Promise<void> {
-  sendSuccess(res, await assertClientOrderAccess(req, parseId(req.params['id'])));
+  const order = await assertClientOrderAccess(req, parseId(req.params['id']));
+  sendSuccess(res, await svc.getClientOrderDetail(order));
 }
 
 export async function updateClientOrder(req: AuthenticatedRequest, res: Response): Promise<void> {

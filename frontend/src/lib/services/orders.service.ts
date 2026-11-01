@@ -1,4 +1,5 @@
 import api, { unwrap, unwrapPaged, type PaginatedMeta } from '../api';
+import type { LinkedWorkOrder } from '../dispatchReadiness';
 
 // ── Suppliers ─────────────────────────────────────────────────────────────────
 
@@ -109,6 +110,12 @@ export interface ClientOrderQuery {
   sortBy?: string; sortOrder?: 'asc' | 'desc';
 }
 
+/** One client order with the work orders linked to it. */
+export async function getClientOrderDetail(id: number): Promise<ClientOrderDto & { workOrders: LinkedWorkOrder[] }> {
+  const res = await api.get<{ success: true; data: ClientOrderDto & { workOrders: LinkedWorkOrder[] } }>(`/orders/client-orders/${id}`);
+  return res.data.data;
+}
+
 export async function getClientOrders(params?: ClientOrderQuery) {
   const res = await api.get<{ success: true; data: ClientOrderDto[]; meta: PaginatedMeta }>('/orders/client-orders', { params });
   return unwrapPaged(res);
@@ -210,6 +217,8 @@ export interface OrderStatistics {
     dispatched: number;
     delivered: number;
     cancelled: number;
+    /** Past the required-by date, not delivered or cancelled. */
+    overdue: number;
     totalValue: string;
   };
   purchaseOrders: {
@@ -219,6 +228,8 @@ export interface OrderStatistics {
     inTransit: number;
     delivered: number;
     cancelled: number;
+    /** Past the expected delivery, not delivered or cancelled. */
+    overdue: number;
     totalCost: string;
   };
   fulfillmentRate: string;

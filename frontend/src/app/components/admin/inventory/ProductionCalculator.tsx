@@ -4,6 +4,7 @@ import {
   Cell, RadialBarChart, RadialBar,
 } from "recharts";
 import { Play, Zap, Package, RotateCcw, Info } from "lucide-react";
+import type { PartSpecDto } from "../../../../lib/services/inventory.service";
 
 /* ── Types ── */
 interface CalcInputs {
@@ -55,7 +56,15 @@ function getEfficiencyRating(pct: number): { label: string; color: string } {
 /* ══════════════════════════════════════════════
    PRODUCTION CALCULATOR COMPONENT
 ══════════════════════════════════════════════ */
-export function ProductionCalculator({ materials }: { materials: InventoryMaterial[] }) {
+/** A stock material whose name mentions the part's grade (and thickness, if it can). */
+export function materialForPart(part: PartSpecDto, materials: InventoryMaterial[]): InventoryMaterial | undefined {
+  const grade = part.rmGrade.toLowerCase();
+  const thickness = String(Number(part.thicknessMm));
+  const byGrade = materials.filter((m) => m.name.toLowerCase().includes(grade));
+  return byGrade.find((m) => m.name.includes(thickness) || m.thickness.includes(thickness)) ?? byGrade[0];
+}
+
+export function ProductionCalculator({ materials, parts = [] }: { materials: InventoryMaterial[]; parts?: PartSpecDto[] }) {
   const [inputs, setInputs] = useState<CalcInputs>({
     partName: "", partNumber: "", materialType: "",
     weightReceived: "", materialPerPart: "", batchQty: "",
@@ -71,10 +80,29 @@ export function ProductionCalculator({ materials }: { materials: InventoryMateri
     setErrors((p) => ({ ...p, [k]: undefined }));
   };
 
+  // Parts Master pick: fills the part and, when stock has it, its material and rate
+  const [partId, setPartId] = useState("");
+  const part = parts.find((p) => String(p.id) === partId);
+  const pickMaterial = (name: string) => {
+    const m = materials.find((x) => x.name === name);
+    setInputs((p) => ({ ...p, materialType: name, ...(m?.cost != null && { costPerKg: String(m.cost) }) }));
+    setErrors((p) => ({ ...p, materialType: undefined, costPerKg: undefined }));
+  };
+  const pickPart = (id: string) => {
+    setPartId(id);
+    const chosen = parts.find((p) => String(p.id) === id);
+    if (!chosen) return;
+    setInputs((p) => ({ ...p, partNumber: chosen.partNumber, partName: p.partName || chosen.notes || chosen.partNumber }));
+    setErrors((p) => ({ ...p, partNumber: undefined, partName: undefined }));
+    const match = materialForPart(chosen, materials);
+    if (match) pickMaterial(match.name);
+  };
+
   const validate = (): boolean => {
     const e: Partial<CalcInputs> = {};
     if (!inputs.partName.trim()) e.partName = "Required";
     if (!inputs.partNumber.trim()) e.partNumber = "Required";
+    if (materials.length > 0 && !inputs.materialType) e.materialType = "Choose a material";
     const wp = parseFloat(inputs.weightReceived);
     if (!inputs.weightReceived || isNaN(wp) || wp <= 0) e.weightReceived = "Enter a valid weight";
     const m = parseFloat(inputs.materialPerPart);
@@ -153,10 +181,10 @@ export function ProductionCalculator({ materials }: { materials: InventoryMateri
 
   /* ─────── FIELD COMPONENT ─────── */
   const Field = ({
-    label, required, error, children,
-  }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) => (
+    label, htmlFor, required, error, children,
+  }: { label: string; htmlFor?: string; required?: boolean; error?: string; children: React.ReactNode }) => (
     <div>
-      <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.35rem", letterSpacing: "0.02em" }}>
+      <label htmlFor={htmlFor} style={{ display: "block", fontSize: "0.75rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.35rem", letterSpacing: "0.02em" }}>
         {label}{required && <span style={{ color: "#C0392B" }}> *</span>}
       </label>
       {children}
@@ -216,9 +244,22 @@ export function ProductionCalculator({ materials }: { materials: InventoryMateri
                   Part Information
                 </p>
                 <div className="flex flex-col gap-3.5">
-                  <Field label="Part Name" required error={errors.partName}>
+                  {parts.length > 0 && (
+                    <Field htmlFor="calc-partSpec" label="Choose from Parts Master">
+                      <select id="calc-partSpec" name="partSpec" value={partId} onChange={(e) => pickPart(e.target.value)} style={{ ...inputStyle(), cursor: "pointer" }} onFocus={onFocus} onBlur={onBlur}>
+                        <option value="">Enter the part by hand</option>
+                        {parts.map((p) => <option key={p.id} value={p.id}>{p.partNumber} · {p.rmGrade} {Number(p.thicknessMm)} mm</option>)}
+                      </select>
+                      {part && (
+                        <p style={{ fontSize: "0.7rem", color: "#7A6C6A", marginTop: "0.35rem" }}>
+                          {part.rmGrade}, {Number(part.thicknessMm)} mm · strip {part.stripSize}{part.piecesPerStrip ? ` (${part.piecesPerStrip} per strip)` : ""} · sheet {part.sheetSize}{part.piecesPerSheet ? ` (${part.piecesPerSheet} per sheet)` : ""}
+                        </p>
+                      )}
+                    </Field>
+                  )}
+                  <Field htmlFor="calc-partName" label="Part Name" required error={errors.partName}>
                     <input
-                      name="partName"
+                      id="calc-partName" name="partName"
                       placeholder="e.g. Motor Housing Cover"
                       value={inputs.partName}
                       onChange={(e) => setField("partName")(e.target.value)}
@@ -226,9 +267,9 @@ export function ProductionCalculator({ materials }: { materials: InventoryMateri
                       onFocus={onFocus} onBlur={onBlur}
                     />
                   </Field>
-                  <Field label="Part Number" required error={errors.partNumber}>
+                  <Field htmlFor="calc-partNumber" label="Part Number" required error={errors.partNumber}>
                     <input
-                      name="partNumber"
+                      id="calc-partNumber" name="partNumber"
                       placeholder="e.g. MH-2024-A"
                       value={inputs.partNumber}
                       onChange={(e) => setField("partNumber")(e.target.value)}
@@ -248,16 +289,19 @@ export function ProductionCalculator({ materials }: { materials: InventoryMateri
                   Raw Material Parameters
                 </p>
                 <div className="flex flex-col gap-3.5">
-                  <Field label="Raw Material Type" required>
+                  <Field htmlFor="calc-materialType" label="Raw Material Type" required error={errors.materialType}>
                     <select
-                      name="materialType"
+                      id="calc-materialType" name="materialType"
                       value={inputs.materialType}
-                      onChange={(e) => setField("materialType")(e.target.value)}
+                      onChange={(e) => pickMaterial(e.target.value)}
                       disabled={materials.length === 0}
                       style={{ ...inputStyle(), cursor: "pointer" }}
                       onFocus={onFocus} onBlur={onBlur}
                     >
-                      {materials.length === 0 ? <option value="">No materials yet</option> : materials.map((m) => <option key={m.apiId} value={m.name}>{m.name}</option>)}
+                      {materials.length === 0 ? <option value="">No materials yet</option> : <>
+                        <option value="">Choose a material</option>
+                        {materials.map((m) => <option key={m.apiId} value={m.name}>{m.name}</option>)}
+                      </>}
                     </select>
                     {/* Live stock badge */}
                     {materials.find((m) => m.name === inputs.materialType) && (
@@ -270,9 +314,9 @@ export function ProductionCalculator({ materials }: { materials: InventoryMateri
                     )}
                   </Field>
 
-                  <Field label="Raw Material Weight Received (Wp) — kg" required error={errors.weightReceived}>
+                  <Field htmlFor="calc-weightReceived" label="Raw Material Weight Received (Wp) — kg" required error={errors.weightReceived}>
                     <input
-                      name="weightReceived"
+                      id="calc-weightReceived" name="weightReceived"
                       type="number" min="0" step="0.1"
                       placeholder="Total kg received for this run"
                       value={inputs.weightReceived}
@@ -282,9 +326,9 @@ export function ProductionCalculator({ materials }: { materials: InventoryMateri
                     />
                   </Field>
 
-                  <Field label="Material Required Per Part (M) — kg" required error={errors.materialPerPart}>
+                  <Field htmlFor="calc-materialPerPart" label="Material Required Per Part (M) — kg" required error={errors.materialPerPart}>
                     <input
-                      name="materialPerPart"
+                      id="calc-materialPerPart" name="materialPerPart"
                       type="number" min="0" step="0.001"
                       placeholder="kg of material per finished part"
                       value={inputs.materialPerPart}
@@ -294,9 +338,9 @@ export function ProductionCalculator({ materials }: { materials: InventoryMateri
                     />
                   </Field>
 
-                  <Field label="Production Batch Quantity (optional)">
+                  <Field htmlFor="calc-batchQty" label="Production Batch Quantity (optional)">
                     <input
-                      name="batchQty"
+                      id="calc-batchQty" name="batchQty"
                       type="number" min="1"
                       placeholder="Leave blank to maximise output"
                       value={inputs.batchQty}
@@ -309,9 +353,9 @@ export function ProductionCalculator({ materials }: { materials: InventoryMateri
                     </p>
                   </Field>
 
-                  <Field label="Material Cost Per Kg (₹)" required error={errors.costPerKg}>
+                  <Field htmlFor="calc-costPerKg" label="Material Cost Per Kg (₹)" required error={errors.costPerKg}>
                     <input
-                      name="costPerKg"
+                      id="calc-costPerKg" name="costPerKg"
                       type="number" min="0" step="0.5"
                       placeholder="Enter cost per kg"
                       value={inputs.costPerKg}
@@ -331,9 +375,9 @@ export function ProductionCalculator({ materials }: { materials: InventoryMateri
                 <p style={{ fontSize: "0.67rem", fontWeight: 700, color: "#A52A2A", letterSpacing: "0.12em", textTransform: "uppercase", marginBottom: "0.875rem" }}>
                   Production Assignment
                 </p>
-                <Field label="Operator / Production Lead" required error={errors.operator}>
+                <Field htmlFor="calc-operator" label="Operator / Production Lead" required error={errors.operator}>
                   <select
-                    name="operator"
+                    id="calc-operator" name="operator"
                     value={inputs.operator}
                     onChange={(e) => setField("operator")(e.target.value)}
                     style={{ ...inputStyle(errors.operator), cursor: "pointer" }}
@@ -562,17 +606,11 @@ export function ProductionCalculator({ materials }: { materials: InventoryMateri
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl" style={{ background: "#F5F5F5", border: "1px solid #E8E2E0" }}>
-                <p style={{ fontSize: "0.8rem", color: "#7A6C6A" }}>Production records, AI recommendations, and report generation are unavailable from the current inventory APIs.</p>
-              </div>
             </>
           )}
         </div>
       </div>
 
-      <div className="mt-8 p-5 rounded-xl" style={{ background: "#F5F5F5", border: "1px solid #E8E2E0" }}>
-        <p style={{ fontSize: "0.8rem", color: "#7A6C6A" }}>Production records are unavailable from the current inventory APIs.</p>
-      </div>
     </div>
   );
 }

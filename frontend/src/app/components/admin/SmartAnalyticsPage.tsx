@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { ShieldAlert, Sparkles } from "lucide-react";
 import { PageHeader, TabBar } from "../shared/UI";
 
@@ -9,6 +9,7 @@ import { ProductionTab } from "./analytics/ProductionTab";
 import { SupplierTab } from "./analytics/SupplierTab";
 import { getStoredBackendRole } from "../../../lib/auth";
 import { analyticsTabs, type AnalyticsTab } from "../../../lib/permissions";
+import { useTabHash } from "../../../lib/useTabHash";
 
 const TAB_LABELS: Record<AnalyticsTab, string> = {
   health: "Plant Health",
@@ -22,7 +23,7 @@ const TAB_LABELS: Record<AnalyticsTab, string> = {
 export function SmartAnalyticsPage() {
   // Only the analyses this role may load (Store: inventory and suppliers)
   const tabs = useMemo(() => analyticsTabs(getStoredBackendRole()), []);
-  const [tab, setTab] = useState<string>(() => tabs[0] ?? "health");
+  const [tab, setTab] = useTabHash<AnalyticsTab>("analytics", tabs);
   return (
     <div className="p-6">
       <PageHeader
@@ -34,7 +35,7 @@ export function SmartAnalyticsPage() {
         <TabBar
           tabs={tabs.map((id) => ({ id, label: TAB_LABELS[id] }))}
           active={tab}
-          onChange={setTab}
+          onChange={(id) => setTab(id as AnalyticsTab)}
         />
       </div>
       {tab === "health" && tabs.includes("health") && <HealthTab />}

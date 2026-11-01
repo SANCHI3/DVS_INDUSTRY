@@ -167,6 +167,10 @@ describe("Work orders", () => {
     expect([...(select as HTMLSelectElement).options].map((o) => o.value)).toEqual(["", "RELEASED", "CANCELLED"]);
     expect(screen.queryByRole("button", { name: "Record output on WO-0007" })).toBeNull();
     fireEvent.change(select, { target: { value: "RELEASED" } });
+    // The app's own confirm dialog (not the browser's) asks first
+    const dialog = await screen.findByRole("dialog", { name: /WO-0007/ });
+    expect(transitionStatus).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getAllByRole("button").at(-1)!);
     await waitFor(() => expect(transitionStatus).toHaveBeenCalledWith(7, "RELEASED"));
   });
 

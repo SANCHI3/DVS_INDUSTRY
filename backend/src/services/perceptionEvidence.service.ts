@@ -40,6 +40,8 @@ export interface IncidentEvidence {
 
 export type EvidenceResult = IncidentEvidence | { available: false; reason: string };
 
+export const NO_SNAPSHOTS = 'Camera snapshots are not available for this incident.';
+
 export function outputDir(): string {
   return path.resolve(env.PERCEPTION_OUTPUT_DIR);
 }
@@ -145,7 +147,8 @@ export async function getIncidentEvidence(
   if (!fs.existsSync(path.join(dir, 'incidents.jsonl'))) {
     return {
       available: false,
-      reason: 'The perception service output was not found on this server.',
+      // No camera output on this server (e.g. the hosted site): say so plainly
+      reason: NO_SNAPSHOTS,
     };
   }
   let report: Json | null = null;
@@ -153,7 +156,7 @@ export async function getIncidentEvidence(
     if (row['incident_id'] === incidentNumber) report = row;
   }
   if (!report) {
-    return { available: false, reason: 'No camera evidence is stored for this incident.' };
+    return { available: false, reason: NO_SNAPSHOTS };
   }
 
   let detail = { ...((report['detail'] as Json) ?? {}) };

@@ -10,6 +10,7 @@ import {
 import { useApiData, type ApiData } from "../../../../lib/useApiData";
 import type { ProductionPermissions } from "../../../../lib/workforce";
 import { DialogFrame, Field, InlineNotice, LoadingLine, PrimaryButton, SecondaryButton, filterStyle, inputStyle } from "../workforce/formControls";
+import { useConfirm } from "../../shared/ConfirmDialog";
 
 export function monthLabel(month: string): string {
   const [y, m] = month.split("-").map(Number);
@@ -69,6 +70,7 @@ function TargetDialog({ month, target, canDelete, onClose, onSaved }: {
   onClose: () => void;
   onSaved: (message: string) => void;
 }) {
+  const [confirmDialog, askConfirm] = useConfirm();
   const [f, setF] = useState<FormState>({
     outputTarget: target ? String(target.outputTarget) : "",
     unit: target?.unit ?? "pcs",
@@ -109,7 +111,12 @@ function TargetDialog({ month, target, canDelete, onClose, onSaved }: {
   }
 
   async function remove() {
-    if (!confirm(`Remove the target and thresholds for ${monthLabel(month)}? Recorded production is not affected.`)) return;
+    if (!(await askConfirm({
+      title: `Remove the target for ${monthLabel(month)}?`,
+      message: "The target and thresholds are removed. Recorded production is not affected.",
+      confirmLabel: "Remove target",
+      danger: true,
+    }))) return;
     setSaving(true);
     try {
       await deleteProductionTarget(month);
@@ -129,6 +136,8 @@ function TargetDialog({ month, target, canDelete, onClose, onSaved }: {
   );
 
   return (
+    <>
+    {confirmDialog}
     <DialogFrame
       width="max-w-xl"
       title={target ? `Edit Target — ${monthLabel(month)}` : `Set Target — ${monthLabel(month)}`}
@@ -163,6 +172,7 @@ function TargetDialog({ month, target, canDelete, onClose, onSaved }: {
         </div>
       </form>
     </DialogFrame>
+    </>
   );
 }
 

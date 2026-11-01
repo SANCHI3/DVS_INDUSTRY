@@ -38,6 +38,12 @@ export function AdminApp({ onLogout, onSessionEnded }: AdminAppProps) {
   }, [allowed, home, setSection]);
   const shown = allowed ? section : home;
 
+  // A new section starts at the top of the page (its tabs keep their scroll)
+  const shownBase = baseSection(shown);
+  useEffect(() => {
+    document.querySelector("main")?.scrollTo?.({ top: 0 });
+  }, [shownBase]);
+
   const renderSection = () => {
     switch (baseSection(shown)) {
       case "profile": return <MyProfilePage onNameChange={setUserName} onSessionEnded={onSessionEnded} />;
@@ -45,7 +51,7 @@ export function AdminApp({ onLogout, onSessionEnded }: AdminAppProps) {
       case "production": return <ProductionPage section="production" />;
       case "workforce": return <ProductionPage section="workforce" />;
       case "security": return <SecurityPage />;
-      case "inventory": return <InventoryPage />;
+      case "inventory": return <InventoryPage onNavigate={setSection} />;
       case "orders": return <OrdersPage onNavigate={setSection} />;
       case "reports": return <ReportsPage />;
       case "analytics": return <SmartAnalyticsPage />;

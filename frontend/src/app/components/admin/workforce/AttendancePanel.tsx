@@ -19,6 +19,7 @@ import { AttendanceDialog } from "./AttendanceDialog";
 import { AttendanceImportDialog } from "./AttendanceImportDialog";
 import { InlineNotice, LoadingLine, Pager, filterStyle } from "./formControls";
 import { DemoTag, isDemoEmployee } from "../production/DemoData";
+import { useConfirm } from "../../shared/ConfirmDialog";
 
 const PAGE_SIZE = 25;
 
@@ -58,6 +59,8 @@ export function AttendancePanel() {
   const trend = useApiData(() => getAttendanceTrend({ days: trendDays, endDate: toDate, ...dept }), [trendDays, toDate, departmentId], "load the attendance trend", enabled && toDate !== "");
   const list = useApiData(() => getAttendance(query(page, PAGE_SIZE)), [page, fromDate, toDate, departmentId, status, search], "load attendance records", enabled && rangeValid);
 
+  const [confirmDialog, askConfirm] = useConfirm();
+
   if (!perms.viewAttendance) {
     return (
       <Card>
@@ -73,7 +76,12 @@ export function AttendancePanel() {
 
   const handleDelete = async (r: AttendanceDto) => {
     const label = `${fullName(r.employee)} on ${apiDay(r.date)}`;
-    if (!confirm(`Delete the attendance record for ${label}? This cannot be undone.`)) return;
+    if (!(await askConfirm({
+      title: "Delete attendance record?",
+      message: <>The record for <strong>{label}</strong> will be deleted. This cannot be undone.</>,
+      confirmLabel: "Delete",
+      danger: true,
+    }))) return;
     try {
       await deleteAttendance(r.id);
       toast.success(`Attendance for ${label} deleted.`);
@@ -94,6 +102,7 @@ export function AttendancePanel() {
 
   return (
     <div>
+      {confirmDialog}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-3">
         <KPICard label="Present" value={kpi(s?.present)} sub={s ? `${s.attendanceRate} attended · ${onDay}` : onDay} accent="#2E7D32" />
         <KPICard label="Late" value={kpi(s?.late)} sub={s ? `${s.halfDay} half day` : undefined} accent="#E65100" />

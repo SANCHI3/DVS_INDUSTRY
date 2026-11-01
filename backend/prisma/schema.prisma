@@ -22,16 +22,18 @@ model Role {
 }
 
 model User {
-  id        Int       @id @default(autoincrement())
-  fullName  String
-  email     String    @unique
-  password  String
-  phone     String?
-  roleId    Int
-  isActive  Boolean   @default(true)
-  lastLogin DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id                  Int       @id @default(autoincrement())
+  fullName            String
+  email               String    @unique
+  password            String
+  phone               String?
+  roleId              Int
+  isActive            Boolean   @default(true)
+  lastLogin           DateTime?
+  /// When the user last opened the notification bell (unread = newer items)
+  notificationsSeenAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   role          Role           @relation(fields: [roleId], references: [id])
   refreshTokens RefreshToken[]
@@ -662,6 +664,10 @@ model SecurityIncident {
   // Investigation
   rootCause        String?
   correctiveAction String?
+
+  // Someone checked the detection and found nothing wrong
+  falseAlarm       Boolean @default(false)
+  falseAlarmReason String?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

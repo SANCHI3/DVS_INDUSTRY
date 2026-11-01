@@ -4,10 +4,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart,
   Line, PieChart, Pie, Cell,
 } from "recharts";
-import { Plus, Download, AlertTriangle, Zap } from "lucide-react";
+import { BarChart3, Plus, Download, AlertTriangle, Zap } from "lucide-react";
 import { PageHeader, KPICard, StatusBadge, Btn, DataTable, TabBar } from "../shared/UI";
 import {
-  getMaterials, getInventoryStats, adjustStock, createMaterial, getPartSpecs, createPartSpec,
+  getMaterials, getInventoryStats, adjustStock, createMaterial, getPartSpecs, createPartSpec, getScrapRecords,
   type InventoryStatistics, type MaterialDto, type PartSpecDto,
 } from "../../../lib/services/inventory.service";
 import { downloadCSV } from "../../../lib/csv";
@@ -15,8 +15,12 @@ import { Modal } from "../shared/Modal";
 
 import { ProductionCalculator, type InventoryMaterial } from "./inventory/ProductionCalculator";
 import { formatINR, formatINRCompact } from "../../../lib/format";
-import { inventoryActions } from "../../../lib/permissions";
+import { canOpen, inventoryActions } from "../../../lib/permissions";
+import { useApiData } from "../../../lib/useApiData";
+import { fetchAllPages } from "../../../lib/api";
+import { NO_SCRAP_RECOMMENDATIONS, summariseScrap } from "../../../lib/scrapAnalytics";
 import { getStoredBackendRole } from "../../../lib/auth";
+import { useTabHash } from "../../../lib/useTabHash";
 
 /* ══════════════════════════════════════════════
    MAIN INVENTORY PAGE
@@ -51,10 +55,31 @@ function toInventoryMaterial(material: MaterialDto): InventoryMaterial {
   };
 }
 
-export function InventoryPage() {
+const INVENTORY_TABS = ["overview", "materials", "parts", "calculator", "scrap"];
+const MATERIAL_UNITS = ["kg", "pcs", "sheets", "m", "litre"];
+
+/** The minimum stock level must be a number above 0, or low-stock alerts can never fire. */
+export function materialThresholdError(value: string): string {
+  const n = Number(value);
+  if (value.trim() === "" || !Number.isFinite(n) || n <= 0) return "Enter a minimum stock level above 0.";
+  return "";
+}
+
+export function InventoryPage({ onNavigate }: { onNavigate?: (section: string) => void } = {}) {
   // Managers read inventory; Store and admins change it
   const actions = useMemo(() => inventoryActions(getStoredBackendRole()), []);
-  const [tab, setTab]                   = useState("overview");
+  const [tab, setTab]                   = useTabHash("inventory", INVENTORY_TABS);
+  // Scrap Analytics reads this month's scrap records (and the last 7 days)
+  const scrapFrom = useMemo(() => {
+    const now = new Date();
+    const from = Math.min(new Date(now.getFullYear(), now.getMonth(), 1).getTime(), now.getTime() - 7 * 86_400_000);
+    return new Date(from).toISOString();
+  }, []);
+  const scrap = useApiData(
+    () => fetchAllPages((page) => getScrapRecords({ page, pageSize: 100, fromDate: scrapFrom })),
+    [scrapFrom], "load scrap records", tab === "scrap" && actions.viewStatistics,
+  );
+  const scrapSummary = scrap.data ? summariseScrap(scrap.data) : null;
   const [materials, setMaterials]       = useState<InventoryMaterial[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(true);
   const [materialsError, setMaterialsError] = useState(false);
@@ -62,7 +87,7 @@ export function InventoryPage() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState(false);
   const [showAddMaterial, setShowAddMaterial] = useState(false);
-  const [newMat, setNewMat]             = useState({ name: "", category: "Steel", thickness: "", qty: "", cost: "", threshold: "", location: "" });
+  const [newMat, setNewMat]             = useState({ name: "", unit: "kg", category: "Steel", thickness: "", qty: "", cost: "", threshold: "", location: "" });
   const [parts, setParts]               = useState<PartSpecDto[]>([]);
   const [partsLoading, setPartsLoading] = useState(true);
   const [partsError, setPartsError]     = useState(false);
@@ -115,14 +140,22 @@ export function InventoryPage() {
     toast.success("Inventory exported to CSV");
   };
 
+  const thresholdError = materialThresholdError(newMat.threshold);
   const handleAddMaterial = async () => {
-    if (!newMat.name || !newMat.qty || !newMat.cost) return;
+    if (!newMat.name || !newMat.qty || !newMat.cost) {
+      toast.error("Enter the material name, quantity and cost.");
+      return;
+    }
+    if (thresholdError) {
+      toast.error(thresholdError);
+      return;
+    }
     const qty = parseFloat(newMat.qty);
-    const threshold = parseInt(newMat.threshold) || 50;
+    const threshold = Number(newMat.threshold);
     try {
       const code = newMat.name.toUpperCase().replace(/[^A-Z0-9]/g, "-").slice(0, 20);
       const created = await createMaterial({
-        name: newMat.name, code, unit: "kg",
+        name: newMat.name, code, unit: newMat.unit,
         category: newMat.category,
         location: newMat.location || null,
         minStockLevel: String(threshold),
@@ -133,7 +166,7 @@ export function InventoryPage() {
       }
       const refreshed = await getMaterials({ pageSize: 100, status: "active" });
       setMaterials(refreshed.data.map(toInventoryMaterial));
-      setNewMat({ name: "", category: "Steel", thickness: "", qty: "", cost: "", threshold: "", location: "" });
+      setNewMat({ name: "", unit: "kg", category: "Steel", thickness: "", qty: "", cost: "", threshold: "", location: "" });
       setShowAddMaterial(false);
       toast.success(`Material "${newMat.name}" added to inventory`);
     } catch (error) {
@@ -198,21 +231,34 @@ export function InventoryPage() {
     {showAddMaterial && (
       <Modal title="Add New Material" onClose={() => setShowAddMaterial(false)}>
         <div className="flex flex-col gap-3">
+          <div>
+            <label htmlFor="mat-unit" style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.3rem" }}>Unit *</label>
+            <select id="mat-unit" value={newMat.unit} onChange={(e) => setNewMat((p) => ({ ...p, unit: e.target.value }))}
+              style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #D4BFBB", borderRadius: "0.375rem", fontSize: "0.8375rem", outline: "none" }}>
+              {MATERIAL_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+            </select>
+          </div>
           {[
             { label: "Material Name *", key: "name", placeholder: "e.g. Steel Sheet 3mm" },
             { label: "Thickness", key: "thickness", placeholder: "e.g. 3mm" },
-            { label: "Quantity (kg) *", key: "qty", placeholder: "e.g. 500", type: "number" },
-            { label: "Cost per kg (₹) *", key: "cost", placeholder: "e.g. 72", type: "number" },
-            { label: "Min Threshold (kg)", key: "threshold", placeholder: "e.g. 200", type: "number" },
+            { label: `Quantity (${newMat.unit}) *`, key: "qty", placeholder: "e.g. 500", type: "number" },
+            { label: `Cost per ${newMat.unit} (₹) *`, key: "cost", placeholder: "e.g. 72", type: "number" },
+            { label: `Min Threshold (${newMat.unit}) *`, key: "threshold", placeholder: "e.g. 200", type: "number" },
             { label: "Location", key: "location", placeholder: "e.g. WH-A Row 5" },
           ].map((f) => (
             <div key={f.key}>
-              <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.3rem" }}>{f.label}</label>
-              <input type={f.type || "text"} placeholder={f.placeholder} value={newMat[f.key as keyof typeof newMat]}
+              <label htmlFor={`mat-${f.key}`} style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.3rem" }}>{f.label}</label>
+              <input id={`mat-${f.key}`} type={f.type || "text"} placeholder={f.placeholder} value={newMat[f.key as keyof typeof newMat]}
+                {...(f.key === "threshold" && { min: "0", step: "any", "aria-describedby": "mat-threshold-hint" })}
                 onChange={(e) => setNewMat((p) => ({ ...p, [f.key]: e.target.value }))}
                 style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #D4BFBB", borderRadius: "0.375rem", fontSize: "0.8375rem", outline: "none" }}
                 onFocus={(e) => { e.target.style.borderColor = "#A52A2A"; }}
                 onBlur={(e) => { e.target.style.borderColor = "#D4BFBB"; }} />
+              {f.key === "threshold" && (
+                <p id="mat-threshold-hint" style={{ fontSize: "0.7rem", marginTop: "0.25rem", color: newMat.threshold && thresholdError ? "#C0392B" : "#9A8A88" }}>
+                  {newMat.threshold && thresholdError ? thresholdError : "Low-stock alerts fire when stock falls to this level, so it must be more than 0."}
+                </p>
+              )}
             </div>
           ))}
           <div>
@@ -236,6 +282,7 @@ export function InventoryPage() {
         actions={
           <div className="flex gap-2">
             <Btn variant="secondary" size="sm" onClick={handleExport}><Download size={14} /> Export</Btn>
+            {onNavigate && canOpen(getStoredBackendRole(), "analytics") && <Btn variant="secondary" size="sm" onClick={() => onNavigate("analytics")}><BarChart3 size={14} /> Supplier Scorecard</Btn>}
             {actions.editMaterials && <Btn size="sm" onClick={() => setShowAddMaterial(true)}><Plus size={14} /> Add Material</Btn>}
           </div>
         }
@@ -248,7 +295,6 @@ export function InventoryPage() {
           { id: "parts", label: "Parts Master" },
           { id: "calculator", label: "Production Calculator" },
           { id: "scrap", label: "Scrap Analytics" },
-          { id: "procurement", label: "Procurement" },
         ]}
         active={tab}
         onChange={setTab}
@@ -294,15 +340,21 @@ export function InventoryPage() {
                   <p style={{ fontSize: "0.9rem", fontWeight: 600 }}>Composition</p>
                   <p style={{ fontSize: "0.775rem", color: "#7A6C6A" }}>By material type</p>
                 </div>
-                <div className="p-4 flex flex-col items-center">
-                  <ResponsiveContainer width="100%" height={140}>
-                    {statsLoading ? <p style={{ fontSize: "0.8375rem", color: "#7A6C6A" }}>Loading statistics...</p> : statsError ? <p style={{ fontSize: "0.8375rem", color: "#C0392B" }}>Unable to load inventory statistics.</p> : categoryChartData.length === 0 ? <p style={{ fontSize: "0.8375rem", color: "#7A6C6A" }}>No data available.</p> : <PieChart>
-                      <Pie data={categoryChartData} dataKey="value" cx="50%" cy="50%" innerRadius={38} outerRadius={62} paddingAngle={2}>
-                        {categoryChartData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                      </Pie>
-                      <Tooltip formatter={(v) => [formatINR(Number(v), 0)]} contentStyle={{ fontSize: "0.8rem" }} />
-                    </PieChart>}
-                  </ResponsiveContainer>
+                <div className="p-4">
+                  {statsLoading ? <p style={{ fontSize: "0.8375rem", color: "#7A6C6A" }}>Loading statistics...</p>
+                    : statsError ? <p style={{ fontSize: "0.8375rem", color: "#C0392B" }}>Unable to load inventory statistics.</p>
+                    : categoryChartData.length === 0 ? <p style={{ fontSize: "0.8375rem", color: "#7A6C6A" }}>No stock value to show yet.</p>
+                    : <>
+                  <div className="w-full" style={{ height: 140 }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={categoryChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={38} outerRadius={62} paddingAngle={2}>
+                          {categoryChartData.map((e, i) => <Cell key={i} fill={e.color} />)}
+                        </Pie>
+                        <Tooltip formatter={(v, name) => [formatINR(Number(v), 0), name]} contentStyle={{ fontSize: "0.8rem" }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 w-full mt-2">
                     {categoryChartData.map((m) => (
                       <div key={m.name} className="flex items-center gap-1.5">
@@ -311,6 +363,7 @@ export function InventoryPage() {
                       </div>
                     ))}
                   </div>
+                  </>}
                 </div>
               </div>
             </div>
@@ -360,7 +413,16 @@ export function InventoryPage() {
               ]}
               rows={materials.map((m) => ({
                 id: <span style={{ fontSize: "0.72rem", fontFamily: "JetBrains Mono, monospace", color: "#A52A2A" }}>{m.id}</span>,
-                name: <span style={{ fontWeight: 600 }}>{m.name}</span>,
+                name: (
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span style={{ fontWeight: 600 }}>{m.name}</span>
+                    {m.threshold <= 0 && (
+                      <span title="With a minimum of 0, low-stock alerts can never fire. Set a minimum stock level." className="rounded-full px-2 py-0.5" style={{ fontSize: "0.65rem", fontWeight: 700, background: "#FFF3E0", color: "#B45309", whiteSpace: "nowrap" }}>
+                        No low-stock level
+                      </span>
+                    )}
+                  </span>
+                ),
                 category: m.category,
                 thickness: m.thickness,
                 qty: <span style={{ fontWeight: 700 }}>{m.qty} {m.unit}</span>,
@@ -414,98 +476,77 @@ export function InventoryPage() {
         )}
 
         {/* ── CALCULATOR ── */}
-        {tab === "calculator" && <ProductionCalculator materials={materials} />}
+        {tab === "calculator" && <ProductionCalculator materials={materials} parts={parts} />}
 
         {/* ── SCRAP ANALYTICS ── */}
         {tab === "scrap" && (
           <div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-5">
               <KPICard label="Total Scrap This Month" value={apiStats ? `${apiStats.totalScrapThisMonth} kg` : unavailable} accent="#C0392B" />
               <KPICard label="Scrap Recovery Value This Month" value={apiStats ? formatINR(apiStats.scrapValueThisMonth, 0) : unavailable} accent="#E65100" />
-              <KPICard label="Worst Department" value={unavailable} accent="#4E342E" />
-              <KPICard label="Average Utilization" value={unavailable} accent="#2E7D32" />
+              <KPICard label="Most Scrap This Month" value={scrap.loading ? "Loading…" : scrapSummary?.worstDepartment?.dept ?? "None recorded"} sub={scrapSummary?.worstDepartment ? `${scrapSummary.worstDepartment.share}% · ${scrapSummary.worstDepartment.qty} ${scrapSummary.unit}` : undefined} accent="#4E342E" />
             </div>
+            {scrap.error && <p className="mb-4" style={{ fontSize: "0.8rem", color: "#C0392B" }}>{scrap.error}</p>}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
               <div className="rounded-xl overflow-hidden" style={{ background: "#fff", border: "1px solid #E8E2E0", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
                 <div className="px-5 py-4" style={{ borderBottom: "1px solid #F0ECEB" }}>
                   <p style={{ fontSize: "0.9rem", fontWeight: 600 }}>Scrap by Department</p>
-                  <p style={{ fontSize: "0.775rem", color: "#7A6C6A" }}>kg today</p>
+                  <p style={{ fontSize: "0.775rem", color: "#7A6C6A" }}>{scrapSummary?.unit ?? "kg"} this month</p>
                 </div>
                 <div className="p-5">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <BarChart data={[]}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F0ECEB" />
-                      <XAxis dataKey="dept" tick={{ fontSize: 10, fill: "#9A8A88" }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 10, fill: "#9A8A88" }} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{ fontSize: "0.8rem" }} />
-                      <Bar dataKey="kg" fill="#A52A2A" radius={[3, 3, 0, 0]} name="Scrap (kg)" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                  <p style={{ fontSize: "0.8375rem", color: "#7A6C6A", marginTop: "0.75rem" }}>No department-level scrap data available.</p>
+                  {scrap.loading ? <p style={{ fontSize: "0.8375rem", color: "#7A6C6A" }}>Loading scrap records…</p>
+                    : !scrapSummary || scrapSummary.byDepartment.length === 0 ? <p style={{ fontSize: "0.8375rem", color: "#7A6C6A" }}>No scrap recorded this month.</p>
+                    : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <BarChart data={scrapSummary.byDepartment}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F0ECEB" />
+                        <XAxis dataKey="dept" tick={{ fontSize: 10, fill: "#9A8A88" }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: "#9A8A88" }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={{ fontSize: "0.8rem" }} />
+                        <Bar dataKey="qty" fill="#A52A2A" radius={[3, 3, 0, 0]} name={`Scrap (${scrapSummary.unit})`} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
               <div className="rounded-xl overflow-hidden" style={{ background: "#fff", border: "1px solid #E8E2E0", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
                 <div className="px-5 py-4" style={{ borderBottom: "1px solid #F0ECEB" }}>
-                  <p style={{ fontSize: "0.9rem", fontWeight: 600 }}>Weekly Scrap Trend</p>
-                  <p style={{ fontSize: "0.775rem", color: "#7A6C6A" }}>Daily scrap (kg)</p>
+                  <p style={{ fontSize: "0.9rem", fontWeight: 600 }}>Last 7 Days</p>
+                  <p style={{ fontSize: "0.775rem", color: "#7A6C6A" }}>Daily scrap ({scrapSummary?.unit ?? "kg"})</p>
                 </div>
                 <div className="p-5">
-                  <ResponsiveContainer width="100%" height={200}>
-                    <LineChart data={[]}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F0ECEB" />
-                      <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#9A8A88" }} axisLine={false} tickLine={false} />
-                      <YAxis tick={{ fontSize: 10, fill: "#9A8A88" }} axisLine={false} tickLine={false} />
-                      <Tooltip contentStyle={{ fontSize: "0.8rem" }} />
-                      <Line type="monotone" dataKey="scrap" stroke="#A52A2A" strokeWidth={2} name="Scrap (kg)" dot={{ r: 4, fill: "#A52A2A" }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                  <p style={{ fontSize: "0.8375rem", color: "#7A6C6A", marginTop: "0.75rem" }}>No scrap trend data available.</p>
+                  {scrap.loading ? <p style={{ fontSize: "0.8375rem", color: "#7A6C6A" }}>Loading scrap records…</p>
+                    : !scrapSummary || scrapSummary.trend.every((d) => d.qty === 0) ? <p style={{ fontSize: "0.8375rem", color: "#7A6C6A" }}>No scrap recorded in the last 7 days.</p>
+                    : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={scrapSummary.trend}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F0ECEB" />
+                        <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#9A8A88" }} axisLine={false} tickLine={false} />
+                        <YAxis tick={{ fontSize: 10, fill: "#9A8A88" }} axisLine={false} tickLine={false} />
+                        <Tooltip contentStyle={{ fontSize: "0.8rem" }} />
+                        <Line type="monotone" dataKey="qty" stroke="#A52A2A" strokeWidth={2} name={`Scrap (${scrapSummary.unit})`} dot={{ r: 4, fill: "#A52A2A" }} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
               </div>
             </div>
             <div className="rounded-xl overflow-hidden" style={{ background: "#fff", border: "1px solid #E8E2E0", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
               <div className="px-5 py-4 flex items-center gap-2" style={{ borderBottom: "1px solid #F0ECEB", background: "#FDF5F5" }}>
-                <Zap size={15} color="#A52A2A" />
-                <p style={{ fontSize: "0.9rem", fontWeight: 600 }}>AI Scrap Recommendations</p>
+                <Zap size={15} color="#A52A2A" aria-hidden="true" />
+                <p style={{ fontSize: "0.9rem", fontWeight: 600 }}>Scrap Recommendations</p>
               </div>
-              <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                {["No scrap recommendations available from the current inventory APIs."].map((r, i) => (
-                  <div key={i} className="flex gap-2.5 p-3.5 rounded-xl" style={{ background: r.startsWith("✅") ? "#F0FAF0" : r.startsWith("📋") ? "#F0F4FF" : "#FFF8F8", border: `1px solid ${r.startsWith("✅") ? "#C8E6C9" : r.startsWith("📋") ? "#C5CAE9" : "#FFCDD2"}` }}>
-                    <span style={{ fontSize: "1rem" }}>{r.charAt(0)}</span>
-                    <p style={{ fontSize: "0.775rem", lineHeight: 1.6, color: "#2C2C2C" }}>{r.slice(2).trim()}</p>
-                  </div>
+              <ul className="p-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                {(scrapSummary?.recommendations ?? [NO_SCRAP_RECOMMENDATIONS]).map((text) => (
+                  <li key={text} className="p-3.5 rounded-xl" style={{ background: "#FFF8F8", border: "1px solid #FFCDD2", fontSize: "0.8rem", lineHeight: 1.6, color: "#2C2C2C" }}>
+                    {text}
+                  </li>
                 ))}
-              </div>
+              </ul>
             </div>
           </div>
         )}
 
-        {/* ── PROCUREMENT ── */}
-        {tab === "procurement" && (
-          <div>
-            <div className="rounded-xl overflow-hidden" style={{ background: "#fff", border: "1px solid #E8E2E0", boxShadow: "0 1px 6px rgba(0,0,0,0.05)" }}>
-              <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #F0ECEB" }}>
-                <div>
-                  <p style={{ fontSize: "0.9rem", fontWeight: 600 }}>Supplier Comparison</p>
-                  <p style={{ fontSize: "0.775rem", color: "#7A6C6A" }}>Benchmark suppliers by price, delivery, and reliability</p>
-                </div>
-              </div>
-              <DataTable
-                emptyMsg="No supplier data available."
-                columns={[
-                  { key: "name", label: "Supplier" },
-                  { key: "material", label: "Material" },
-                  { key: "price", label: "Price/kg" },
-                  { key: "delivery", label: "Lead Time" },
-                  { key: "reliability", label: "Reliability" },
-                  { key: "rating", label: "Rating" },
-                  { key: "action", label: "Action" },
-                ]}
-                rows={[]}
-              />
-            </div>
-          </div>
-        )}
       </div>
     </div>
     </>

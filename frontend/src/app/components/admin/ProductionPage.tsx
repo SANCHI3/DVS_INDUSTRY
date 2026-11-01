@@ -26,6 +26,8 @@ import { getEmployees } from "../../../lib/services/employees.service";
 import { getEmployeeOutputSummary } from "../../../lib/services/workforce.service";
 import { workOrderStatusLabel } from "../../../lib/workOrderStatus";
 import { productionTabs, type ProductionTab } from "../../../lib/permissions";
+import { useTabHash } from "../../../lib/useTabHash";
+import { useConfirm } from "../shared/ConfirmDialog";
 
 function formatQty(value: string | number) {
   const n = Number(value);
@@ -41,8 +43,7 @@ const TAB_LABELS: Record<ProductionTab, string> = {
 /** "production": work orders and output (plus workforce for managers); "workforce": HR's employees and attendance. */
 export function ProductionPage({ section = "production" }: { section?: "production" | "workforce" }) {
   const tabs = useMemo(() => productionTabs(getStoredBackendRole(), section), [section]);
-  const [tab, setTab] = useState<string>(() => tabs[0] ?? "performance");
-  const [addRequest, setAddRequest] = useState(0);
+  const [tab, setTab] = useTabHash<ProductionTab>(section, tabs);
   const perms = useMemo(() => workforcePermissions(getStoredBackendRole()), []);
   const prod = useMemo(() => productionPermissions(getStoredBackendRole()), []);
   const today = localIsoDate();
@@ -82,9 +83,15 @@ export function ProductionPage({ section = "production" }: { section?: "producti
     setTargetCardKey((n) => n + 1);
   };
 
+  const [confirmDialog, askConfirm] = useConfirm();
   const changeStatus = async (wo: WorkOrderDto, status: WorkOrderStatus) => {
     const final = status === "COMPLETED" || status === "CANCELLED";
-    if (!confirm(`${STATUS_ACTION[status]} ${wo.workOrderNumber} (${wo.product})?${final ? "\n\nThis cannot be undone." : ""}`)) return;
+    if (!(await askConfirm({
+      title: `${STATUS_ACTION[status]} ${wo.workOrderNumber}?`,
+      message: <>{wo.product}{final && <><br /><strong>This cannot be undone.</strong></>}</>,
+      confirmLabel: STATUS_ACTION[status],
+      danger: status === "CANCELLED",
+    }))) return;
     setStatusBusy(wo.id);
     try {
       await transitionStatus(wo.id, status);
@@ -119,20 +126,16 @@ export function ProductionPage({ section = "production" }: { section?: "producti
 
   return (
     <div className="p-4 sm:p-6">
+      {confirmDialog}
       <PageHeader
         title={section === "workforce" ? "Workforce" : "Production & Workforce Management"}
         subtitle={section === "workforce" ? "Employees, shifts and attendance" : "Monitor output, workforce efficiency, and attendance across all departments"}
-        actions={
-          perms.editEmployees ? (
-            <Btn size="sm" onClick={() => { setTab("workforce"); setAddRequest((n) => n + 1); }}><Plus size={14} /> Add Employee</Btn>
-          ) : undefined
-        }
       />
 
       <TabBar
         tabs={tabs.map((id) => ({ id, label: TAB_LABELS[id] }))}
         active={tab}
-        onChange={setTab}
+        onChange={(id) => setTab(id as ProductionTab)}
       />
 
       <div className="mt-5">
@@ -323,7 +326,7 @@ export function ProductionPage({ section = "production" }: { section?: "producti
           />
         )}
 
-        {tab === "workforce" && <WorkforceManagement addRequest={addRequest} onAddHandled={() => setAddRequest(0)} />}
+        {tab === "workforce" && <WorkforceManagement />}
 
         {tab === "attendance" && <AttendancePanel />}
       </div>

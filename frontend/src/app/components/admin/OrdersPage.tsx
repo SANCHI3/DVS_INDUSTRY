@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast as showSonnerToast } from "sonner";
-import { Plus, Download, Eye, CheckCircle2, Truck } from "lucide-react";
+import { BarChart3, Plus, Download, Eye, CheckCircle2, Truck } from "lucide-react";
 import { PageHeader, Card, CardHeader, KPICard, StatusBadge, Btn, DataTable, TabBar } from "../shared/UI";
 import { useERP } from "./ERPContext";
 import {
@@ -11,17 +11,34 @@ import {
 import { downloadCSV } from "../../../lib/csv";
 import { getStoredBackendRole } from "../../../lib/auth";
 import { PortalInbox } from "./orders/PortalInbox";
-import { orderActions } from "../../../lib/permissions";
+import { canOpen, orderActions } from "../../../lib/permissions";
+import { daysOverdue, overdueFirst, overdueLabel } from "../../../lib/overdue";
 
 import {
   parseMoney, parseQuantity, POModal, OrderDetailModal, DispatchModal, NewClientOrderModal, type ClientOrder, type SupplierOrder,
 } from "./orders/OrderModals";
 import { formatINR } from "../../../lib/format";
+import { useTabHash } from "../../../lib/useTabHash";
+
+/** A due date, with "Overdue by N days" under it when it has passed. */
+function DueDate({ date, overdueDays }: { date: string; overdueDays: number }) {
+  return (
+    <span className="flex flex-col">
+      <span style={{ fontWeight: 500, color: overdueDays > 0 ? "#C0392B" : "#4A4A4A" }}>{date}</span>
+      {overdueDays > 0 && (
+        <span className="mt-0.5 self-start rounded-full px-2 py-0.5" style={{ fontSize: "0.66rem", fontWeight: 700, background: "#FFEBEE", color: "#C0392B", whiteSpace: "nowrap" }}>
+          {overdueLabel(overdueDays)}
+        </span>
+      )}
+    </span>
+  );
+}
 
 export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => void }) {
   // Buttons the signed-in role can use (the backend rejects the rest)
   const actions = useMemo(() => orderActions(getStoredBackendRole()), []);
-  const [tab, setTab]                       = useState("client-orders");
+  const orderTabs = useMemo(() => ["client", "supplier", ...(orderActions(getStoredBackendRole()).portalMessages ? ["portal-messages"] : [])], []);
+  const [tab, setTab]                       = useTabHash("orders", orderTabs);
   const [clientOrders, setClientOrders]     = useState<ClientOrder[]>([]);
   const [supplierOrders, setSupplierOrders] = useState<SupplierOrder[]>([]);
   const [clients, setClients]               = useState<ClientDto[]>([]);
@@ -53,7 +70,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
       getSuppliers({ pageSize: 100 }).catch(() => null),
     ]);
 
-        if (coRes) setClientOrders(coRes.data.map(o => ({
+        if (coRes) setClientOrders(overdueFirst(coRes.data.map(o => ({
           id: o.orderNumber,
           client: o.clientName,
           product: o.product,
@@ -64,9 +81,10 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
           value: o.value ? formatINR(o.value) : "—",
           dispatch: o.dispatchDate ? new Date(o.dispatchDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : undefined,
           delivery: o.deliveryDate ? new Date(o.deliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : undefined,
+          overdueDays: daysOverdue(o.requiredDate, o.status),
           _apiId: o.id,
-        }))); else setOrdersError(true);
-    if (poRes) setSupplierOrders(poRes.data.map(p => ({
+        })))); else setOrdersError(true);
+    if (poRes) setSupplierOrders(overdueFirst(poRes.data.map(p => ({
           id: p.poNumber,
           supplier: p.supplierName,
           material: p.material,
@@ -76,8 +94,9 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
           actualDel: p.actualDelivery ? new Date(p.actualDelivery).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "–",
           cost: p.totalCost ? formatINR(p.totalCost) : "—",
           status: p.status.toLowerCase().replace("_", "-"),
+          overdueDays: daysOverdue(p.expectedDelivery, p.status),
           _apiId: p.id,
-        }))); else setOrdersError(true);
+        })))); else setOrdersError(true);
       if (statsRes) setApiStats(statsRes); else setStatsError(true);
       if (clientRes) setClients(clientRes.data); else setClientsError(true);
       if (supplierRes) setSuppliers(supplierRes.data); else setSuppliersError(true);
@@ -88,8 +107,8 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
 
   // Auto-open PO modal if navigated from Inventory with pending PO
   useEffect(() => {
-    if (pendingPO) { setTab("supplier-orders"); setShowNewPO(true); }
-  }, [pendingPO]);
+    if (pendingPO) { setTab("supplier"); setShowNewPO(true); }
+  }, [pendingPO, setTab]);
 
   const handleApprove = async (id: string) => {
     try {
@@ -112,7 +131,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
   };
 
   const handleAddOrder = async (o: ClientOrder) => {
-    const client = clients.find(c => c.name.toLowerCase() === o.client.toLowerCase());
+    const client = clients.find(c => c.id === o.clientId);
     if (!client) throw new Error("Select an existing client before creating an order.");
     await createClientOrder({
       clientId: client.id,
@@ -180,6 +199,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
         subtitle="End-to-end order management — from supplier procurement to client delivery"
         actions={
           <div className="flex gap-2">
+            {canOpen(getStoredBackendRole(), "analytics") && <Btn variant="secondary" size="sm" onClick={() => onNavigate?.("analytics")}><BarChart3 size={14} /> Supplier Scorecard</Btn>}
             <Btn variant="secondary" size="sm" onClick={handleExport}><Download size={14} /> Export</Btn>
             {actions.createClientOrder && <Btn size="sm" onClick={() => setShowNewOrder(true)}><Plus size={14} /> New Order</Btn>}
           </div>
@@ -187,17 +207,16 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
       />
 
       {actions.viewStatistics && <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-        <KPICard label="Active Client Orders" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats ? String(apiStats.clientOrders.total - apiStats.clientOrders.delivered - apiStats.clientOrders.cancelled) : "—"} sub="in progress" accent="#A52A2A" />
-        <KPICard label="Pending Supplier POs" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats ? String(apiStats.purchaseOrders.pending) : "—"} sub="awaiting processing" accent="#E65100" trendDir="down" />
+        <KPICard label="Active Client Orders" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats ? String(apiStats.clientOrders.total - apiStats.clientOrders.delivered - apiStats.clientOrders.cancelled) : "—"} sub={apiStats?.clientOrders.overdue ? `${apiStats.clientOrders.overdue} overdue` : "in progress"} accent="#A52A2A" />
+        <KPICard label="Pending Supplier POs" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats ? String(apiStats.purchaseOrders.pending) : "—"} sub={apiStats?.purchaseOrders.overdue ? `${apiStats.purchaseOrders.overdue} past expected delivery` : "awaiting processing"} accent="#E65100" trendDir="down" />
         <KPICard label="Dispatched Orders" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats ? String(apiStats.clientOrders.dispatched) : "—"} accent="#1565C0" />
         <KPICard label="Fulfillment Rate" value={statsLoading ? "Loading..." : statsError ? "—" : apiStats?.fulfillmentRate ?? "—"} accent="#2E7D32" />
       </div>}
 
       <TabBar
         tabs={[
-          { id: "client-orders", label: "Client Orders" },
-          { id: "supplier-orders", label: "Supplier Orders" },
-          { id: "supply-chain", label: "Supply Chain Flow" },
+          { id: "client", label: "Client Orders" },
+          { id: "supplier", label: "Supplier Orders" },
           ...(actions.portalMessages ? [{ id: "portal-messages", label: "Portal Messages" }] : []),
         ]}
         active={tab}
@@ -206,7 +225,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
 
       <div className="mt-5">
         {/* ── CLIENT ORDERS ── */}
-        {tab === "client-orders" && (
+        {tab === "client" && (
           <Card>
             <CardHeader
               title="Client Orders"
@@ -235,7 +254,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
                 product: <span style={{ fontSize: "0.8rem" }}>{o.product}</span>,
                 qty: o.qty.toLocaleString(),
                 orderDate: o.orderDate,
-                requiredDate: <span style={{ fontWeight: 500, color: o.status === "pending" ? "#E65100" : "#4A4A4A" }}>{o.requiredDate}</span>,
+                requiredDate: <DueDate date={o.requiredDate} overdueDays={o.overdueDays ?? 0} />,
                 value: <span style={{ fontWeight: 600, color: "#1C1C1C" }}>{o.value}</span>,
                 status: <StatusBadge status={o.status} label={o.status.replace("-", " ")} />,
                 actions: (
@@ -255,7 +274,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
         )}
 
         {/* ── SUPPLIER ORDERS ── */}
-        {tab === "supplier-orders" && (
+        {tab === "supplier" && (
           <Card>
             <CardHeader
               title="Purchase Orders"
@@ -284,23 +303,12 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
                 material: o.material,
                 qty: o.qty,
                 orderDate: o.orderDate,
-                expectedDel: o.expectedDel,
+                expectedDel: <DueDate date={o.expectedDel} overdueDays={o.overdueDays ?? 0} />,
                 actualDel: <span style={{ color: o.actualDel === "–" ? "#9A8A88" : "#2E7D32" }}>{o.actualDel}</span>,
                 cost: <span style={{ fontWeight: 600 }}>{o.cost}</span>,
                 status: <StatusBadge status={o.status} label={o.status.replace("-", " ")} />,
               }))}
             />
-          </Card>
-        )}
-
-        {/* ── SUPPLY CHAIN ── */}
-        {tab === "supply-chain" && (
-          <Card>
-            <CardHeader title="Supplier performance" subtitle="On-time delivery, lead time, lead-time drift and supplier grades are calculated from purchase-order history" />
-            <div className="p-6 flex flex-col items-start gap-3">
-              <p style={{ fontSize: "0.85rem", color: "#4A4A4A" }}>These live metrics are on the Smart Analytics page, Supplier Scorecard tab.</p>
-              <Btn size="sm" onClick={() => onNavigate?.("analytics")}>Open Supplier Scorecard</Btn>
-            </div>
           </Card>
         )}
 

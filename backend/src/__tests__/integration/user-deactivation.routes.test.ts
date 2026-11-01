@@ -131,3 +131,39 @@ describe('PATCH /api/v1/auth/users/:id/deactivate', () => {
     expect(fn(prisma.user.update)).not.toHaveBeenCalled();
   });
 });
+
+describe('PATCH /api/v1/auth/users/:id (status)', () => {
+  it('reactivates a deactivated user', async () => {
+    USERS[6] = user(6, 'MANAGER', false);
+    const res = await request(app)
+      .patch('/api/v1/auth/users/6')
+      .set('Authorization', 'Bearer admin')
+      .send({ isActive: true });
+
+    expect(res.status).toBe(200);
+    expect(fn(prisma.user.update)).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 6 }, data: { isActive: true } }),
+    );
+    expect(fn(prisma.refreshToken.deleteMany)).not.toHaveBeenCalled();
+  });
+
+  it('deactivating through edit also ends the user sessions', async () => {
+    const res = await request(app)
+      .patch('/api/v1/auth/users/5')
+      .set('Authorization', 'Bearer admin')
+      .send({ isActive: false });
+
+    expect(res.status).toBe(200);
+    expect(fn(prisma.refreshToken.deleteMany)).toHaveBeenCalledWith({ where: { userId: 5 } });
+  });
+
+  it('refuses to deactivate your own account', async () => {
+    const res = await request(app)
+      .patch('/api/v1/auth/users/1')
+      .set('Authorization', 'Bearer admin')
+      .send({ isActive: false });
+
+    expect(res.status).toBe(400);
+    expect(fn(prisma.user.update)).not.toHaveBeenCalled();
+  });
+});

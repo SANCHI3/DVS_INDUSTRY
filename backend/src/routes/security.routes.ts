@@ -23,6 +23,7 @@ import {
   incidentAiSummarySchema,
   incidentEscalationSchema,
   evidenceFileQuerySchema,
+  bulkIncidentSchema,
 } from '../validators/security.validator';
 import { ROLES } from '../constants';
 
@@ -65,6 +66,19 @@ router.get(
 // ════════════════════════════════════════════════════════════════
 // INCIDENTS
 // ════════════════════════════════════════════════════════════════
+
+/**
+ * POST /api/v1/security/incidents/bulk
+ * Body: { ids, action: investigate | resolve | false_alarm | assign, reason?, assignedToId? }
+ * Each incident gets an update entry; ones that cannot change are skipped.
+ * Access: ADMIN, MANAGER
+ */
+router.post(
+  '/incidents/bulk',
+  authorize(...SEC_WRITE),
+  validateRequest({ body: bulkIncidentSchema }),
+  asyncHandler(SecurityController.bulkIncidentAction),
+);
 
 /**
  * PATCH /api/v1/security/incidents/ai-summary

@@ -6,9 +6,12 @@ import { isApiError } from "../../../lib/api";
 import { deactivateUser, getRoles, getUsers, registerUser, updateUser, type RoleDto, type UserDto } from "../../../lib/services/users.service";
 import { getAuditLogs } from "../../../lib/services/audit.service";
 import { Modal } from "../shared/Modal";
+import { CheckCircle2, Circle } from "lucide-react";
+import { PASSWORD_RULES } from "../../../lib/profile";
 import { useApiData } from "../../../lib/useApiData";
 import { getClients, getSuppliers } from "../../../lib/services/orders.service";
 import { InquiriesPanel } from "./InquiriesPanel";
+import { useTabHash } from "../../../lib/useTabHash";
 
 type IconProps = { size?: number; color?: string };
 const PlusIcon = Plus as unknown as (props: IconProps) => JSX.Element;
@@ -18,7 +21,7 @@ const ShieldIcon = Shield as unknown as (props: IconProps) => JSX.Element;
 const SearchIcon = Search as unknown as (props: IconProps) => JSX.Element;
 
 interface User {
-  id: string; name: string; email: string; role: string; dept: string;
+  id: string; name: string; email: string; role: string;
   joined: string; lastLogin: string; status: string;
   _apiId?: number; _roleId?: number;
 }
@@ -34,7 +37,6 @@ const permissions = [
   { role: "Client", perms: ["Product catalog browse", "Order placement", "Order tracking", "Invoice access", "Support ticket", "Delivery confirmation"] },
 ];
 
-const departments = ["Management", "Operations", "Security", "Production", "Quality", "Inventory", "Finance", "Steel", "Aluminium", "Copper", "Automotive", "Engineering"];
 
 const fieldStyle: React.CSSProperties = { width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #E8E2E0", borderRadius: "0.4rem", fontSize: "0.8375rem", outline: "none", background: "#fff" };
 const labelStyle: React.CSSProperties = { fontSize: "0.72rem", fontWeight: 600, color: "#4E342E", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: "0.3rem" };
@@ -42,8 +44,10 @@ const labelStyle: React.CSSProperties = { fontSize: "0.72rem", fontWeight: 600, 
 // The CCTV AI's machine account, never a person: not offered for new users
 const MACHINE_ROLE = "perception_service";
 
+const USER_TABS = ["list", "inquiries", "permissions", "logs"] as const;
+
 export function UserManagementPage() {
-  const [activeTab, setActiveTab]   = useState<"users" | "inquiries" | "permissions" | "logs">("users");
+  const [activeTab, setActiveTab]   = useTabHash("users", USER_TABS);
   const [search, setSearch]         = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [users, setUsers] = useState<User[]>([]);
@@ -54,7 +58,7 @@ export function UserManagementPage() {
   const [editUser, setEditUser]     = useState<User | null>(null);
   const [deleteUser, setDeleteUser] = useState<User | null>(null);
   const [creatingUser, setCreatingUser] = useState(false);
-  const [newUser, setNewUser]       = useState({ name: "", email: "", password: "", role: "admin", roleId: 1, dept: "Management", status: "active" });
+  const [newUser, setNewUser]       = useState({ name: "", email: "", password: "", role: "", status: "active" });
   // Supplier/client logins: which company they belong to ("" = match by email)
   const [companyId, setCompanyId] = useState("");
   const companyKind = newUser.role === "supplier" ? "supplier" : newUser.role === "client" ? "client" : null;
@@ -70,7 +74,6 @@ export function UserManagementPage() {
     name: user.fullName,
     email: user.email,
     role: user.role.name.toLowerCase(),
-    dept: "-",
     joined: new Date(user.createdAt).toLocaleDateString("en-IN"),
     lastLogin: user.lastLogin ? new Date(user.lastLogin).toLocaleString("en-IN") : "Never",
     status: user.isActive ? "active" : "inactive",
@@ -108,8 +111,16 @@ export function UserManagementPage() {
 
   const handleAdd = async () => {
     const selectedRole = roles.find((role) => role.name.toLowerCase() === newUser.role);
-    if (!newUser.name.trim() || !newUser.email.trim() || !newUser.password || !selectedRole) {
+    if (!newUser.name.trim() || !newUser.email.trim() || !newUser.password) {
       toast.error("Complete all account fields before adding the user.");
+      return;
+    }
+    if (!selectedRole) {
+      toast.error("Choose a role for the new user.");
+      return;
+    }
+    if (!PASSWORD_RULES.every((rule) => rule.test(newUser.password))) {
+      toast.error("The password does not meet all the rules yet.");
       return;
     }
 
@@ -123,7 +134,7 @@ export function UserManagementPage() {
     setCreatingUser(true);
 
     try {
-      await registerUser({
+      const created = await registerUser({
         fullName: newUser.name.trim(),
         email: normalizedEmail,
         password: newUser.password,
@@ -132,9 +143,11 @@ export function UserManagementPage() {
         ...(companyId && companyKind === "client" && { clientId: Number(companyId) }),
       });
       setCompanyId("");
+      // New accounts start active; an inactive one is switched off straight away
+      if (newUser.status === "inactive") await updateUser(created.id, { isActive: false });
       toast.success("User account created successfully.");
       setShowAdd(false);
-      setNewUser({ name: "", email: "", password: "", role: "admin", roleId: 1, dept: "Management", status: "active" });
+      setNewUser({ name: "", email: "", password: "", role: "", status: "active" });
       await refreshUsers();
     } catch (error) {
       const message = isApiError(error)
@@ -158,7 +171,12 @@ export function UserManagementPage() {
       return;
     }
     try {
-      await updateUser(editUser._apiId, { fullName: editUser.name.trim(), email: editUser.email.trim(), roleId: selectedRole.id });
+      const wasActive = users.find((u) => u._apiId === editUser._apiId)?.status === "active";
+      const nowActive = editUser.status === "active";
+      await updateUser(editUser._apiId, {
+        fullName: editUser.name.trim(), email: editUser.email.trim(), roleId: selectedRole.id,
+        ...(wasActive !== nowActive && { isActive: nowActive }),
+      });
       toast.success("User updated successfully.");
       setEditUser(null);
       await refreshUsers();
@@ -191,11 +209,25 @@ export function UserManagementPage() {
         <div className="space-y-4">
           <div><label style={labelStyle}>Full Name</label><input style={fieldStyle} value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} placeholder="e.g. Arjun Mehta" /></div>
           <div><label style={labelStyle}>Email Address</label><input style={fieldStyle} type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} placeholder="arjun@dvsindustries.com" /></div>
-          <div><label style={labelStyle}>Password</label><input style={fieldStyle} type="password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} placeholder="Min 8 characters" /></div>
+          <div>
+            <label style={labelStyle} htmlFor="new-user-password">Password</label>
+            <input id="new-user-password" style={fieldStyle} type="password" autoComplete="new-password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
+            <ul className="flex flex-col gap-1 mt-2 pl-1" aria-label="Password rules">
+              {PASSWORD_RULES.map((rule) => {
+                const met = rule.test(newUser.password);
+                return (
+                  <li key={rule.hint} className="flex items-center gap-2" style={{ fontSize: "0.75rem", color: met ? "#2E7D32" : "#7A6C6A" }}>
+                    {met ? <CheckCircle2 size={13} aria-hidden="true" /> : <Circle size={13} aria-hidden="true" />} {rule.hint}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label style={labelStyle}>Role</label>
-              <select style={fieldStyle} value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}>
+              <label style={labelStyle} htmlFor="new-user-role">Role</label>
+              <select id="new-user-role" style={fieldStyle} value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}>
+                <option value="">Choose a role</option>
                 {roles.filter((r) => r.name.toLowerCase() !== MACHINE_ROLE).map(r => <option key={r.id} value={r.name.toLowerCase()}>{r.name}</option>)}
               </select>
             </div>
@@ -217,12 +249,6 @@ export function UserManagementPage() {
               <p style={{ fontSize: "0.7rem", color: "#9A8A88", marginTop: "0.25rem" }}>The portal only shows this company's orders and messages.</p>
             </div>
           )}
-          <div>
-            <label style={labelStyle}>Department</label>
-            <select style={fieldStyle} value={newUser.dept} onChange={(e) => setNewUser({ ...newUser, dept: e.target.value })}>
-              {departments.map((d) => <option key={d}>{d}</option>)}
-            </select>
-          </div>
           <div className="flex gap-2 pt-2">
             <button onClick={() => setShowAdd(false)} style={{ flex: 1, padding: "0.6rem", border: "1px solid #E8E2E0", borderRadius: "0.5rem", background: "#fff", cursor: "pointer" }}>Cancel</button>
             <button onClick={handleAdd} disabled={creatingUser} style={{ flex: 2, padding: "0.6rem", border: "none", borderRadius: "0.5rem", background: creatingUser ? "#C9A09A" : "#A52A2A", color: "#fff", fontWeight: 600, cursor: creatingUser ? "wait" : "pointer" }}>
@@ -252,12 +278,6 @@ export function UserManagementPage() {
                 <option value="inactive">Inactive</option>
               </select>
             </div>
-          </div>
-          <div>
-            <label style={labelStyle}>Department</label>
-            <select style={fieldStyle} value={editUser.dept} onChange={(e) => setEditUser({ ...editUser, dept: e.target.value })}>
-              {departments.map((d) => <option key={d}>{d}</option>)}
-            </select>
           </div>
           <div className="flex gap-2 pt-2">
             <button onClick={() => setEditUser(null)} style={{ flex: 1, padding: "0.6rem", border: "1px solid #E8E2E0", borderRadius: "0.5rem", background: "#fff", cursor: "pointer" }}>Cancel</button>
@@ -291,7 +311,7 @@ export function UserManagementPage() {
       {dataError && <p className="mb-4" style={{ color: "#C0392B", fontSize: "0.8125rem" }}>{dataError}</p>}
 
       <div className="flex gap-0 mb-5" style={{ borderBottom: "2px solid #E8E2E0" }}>
-        {([["users", "All Users"], ["inquiries", "Inquiries"], ["permissions", "Permissions"], ["logs", "Audit Logs"]] as const).map(([id, label]) => (
+        {([["list", "All Users"], ["inquiries", "Inquiries"], ["permissions", "Permissions"], ["logs", "Audit Logs"]] as const).map(([id, label]) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
@@ -308,7 +328,7 @@ export function UserManagementPage() {
         ))}
       </div>
 
-      {activeTab === "users" && (
+      {activeTab === "list" && (
         <div>
           <div className="flex flex-wrap gap-3 mb-4">
             <div className="flex items-center gap-2 flex-1 min-w-48 px-3 py-2 rounded-md" style={{ background: "#fff", border: "1px solid #E8E2E0" }}>
@@ -328,10 +348,10 @@ export function UserManagementPage() {
                   style={{
                     padding: "0.375rem 0.75rem", borderRadius: "0.35rem", fontSize: "0.775rem",
                     background: roleFilter === r ? "#A52A2A" : "#fff", color: roleFilter === r ? "#fff" : "#4A4A4A",
-                    border: `1px solid ${roleFilter === r ? "#A52A2A" : "#E8E2E0"}`, cursor: "pointer", textTransform: "capitalize",
+                    border: `1px solid ${roleFilter === r ? "#A52A2A" : "#E8E2E0"}`, cursor: "pointer",
                   }}
                 >
-                  {r}
+                  {r === "all" ? "All" : r === "hr" ? "HR" : r.charAt(0).toUpperCase() + r.slice(1)}
                 </button>
               ))}
             </div>
@@ -349,7 +369,6 @@ export function UserManagementPage() {
                 { key: "id", label: "User ID" },
                 { key: "name", label: "Name / Email" },
                 { key: "role", label: "Role" },
-                { key: "dept", label: "Department" },
                 { key: "joined", label: "Joined" },
                 { key: "lastLogin", label: "Last Login" },
                 { key: "status", label: "Status" },
@@ -368,7 +387,6 @@ export function UserManagementPage() {
                     {u.role}
                   </span>
                 ),
-                dept: u.dept,
                 joined: u.joined,
                 lastLogin: <span style={{ fontSize: "0.775rem" }}>{u.lastLogin}</span>,
                 status: <StatusBadge status={u.status} />,

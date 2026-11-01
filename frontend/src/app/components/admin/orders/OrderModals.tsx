@@ -2,22 +2,52 @@ import { useState } from "react";
 import { CheckCircle2, Truck, AlertCircle } from "lucide-react";
 import { type ClientDto, type SupplierDto } from "../../../../lib/services/orders.service";
 import { Modal } from "../../shared/Modal";
+import { isApiError } from "../../../../lib/api";
 import { formatINR } from "../../../../lib/format";
+import { useApiData } from "../../../../lib/useApiData";
+import { getClientOrderDetail } from "../../../../lib/services/orders.service";
+import { dispatchReadiness } from "../../../../lib/dispatchReadiness";
 
 /* ── Types ── */
 export interface ClientOrder {
   id: string; client: string; product: string; qty: number;
+  /** Set by the new-order form: the chosen client record. */
+  clientId?: number;
   orderDate: string; requiredDate: string; status: string; value: string;
   dispatch?: string; delivery?: string;
+  /** Days past the required-by date (0 = on time). */
+  overdueDays?: number;
   _apiId?: number;
 }
 export interface SupplierOrder {
   id: string; supplier: string; material: string; qty: string;
   orderDate: string; expectedDel: string; actualDel: string; cost: string; status: string;
+  /** Days past the expected delivery (0 = on time). */
+  overdueDays?: number;
   _apiId?: number;
 }
 
 /* ── Helpers ── */
+/** Today as YYYY-MM-DD in local time (the order date of a new order). */
+function todayIso(): string {
+  return new Date().toLocaleDateString("en-CA");
+}
+
+/** Inline message when a due date falls before the order date (today for new orders). */
+export function dateBeforeOrderError(value: string, label: string): string {
+  return value && value < todayIso() ? `${label} cannot be before the order date (today).` : "";
+}
+
+/** The server's reason in plain words, e.g. its field messages. */
+function saveError(err: unknown, fallback: string): string {
+  if (isApiError(err)) {
+    if (Array.isArray(err.details) && err.details.length > 0) {
+      return (err.details as { message?: string }[]).map((d) => d.message ?? "Please check the form").join(" ");
+    }
+    if (err.status < 500 && err.message) return err.message;
+  }
+  return err instanceof Error ? err.message : fallback;
+}
 export function parseMoney(value: string): string | null {
   const normalized = value.replace(/[₹,\s]/g, "");
   return normalized && /^\d+(\.\d{1,2})?$/.test(normalized) ? normalized : null;
@@ -48,7 +78,8 @@ export function POModal({ prefill, suppliers, suppliersLoading, suppliersError, 
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
-  const isValid = form.supplier && form.material && form.qty && form.expectedDel;
+  const dateError = dateBeforeOrderError(form.expectedDel, "Expected delivery");
+  const isValid = form.supplier && form.material && form.qty && form.expectedDel && !dateError;
 
   if (submitted) return (
     <Modal title="Purchase Order Created" onClose={onClose}>
@@ -98,9 +129,11 @@ export function POModal({ prefill, suppliers, suppliersLoading, suppliersError, 
             <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.3rem" }}>{f.label}</label>
                     <input type={f.type || "text"} placeholder={f.placeholder} value={form[f.key as keyof typeof form]}
               onChange={(e) => set(f.key, e.target.value)}
+              {...(f.key === "expectedDel" && { min: todayIso(), "aria-invalid": dateError !== "", "aria-describedby": "po-date-error" })}
               style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #D4BFBB", borderRadius: "0.375rem", fontSize: "0.8375rem", outline: "none" }}
               onFocus={(e) => { e.target.style.borderColor = "#A52A2A"; }}
               onBlur={(e) => { e.target.style.borderColor = "#D4BFBB"; }} />
+            {f.key === "expectedDel" && dateError && <p id="po-date-error" role="alert" style={{ color: "#C0392B", fontSize: "0.75rem", marginTop: "0.25rem" }}>{dateError}</p>}
           </div>
         ))}
         <div className="flex gap-2 mt-2">
@@ -113,7 +146,7 @@ export function POModal({ prefill, suppliers, suppliersLoading, suppliersError, 
               await onSubmit({ supplier: form.supplier, material: form.material, qty: form.qty, cost: form.cost || "–", expectedDel: form.expectedDel, status: "pending" });
               setSubmitted(true);
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Purchase order could not be saved.");
+              setError(saveError(err, "Purchase order could not be saved."));
             } finally {
               setSaving(false);
             }
@@ -132,6 +165,13 @@ export function OrderDetailModal({ order, onClose, onApprove, onDispatch }: {
   onApprove?: () => void; onDispatch?: () => void;
 }) {
   const canDispatch = order.status === "approved";
+  // Readiness comes from the work orders linked to this order
+  const showReadiness = order.status === "approved" || order.status === "in-production";
+  const detail = useApiData(
+    () => getClientOrderDetail(order._apiId!),
+    [order._apiId], "load production progress", showReadiness && order._apiId !== undefined,
+  );
+  const readiness = detail.data ? dispatchReadiness(order.qty, detail.data.workOrders) : null;
   return (
     <Modal title={`Order Details — ${order.id}`} onClose={onClose} size="2xl">
       <div className="flex flex-col gap-4">
@@ -148,21 +188,30 @@ export function OrderDetailModal({ order, onClose, onApprove, onDispatch }: {
           ))}
         </div>
 
-        {/* Production checklist for dispatch eligibility */}
-        {(order.status === "in-production" || order.status === "approved") && (
-          <div className="p-4 rounded-xl" style={{ background: "#F0FAF0", border: "1px solid #C8E6C9" }}>
-            <p style={{ fontSize: "0.775rem", fontWeight: 700, color: "#2E7D32", marginBottom: "0.75rem" }}>DISPATCH ELIGIBILITY</p>
-            {[
-              { label: "Production Complete", done: order.status === "approved" },
-              { label: "Quality Inspection Passed", done: order.status === "approved" },
-              { label: "Finished Goods Available", done: order.status === "approved" },
-            ].map((c) => (
-              <div key={c.label} className="flex items-center gap-2 mb-1.5">
-                <CheckCircle2 size={14} color={c.done ? "#2E7D32" : "#D4BFBB"} />
-                <span style={{ fontSize: "0.8rem", color: c.done ? "#1C1C1C" : "#9A8A88" }}>{c.label}</span>
-              </div>
-            ))}
-          </div>
+        {/* Dispatch readiness from the linked work orders */}
+        {showReadiness && (
+          detail.loading ? <p style={{ fontSize: "0.8rem", color: "#7A6C6A" }}>Checking production progress…</p>
+          : detail.error ? <p style={{ fontSize: "0.8rem", color: "#C0392B" }}>{detail.error}</p>
+          : readiness && !readiness.linked ? (
+            <p className="p-3 rounded-xl" style={{ fontSize: "0.8rem", color: "#7A6C6A", background: "#F9F6F5" }}>
+              No work order is linked to this order yet, so production progress cannot be checked.
+            </p>
+          ) : readiness && (
+            <div className="p-4 rounded-xl" style={{ background: readiness.ready ? "#F0FAF0" : "#FFF8E1", border: `1px solid ${readiness.ready ? "#C8E6C9" : "#FFE082"}` }}>
+              <p style={{ fontSize: "0.775rem", fontWeight: 700, color: readiness.ready ? "#2E7D32" : "#8A6D00", marginBottom: "0.75rem" }}>
+                {readiness.ready ? "READY TO DISPATCH" : "NOT READY TO DISPATCH YET"}
+              </p>
+              {readiness.items.map((c) => (
+                <div key={c.label} className="flex items-center gap-2 mb-1.5">
+                  <CheckCircle2 size={14} color={c.done ? "#2E7D32" : "#D4BFBB"} aria-hidden="true" />
+                  <span style={{ fontSize: "0.8rem", color: c.done ? "#1C1C1C" : "#7A6C6A" }}>{c.label}: <strong>{c.detail}</strong>{c.done ? "" : " (not yet)"}</span>
+                </div>
+              ))}
+              <p style={{ fontSize: "0.72rem", color: "#7A6C6A", marginTop: "0.5rem" }}>
+                {detail.data!.workOrders.filter((w) => w.status !== "CANCELLED").map((w) => `${w.workOrderNumber} (${w.status.replace(/_/g, " ").toLowerCase()})`).join(", ")}
+              </p>
+            </div>
+          )
         )}
 
         <div className="flex gap-2 mt-1">
@@ -247,12 +296,14 @@ export function DispatchModal({ order, onClose, onConfirm }: { order: ClientOrde
 
 /* ── New Client Order Modal ── */
 export function NewClientOrderModal({ clients, clientsLoading, clientsError, onClose, onSubmit }: { clients: ClientDto[]; clientsLoading: boolean; clientsError: boolean; onClose: () => void; onSubmit: (o: ClientOrder) => Promise<void> }) {
-  const [form, setForm] = useState({ client: "", product: "", qty: "", requiredDate: "", value: "" });
+  const [form, setForm] = useState({ clientId: "", product: "", qty: "", requiredDate: "", value: "" });
+  const chosen = clients.find((c) => String(c.id) === form.clientId);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const set = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
-  const isValid = form.client && form.product && form.qty && form.requiredDate;
+  const dateError = dateBeforeOrderError(form.requiredDate, "Required-by date");
+  const isValid = chosen && form.product && form.qty && form.requiredDate && !dateError;
 
   if (done) return (
     <Modal title="New Client Order" onClose={onClose}>
@@ -261,7 +312,7 @@ export function NewClientOrderModal({ clients, clientsLoading, clientsError, onC
           <CheckCircle2 size={32} color="#2E7D32" />
         </div>
         <h3 style={{ fontSize: "1.1rem", fontWeight: 700, marginBottom: "0.5rem" }}>Order Created</h3>
-        <p style={{ fontSize: "0.875rem", color: "#7A6C6A" }}>Order record saved for {form.client}.</p>
+        <p style={{ fontSize: "0.875rem", color: "#7A6C6A" }}>Order record saved for {chosen?.name}.</p>
         <button onClick={onClose} style={{ marginTop: "1.5rem", padding: "0.625rem 2rem", borderRadius: "0.5rem", background: "#A52A2A", color: "#fff", border: "none", cursor: "pointer", fontWeight: 600 }}>Done</button>
       </div>
     </Modal>
@@ -276,8 +327,15 @@ export function NewClientOrderModal({ clients, clientsLoading, clientsError, onC
         {clientsLoading && <p style={{ fontSize: "0.8rem", color: "#7A6C6A" }}>Loading clients...</p>}
         {clientsError && <p style={{ fontSize: "0.8rem", color: "#C0392B" }}>Unable to load clients.</p>}
         {!clientsLoading && !clientsError && clients.length === 0 && <p style={{ fontSize: "0.8rem", color: "#7A6C6A" }}>No clients available.</p>}
+        <div>
+          <label htmlFor="new-order-client" style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.3rem" }}>Client *</label>
+          <select id="new-order-client" value={form.clientId} onChange={(e) => set("clientId", e.target.value)} disabled={clientsLoading}
+            style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #D4BFBB", borderRadius: "0.375rem", fontSize: "0.8375rem", background: "#fff" }}>
+            <option value="">{clientsLoading ? "Loading clients…" : "Choose a client"}</option>
+            {clients.filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ""}</option>)}
+          </select>
+        </div>
         {[
-          { label: "Client Name *", key: "client", placeholder: "e.g. Reliance Eng." },
           { label: "Product / Part *", key: "product", placeholder: "e.g. Steel Frames 2mm" },
           { label: "Quantity (pcs) *", key: "qty", placeholder: "e.g. 500", type: "number" },
           { label: "Required By *", key: "requiredDate", placeholder: "", type: "date" },
@@ -285,12 +343,13 @@ export function NewClientOrderModal({ clients, clientsLoading, clientsError, onC
         ].map((f) => (
           <div key={f.key}>
             <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.3rem" }}>{f.label}</label>
-                    <input list={f.key === "client" ? "available-clients" : undefined} type={f.type || "text"} placeholder={f.placeholder} value={form[f.key as keyof typeof form]}
+                    <input id={`new-order-${f.key}`} type={f.type || "text"} placeholder={f.placeholder} value={form[f.key as keyof typeof form]}
               onChange={(e) => set(f.key, e.target.value)}
+              {...(f.key === "requiredDate" && { min: todayIso(), "aria-invalid": dateError !== "", "aria-describedby": "order-date-error" })}
               style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #D4BFBB", borderRadius: "0.375rem", fontSize: "0.8375rem", outline: "none" }}
               onFocus={(e) => { e.target.style.borderColor = "#A52A2A"; }}
               onBlur={(e) => { e.target.style.borderColor = "#D4BFBB"; }} />
-            {f.key === "client" && <datalist id="available-clients">{clients.map((client) => <option key={client.id} value={client.name} />)}</datalist>}
+            {f.key === "requiredDate" && dateError && <p id="order-date-error" role="alert" style={{ color: "#C0392B", fontSize: "0.75rem", marginTop: "0.25rem" }}>{dateError}</p>}
           </div>
         ))}
         {error && <p style={{ color: "#C0392B", fontSize: "0.8rem" }}>{error}</p>}
@@ -300,10 +359,10 @@ export function NewClientOrderModal({ clients, clientsLoading, clientsError, onC
             setSaving(true);
             setError("");
             try {
-              await onSubmit({ id: "", client: form.client, product: form.product, qty: parseInt(form.qty), orderDate: dateStr, requiredDate: form.requiredDate, status: "pending", value: form.value || "–" });
+              await onSubmit({ id: "", client: chosen!.name, clientId: chosen!.id, product: form.product, qty: parseInt(form.qty), orderDate: dateStr, requiredDate: form.requiredDate, status: "pending", value: form.value || "–" });
               setDone(true);
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Client order could not be saved.");
+              setError(saveError(err, "Client order could not be saved."));
             } finally {
               setSaving(false);
             }

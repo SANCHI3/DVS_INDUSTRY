@@ -96,6 +96,11 @@ type PrismaEmployeeResult = Prisma.EmployeeGetPayload<{
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** "EMP-2" before "EMP-10": numbers inside codes compare by value. */
+export function naturalCompare(a: string, b: string): number {
+  return a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' });
+}
+
 export class EmployeeRepository implements IEmployeeRepository {
   // ── Create ────────────────────────────────────────────────────────────────
 
@@ -276,6 +281,29 @@ export class EmployeeRepository implements IEmployeeRepository {
 
     const skip = (page - 1) * pageSize;
     const take = pageSize;
+
+    // Codes are text, so the database sorts "1, 10, 102, 11". Order them
+    // naturally ("1, 2, 10, 11, 102") here, then load just the page.
+    if (sortBy === 'employeeCode') {
+      const codes = await prisma.employee.findMany({
+        where,
+        select: { id: true, employeeCode: true },
+      });
+      codes.sort((a, b) => naturalCompare(a.employeeCode, b.employeeCode));
+      if (sortOrder === 'desc') codes.reverse();
+      const pageIds = codes.slice(skip, skip + take).map((c) => c.id);
+      const rows = await prisma.employee.findMany({
+        where: { id: { in: pageIds } },
+        select: employeeSelect,
+      });
+      const byId = new Map(rows.map((row) => [row.id, row]));
+      const ordered = pageIds.flatMap((id) => {
+        const row = byId.get(id);
+        return row ? [row] : [];
+      });
+      return { data: ordered.map(toDto), total: codes.length };
+    }
+
     const orderBy: Prisma.EmployeeOrderByWithRelationInput = { [sortBy]: sortOrder };
 
     const [raws, total] = await prisma.$transaction([

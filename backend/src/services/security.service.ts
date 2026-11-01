@@ -1,5 +1,7 @@
 import { SecurityRepository } from '../repositories/security.repository';
 import type {
+  BulkIncidentAction,
+  BulkIncidentResult,
   SecurityIncidentDto,
   SecurityIncidentDetail,
   IncidentListResult,
@@ -23,6 +25,7 @@ import { Prisma } from '@prisma/client';
 import { NotFoundError, BadRequestError } from '../errors';
 import { logger } from '../logger';
 import { publishSecurityEvent } from '../lib/securityEvents';
+import { prisma } from '../lib/prismaClient';
 
 /**
  * SecurityService — business rules:
@@ -260,6 +263,106 @@ export class SecurityService {
     });
 
     return incident;
+  }
+
+  // ── Bulk actions ──────────────────────────────────────────────────────────
+
+  /**
+   * One action on many incidents, each recorded in its updates like a single
+   * change. Incidents that cannot take the action (e.g. already resolved) are
+   * skipped with the reason instead of failing the whole request.
+   */
+  async bulkAction(
+    ids: number[],
+    action: BulkIncidentAction,
+    actor: { id: number | null; name: string | null },
+    options: { reason?: string | undefined; assignedToId?: number | undefined } = {},
+  ): Promise<BulkIncidentResult> {
+    const result: BulkIncidentResult = { done: [], skipped: [] };
+    let assignee: { id: number; name: string } | null = null;
+    if (action === 'assign') {
+      if (options.assignedToId === undefined) throw new BadRequestError('Choose who to assign');
+      const user = await prisma.user.findFirst({
+        where: { id: options.assignedToId, isActive: true },
+        select: { id: true, fullName: true },
+      });
+      if (user === null) throw new NotFoundError('That person was not found or is inactive');
+      assignee = { id: user.id, name: user.fullName };
+    }
+    const reason = options.reason?.trim();
+    if (action === 'false_alarm' && !reason) {
+      throw new BadRequestError('Give a reason for marking these as false alarms');
+    }
+
+    for (const id of [...new Set(ids)]) {
+      try {
+        const incident = await this.getIncidentOrThrow(id);
+        const open = incident.status === 'OPEN' || incident.status === 'INVESTIGATING';
+        if (!open) {
+          result.skipped.push({ id, reason: `already ${incident.status.toLowerCase()}` });
+          continue;
+        }
+        if (action === 'investigate') {
+          if (incident.status === 'INVESTIGATING') {
+            result.skipped.push({ id, reason: 'already investigating' });
+            continue;
+          }
+          await this.transitionIncidentStatus(id, 'INVESTIGATING', null, actor.id, actor.name);
+        } else if (action === 'resolve') {
+          await this.transitionIncidentStatus(
+            id,
+            'RESOLVED',
+            'Resolved (bulk action)',
+            actor.id,
+            actor.name,
+          );
+        } else if (action === 'false_alarm') {
+          await this.repo.updateIncident(id, {
+            falseAlarm: true,
+            falseAlarmReason: reason ?? null,
+          });
+          await this.transitionIncidentStatus(
+            id,
+            'RESOLVED',
+            `Marked as a false alarm: ${reason}`,
+            actor.id,
+            actor.name,
+            `False alarm: ${reason}`,
+          );
+        } else {
+          await this.assignIncident(id, assignee!.id, assignee!.name);
+          if (incident.status === 'OPEN') {
+            await this.transitionIncidentStatus(
+              id,
+              'INVESTIGATING',
+              `Assigned to ${assignee!.name}`,
+              actor.id,
+              actor.name,
+            );
+          } else {
+            await this.repo.addIncidentUpdate({
+              incidentId: id,
+              comment: `Assigned to ${assignee!.name}`,
+              statusChange: null,
+              updatedById: actor.id,
+              updatedByName: actor.name,
+            });
+          }
+        }
+        result.done.push(id);
+      } catch (err) {
+        result.skipped.push({
+          id,
+          reason: err instanceof Error ? err.message : 'could not be changed',
+        });
+      }
+    }
+    logger.info('Bulk incident action', {
+      action,
+      done: result.done.length,
+      skipped: result.skipped.length,
+    });
+    return result;
   }
 
   // ── Assign ────────────────────────────────────────────────────────────────

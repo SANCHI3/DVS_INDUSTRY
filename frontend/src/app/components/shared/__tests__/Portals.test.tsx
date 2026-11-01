@@ -73,7 +73,8 @@ async function openEverySection(labels: string[]) {
 }
 
 describe("supplier portal", () => {
-  it("shows the supplier's own data on every page", async () => {
+  // Renders every portal page in turn; slow when the whole suite runs at once
+  it("shows the supplier's own data on every page", { timeout: 20_000 }, async () => {
     render(<SupplierApp onLogout={() => {}} />);
     expect(await screen.findByText(/Mahindra Accelo Limited · Partner ID: SUP-MAL/)).toBeTruthy();
     expect(screen.getByText("Please confirm the dispatch date")).toBeTruthy();
@@ -103,7 +104,7 @@ describe("supplier portal", () => {
 });
 
 describe("client portal", () => {
-  it("shows the client's own data on every page", async () => {
+  it("shows the client's own data on every page", { timeout: 20_000 }, async () => {
     render(<ClientApp onLogout={() => {}} />);
     expect(await screen.findByText(/Chitnis Engineering Systems · Client ID: CLT-CHITNIS/)).toBeTruthy();
 

@@ -8,7 +8,7 @@ import {
   type IncidentEvidence,
   type SecurityIncidentDto,
 } from "../../../lib/services/security.service";
-import { confidenceLabel, incidentHeadline } from "../../../lib/incidentLabels";
+import { confidenceLabel, eventTypeLabel, incidentHeadline } from "../../../lib/incidentLabels";
 import { isAdministrator } from "../../../lib/auth";
 
 const TIER_LABEL: Record<string, string> = {
@@ -104,9 +104,23 @@ export function IncidentEvidenceDialog({ incident, onClose }: { incident: Securi
             {ok?.recommendedAction && <p className="mt-2" style={{ color: "#4A3F3D", fontSize: "0.8rem" }}><strong>What to do:</strong> {ok.recommendedAction}</p>}
           </section>
 
-          {!evidence && !error && <p style={muted}>Loading camera evidence…</p>}
-          {error && <p style={{ color: "#C0392B", fontSize: "0.8rem" }}>Camera evidence could not be loaded.</p>}
-          {evidence && !evidence.available && <p style={muted}>{evidence.reason}</p>}
+          {/* What is known without the camera files */}
+          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3" style={{ fontSize: "0.78rem" }}>
+            {[
+              ["Type", eventTypeLabel(incident.type)],
+              ["When", new Date(incident.occurredAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })],
+              ["Severity", incident.severity.charAt(0) + incident.severity.slice(1).toLowerCase()],
+              ["AI confidence", confidenceLabel(incident.confidenceScore ?? null)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-lg px-3 py-2" style={{ background: "#FCFAF9", border: "1px solid #EEE4E0" }}>
+                <dt style={{ color: "#837572" }}>{label}</dt>
+                <dd style={{ color: "#302725", fontWeight: 600 }}>{value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          {!evidence && !error && <p style={muted}>Checking for camera snapshots…</p>}
+          {(error || (evidence && !evidence.available)) && <p style={muted}>Camera snapshots are not available for this incident.</p>}
 
           {ok && (
             <>

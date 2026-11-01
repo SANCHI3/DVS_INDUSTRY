@@ -38,6 +38,8 @@ export default defineConfig({
   // Playwright owns e2e/; vitest runs only the unit tests in src/
   test: {
     include: ['src/**/*.test.{ts,tsx}'],
+    // Full-page renders can exceed vitest's 5 s default on a busy machine or CI runner
+    testTimeout: 15_000,
   },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.

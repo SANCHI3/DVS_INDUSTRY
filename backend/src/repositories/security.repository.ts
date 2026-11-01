@@ -49,6 +49,8 @@ const incidentSelect = {
   closedAt: true,
   rootCause: true,
   correctiveAction: true,
+  falseAlarm: true,
+  falseAlarmReason: true,
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
@@ -178,6 +180,8 @@ export class SecurityRepository {
     if (data.closedAt !== undefined) up.closedAt = data.closedAt;
     if (data.rootCause !== undefined) up.rootCause = data.rootCause;
     if (data.correctiveAction !== undefined) up.correctiveAction = data.correctiveAction;
+    if (data.falseAlarm !== undefined) up.falseAlarm = data.falseAlarm;
+    if (data.falseAlarmReason !== undefined) up.falseAlarmReason = data.falseAlarmReason;
 
     const raw = await prisma.securityIncident.update({
       where: { id },

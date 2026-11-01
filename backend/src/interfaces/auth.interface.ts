@@ -97,6 +97,7 @@ export interface AdminUpdateUserData {
   fullName?: string;
   email?: string;
   roleId?: number;
+  isActive?: boolean;
 }
 
 export interface ChangePasswordData {

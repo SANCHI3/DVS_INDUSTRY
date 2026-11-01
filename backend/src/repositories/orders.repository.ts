@@ -5,6 +5,7 @@ import type {
   SupplierDto,
   ClientDto,
   ClientOrderDto,
+  LinkedWorkOrder,
   PurchaseOrderDto,
   SupplierListResult,
   ClientListResult,
@@ -462,6 +463,30 @@ export class OrdersRepository {
     return toClientOrderDto(raw);
   }
 
+  /** Work orders linked to a client order, with their good output so far. */
+  async findLinkedWorkOrders(clientOrderId: number): Promise<LinkedWorkOrder[]> {
+    const rows = await prisma.workOrder.findMany({
+      where: { clientOrderId, deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        workOrderNumber: true,
+        status: true,
+        targetQuantity: true,
+        unit: true,
+        outputs: { select: { goodQty: true } },
+      },
+    });
+    return rows.map((wo) => ({
+      id: wo.id,
+      workOrderNumber: wo.workOrderNumber,
+      status: wo.status,
+      targetQuantity: wo.targetQuantity.toNumber(),
+      producedQty: wo.outputs.reduce((sum, o) => sum + o.goodQty.toNumber(), 0),
+      unit: wo.unit,
+    }));
+  }
+
   async findClientOrderById(id: number): Promise<ClientOrderDto | null> {
     const raw = await prisma.clientOrder.findUnique({ where: { id }, select: clientOrderSelect });
     return raw ? toClientOrderDto(raw) : null;
@@ -631,8 +656,12 @@ export class OrdersRepository {
 
   // ══ STATISTICS ════════════════════════════════════════════════════════════════
 
-  async getStatistics(): Promise<OrdersStatistics> {
+  async getStatistics(now: Date = new Date()): Promise<OrdersStatistics> {
+    // Overdue = past its due date (before today) and not yet delivered or cancelled
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     const [
+      coOverdue,
+      poOverdue,
       coTotal,
       coPending,
       coApproved,
@@ -653,6 +682,12 @@ export class OrdersRepository {
       deliveredCount,
       totalCount,
     ] = await prisma.$transaction([
+      prisma.clientOrder.count({
+        where: { status: { notIn: ['DELIVERED', 'CANCELLED'] }, requiredDate: { lt: today } },
+      }),
+      prisma.purchaseOrder.count({
+        where: { status: { notIn: ['DELIVERED', 'CANCELLED'] }, expectedDelivery: { lt: today } },
+      }),
       prisma.clientOrder.count(),
       prisma.clientOrder.count({ where: { status: 'PENDING' } }),
       prisma.clientOrder.count({ where: { status: 'APPROVED' } }),
@@ -687,6 +722,7 @@ export class OrdersRepository {
         dispatched: coDispatched,
         delivered: coDelivered,
         cancelled: coCancelled,
+        overdue: coOverdue,
         totalValue: totalValue.toFixed(2),
       },
       purchaseOrders: {
@@ -696,6 +732,7 @@ export class OrdersRepository {
         inTransit: poInTransit,
         delivered: poDelivered,
         cancelled: poCancelled,
+        overdue: poOverdue,
         totalCost: totalCost.toFixed(2),
       },
       fulfillmentRate: `${fulfillment}%`,

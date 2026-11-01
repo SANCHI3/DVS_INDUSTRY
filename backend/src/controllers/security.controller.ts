@@ -32,6 +32,7 @@ import type {
   IncidentStatus,
   AlertType,
 } from '../interfaces';
+import type { BulkIncidentInput } from '../validators/security.validator';
 
 const svc = new SecurityService();
 
@@ -377,4 +378,13 @@ export async function resolveAlert(req: AuthenticatedRequest, res: Response): Pr
 export async function deleteAlert(req: Request, res: Response): Promise<void> {
   await svc.deleteAlert(parseId(req.params['id']));
   sendNoContent(res);
+}
+
+export async function bulkIncidentAction(req: AuthenticatedRequest, res: Response): Promise<void> {
+  const body = req.body as BulkIncidentInput;
+  const result = await svc.bulkAction(body.ids, body.action, actorOf(req), {
+    reason: body.reason,
+    assignedToId: body.assignedToId,
+  });
+  sendSuccess(res, result, 200, `${result.done.length} incident(s) updated`);
 }

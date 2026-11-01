@@ -270,3 +270,13 @@ export type SecurityKpiQueryInput = z.infer<typeof securityKpiQuerySchema>;
 export const evidenceFileQuerySchema = z.object({
   file: z.string().min(1).max(300),
 });
+
+/** One action on many incidents (Incident Center multi-select). */
+export const bulkIncidentSchema = z.object({
+  ids: z.array(z.number().int().positive()).min(1).max(200),
+  action: z.enum(['investigate', 'resolve', 'false_alarm', 'assign']),
+  reason: z.string().trim().max(500).optional(),
+  assignedToId: z.number().int().positive().optional(),
+});
+
+export type BulkIncidentInput = z.infer<typeof bulkIncidentSchema>;

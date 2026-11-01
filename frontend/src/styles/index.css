@@ -1,3 +1,10 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+
+/* Reports Center: printing shows only the report (ReportsPage printReport) */
+.report-print { display: none; }
+@media print {
+  body.printing-report > *:not(.report-print) { display: none !important; }
+  body.printing-report .report-print { display: block; color: #000; font-family: "Inter", sans-serif; }
+}

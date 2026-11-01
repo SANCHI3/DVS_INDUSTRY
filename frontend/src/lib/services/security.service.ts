@@ -26,6 +26,9 @@ export interface SecurityIncidentDto {
   closedAt:         string | null;
   rootCause:        string | null;
   correctiveAction: string | null;
+  /** Checked and found to be nothing (with the reason). */
+  falseAlarm?:      boolean;
+  falseAlarmReason?: string | null;
   createdAt:        string;
   _count:           { updates: number; alerts: number };
 }
@@ -103,6 +106,20 @@ export async function createIncident(payload: Record<string, unknown>): Promise<
 
 export async function updateIncident(id: number, payload: Record<string, unknown>): Promise<SecurityIncidentDto> {
   const res = await api.patch<{ success: true; data: SecurityIncidentDto }>(`/security/incidents/${id}`, payload);
+  return unwrap(res);
+}
+
+export type BulkIncidentAction = "investigate" | "resolve" | "false_alarm" | "assign";
+
+/** One action on many incidents; ones that cannot change come back as skipped. */
+export async function bulkIncidentAction(
+  ids: number[],
+  action: BulkIncidentAction,
+  options: { reason?: string; assignedToId?: number } = {},
+): Promise<{ done: number[]; skipped: Array<{ id: number; reason: string }> }> {
+  const res = await api.post<{ success: true; data: { done: number[]; skipped: Array<{ id: number; reason: string }> } }>(
+    "/security/incidents/bulk", { ids, action, ...options },
+  );
   return unwrap(res);
 }
 

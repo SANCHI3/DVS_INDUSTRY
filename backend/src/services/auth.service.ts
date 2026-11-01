@@ -138,6 +138,10 @@ export class AuthService {
       // Prevents an admin from accidentally locking themselves out
       throw new BadRequestError('You cannot change your own role');
     }
+    const deactivating = data.isActive === false && existing.isActive;
+    if (deactivating && adminId === targetUserId) {
+      throw new BadRequestError('You cannot deactivate your own account');
+    }
 
     if (data.email !== undefined) {
       const account = await this.userRepo.findByEmail(data.email);
@@ -152,8 +156,8 @@ export class AuthService {
 
     const updated = await this.userRepo.updateByAdmin(targetUserId, data);
 
-    // A role change must not leave sessions running with the old privileges
-    if (roleChanged) {
+    // A role change or deactivation must not leave sessions running
+    if (roleChanged || deactivating) {
       await this.refreshTokenRepo.deleteAllByUserId(targetUserId);
     }
     return updated;
