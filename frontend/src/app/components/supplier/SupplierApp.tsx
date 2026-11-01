@@ -1,3 +1,4 @@
+import { useSectionHash } from "../../../lib/useSectionHash";
 import { useEffect, useState } from "react";
 import { LineChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { AppShell } from "../shared/AppShell";
@@ -248,7 +249,7 @@ function SupplierReports() {
 }
 
 export function SupplierApp({ onLogout }: { onLogout: () => void }) {
-  const [section, setSection] = useState("dashboard");
+  const [section, setSection] = useSectionHash("dashboard");
   const [data, setData] = useState<SupplierData>({ profile: null, purchaseOrders: [], loading: true, error: null });
 
   useEffect(() => {

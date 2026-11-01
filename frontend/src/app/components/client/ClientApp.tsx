@@ -1,3 +1,4 @@
+import { useSectionHash } from "../../../lib/useSectionHash";
 import { useEffect, useState } from "react";
 import { BarChart3, MapPin, Plus, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
@@ -142,7 +143,7 @@ function OrderManagement({ data, onRefresh }: { data: ClientPortalData; onRefres
 function ClientAppUnavailable({ title, subtitle }: { title: string; subtitle: string }) { return <UnavailablePage title={title} subtitle={subtitle} />; }
 
 export function ClientApp({ onLogout }: { onLogout: () => void }) {
-  const [section, setSection] = useState("dashboard");
+  const [section, setSection] = useSectionHash("dashboard");
   const [data, setData] = useState<ClientPortalData>({ profile: null, orders: [], loading: true, error: null });
 
   const loadData = async () => {

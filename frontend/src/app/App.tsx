@@ -4,6 +4,7 @@ import { HomePage } from "./components/HomePage";
 import { LoginPage } from "./components/LoginPage";
 import { logout as apiLogout, getStoredFrontendRole } from "../lib/auth";
 import { SESSION_EXPIRED_EVENT, warmUpServer } from "../lib/api";
+import { clearSectionHash } from "../lib/useSectionHash";
 import type { FrontendRole } from "../lib/auth";
 
 // Signed-in apps load on demand, so the home and login pages don't download
@@ -44,7 +45,7 @@ export default function App() {
 
   // The API client fires this when the session can no longer be refreshed
   useEffect(() => {
-    const onExpired = () => setPage("login");
+    const onExpired = () => { clearSectionHash(); setPage("login"); };
     window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
   }, []);
@@ -60,12 +61,14 @@ export default function App() {
 
   const handleLogout = async () => {
     await apiLogout();
+    clearSectionHash();
     setPage("home");
   };
 
   // The backend ended every session (e.g. password changed): sign in again.
   const handleSessionEnded = async (message: string) => {
     await apiLogout();
+    clearSectionHash();
     toast.success(message);
     setPage("login");
   };

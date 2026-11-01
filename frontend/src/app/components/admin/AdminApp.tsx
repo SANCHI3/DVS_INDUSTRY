@@ -10,6 +10,7 @@ import { SmartAnalyticsPage } from "./SmartAnalyticsPage";
 import { UserManagementPage } from "./UserManagementPage";
 import { ERPProvider } from "./ERPContext";
 import { PriorityIncidentAlert } from "../shared/PriorityIncidentAlert";
+import { useSectionHash } from "../../../lib/useSectionHash";
 import { MyProfilePage } from "../shared/MyProfilePage";
 import { getUser } from "../../../lib/auth";
 
@@ -34,7 +35,7 @@ export function AdminApp({ onLogout, onSessionEnded, userRole }: AdminAppProps) 
     return "dashboard";
   };
 
-  const [section, setSection] = useState(getInitialSection());
+  const [section, setSection] = useSectionHash(getInitialSection());
   const [userName, setUserName] = useState(() => getUser()?.fullName ?? "");
 
   const renderSection = () => {
