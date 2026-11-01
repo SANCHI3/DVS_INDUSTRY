@@ -22,6 +22,7 @@ import type {
   MonthOutputTotals,
 } from '../interfaces';
 import { monthKey, nextMonthStart } from '../utils/targetProgress';
+import { completedShort, percentText } from '../services/reports/metrics';
 
 // ── Select shapes ─────────────────────────────────────────────────────────────
 
@@ -404,36 +405,37 @@ export class ProductionRepository {
 
   async getKPIs(departmentId?: number, fromDate?: Date, toDate?: Date): Promise<ProductionKPIs> {
     const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Default period: the current calendar month (UTC), like the monthly target
+    const periodStart = fromDate ?? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const period = { gte: periodStart, ...(toDate ? { lte: toDate } : {}) };
 
     const baseWhere: Prisma.WorkOrderWhereInput = {
       deletedAt: null,
       ...(departmentId ? { departmentId } : {}),
     };
 
-    const periodWhere: Prisma.WorkOrderWhereInput = {
-      ...baseWhere,
-      createdAt: {
-        gte: fromDate ?? startOfMonth,
-        ...(toDate ? { lte: toDate } : {}),
-      },
-    };
-
     const [
       totalWorkOrders,
       activeWorkOrders,
-      completedThisMonth,
+      completedInPeriod,
       overdueWorkOrders,
       statusCounts,
       priorityCounts,
       outputAgg,
-      targetAgg,
     ] = await prisma.$transaction([
       prisma.workOrder.count({ where: baseWhere }),
       prisma.workOrder.count({
         where: { ...baseWhere, status: { in: ['RELEASED', 'IN_PROGRESS'] } },
       }),
-      prisma.workOrder.count({ where: { ...periodWhere, status: 'COMPLETED' } }),
+      // Closed in the period, whenever they were created
+      prisma.workOrder.findMany({
+        where: {
+          ...baseWhere,
+          status: 'COMPLETED',
+          OR: [{ actualEnd: period }, { actualEnd: null, updatedAt: period }],
+        },
+        select: { status: true, targetQuantity: true, outputs: { select: { goodQty: true } } },
+      }),
       prisma.workOrder.count({
         where: {
           ...baseWhere,
@@ -453,41 +455,43 @@ export class ProductionRepository {
         _count: { id: true },
         orderBy: { priority: 'asc' },
       }),
+      // Output by the date it was recorded, as on the dashboard and monthly target
       prisma.workOrderOutput.aggregate({
-        where: {
-          workOrder: { ...periodWhere },
-        },
+        where: { recordedAt: period, workOrder: baseWhere },
         _sum: { goodQty: true, rejectedQty: true, scrapQty: true },
-      }),
-      prisma.workOrder.aggregate({
-        where: periodWhere,
-        _sum: { targetQuantity: true },
+        _count: { _all: true },
       }),
     ]);
 
     const produced = outputAgg._sum.goodQty?.toNumber() ?? 0;
     const rejected = outputAgg._sum.rejectedQty?.toNumber() ?? 0;
     const scrap = outputAgg._sum.scrapQty?.toNumber() ?? 0;
-    const target = targetAgg._sum.targetQuantity?.toNumber() ?? 0;
 
-    const overallCompletionRate =
-      target > 0 ? ((produced / target) * 100).toFixed(1) + '%' : '0.0%';
-    const rejectionRate =
-      produced + rejected > 0
-        ? ((rejected / (produced + rejected)) * 100).toFixed(1) + '%'
-        : '0.0%';
+    // How fully the orders closed in the period met their targets
+    let closedTarget = 0;
+    let closedGood = 0;
+    let completedShortCount = 0;
+    for (const wo of completedInPeriod) {
+      const good = wo.outputs.reduce((sum, o) => sum + o.goodQty.toNumber(), 0);
+      const target = wo.targetQuantity.toNumber();
+      closedTarget += target;
+      closedGood += good;
+      if (completedShort(wo.status, good, target).short) completedShortCount++;
+    }
 
     return {
       totalWorkOrders,
       activeWorkOrders,
-      completedThisMonth,
+      completedThisMonth: completedInPeriod.length,
+      completedShortThisMonth: completedShortCount,
       overdueWorkOrders,
-      totalTargetQty: target.toFixed(3),
+      outputRecords: outputAgg._count?._all ?? 0,
+      totalTargetQty: closedTarget.toFixed(3),
       totalProducedQty: produced.toFixed(3),
       totalRejectedQty: rejected.toFixed(3),
       totalScrapQty: scrap.toFixed(3),
-      overallCompletionRate,
-      rejectionRate,
+      overallCompletionRate: percentText(closedGood, closedTarget),
+      rejectionRate: percentText(rejected, produced + rejected),
       byStatus: statusCounts.map((r) => ({
         status: r.status as WorkOrderStatus,
         count: (r._count as { id?: number } | undefined)?.id ?? 0,

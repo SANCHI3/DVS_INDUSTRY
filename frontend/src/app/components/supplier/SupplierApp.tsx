@@ -12,6 +12,7 @@ import { downloadCSV } from "../../../lib/csv";
 import {
   getPurchaseOrders, getSuppliers, type PurchaseOrderDto, type SupplierDto,
 } from "../../../lib/services/orders.service";
+import { formatINRCompact, formatMoney } from "../../../lib/format";
 import { getPortalMessages, type PortalMessageDto } from "../../../lib/services/portal.service";
 import {
   deliveryStats, purchaseOrderTrend, suppliedMaterials, supplierNotifications,
@@ -29,11 +30,6 @@ type SupplierData = {
 
 function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "–";
-}
-
-function formatMoney(value: string | number | null, currency = "INR"): string {
-  if (value === null) return "–";
-  return `${currency === "INR" ? "₹" : currency + " "}${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
 
 function statusLabel(status: string): string {
@@ -376,7 +372,7 @@ function SupplierReports({ data }: { data: SupplierData }) {
             <BarChart data={trend}>
               <CartesianGrid strokeDasharray="3 3" stroke="#F0ECEB" />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#9A8A88" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: "#9A8A88" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${(Number(v) / 1000).toFixed(0)}k`} />
+              <YAxis tick={{ fontSize: 10, fill: "#9A8A88" }} axisLine={false} tickLine={false} tickFormatter={(v) => formatINRCompact(Number(v))} />
               <Tooltip contentStyle={{ fontSize: "0.8rem" }} formatter={(v) => [formatMoney(Number(v)), "Value"]} />
               <Bar dataKey="value" fill={ACCENT} radius={[4, 4, 0, 0]} />
             </BarChart>

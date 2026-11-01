@@ -9,6 +9,7 @@ import {
   type ProductionReport, type ScrapReport, type SecurityReport, type SupplierReport, type WorkforceReport,
 } from "../../../lib/services/reports.service";
 import { downloadCSV } from "../../../lib/csv";
+import { formatINR } from "../../../lib/format";
 
 type ReportPayload = InventoryReport | WorkforceReport | OrdersReport | ScrapReport | SupplierReport | ClientReport | ProductionReport | AttendanceReport | SecurityReport;
 type ReportId = "production" | "inventory" | "workforce" | "orders" | "scrap" | "supplier" | "client" | "attendance" | "security";
@@ -53,11 +54,14 @@ function reportToCSV(id: ReportId, data: ReportPayload): string[][] {
   return rowsToCSV(data.rows as Array<Record<string, unknown>>);
 }
 
+// Summary fields that hold rupee amounts (totalRevenue, totalValue, recoveryValue…)
+const MONEY_KEY = /(revenue|procurement|value|cost|spend)$/i;
+
 function getSummary(data: ReportPayload): Array<[string, string]> {
   if (!("summary" in data)) return [];
   return Object.entries(data.summary)
     .filter(([, value]) => typeof value !== "object")
-    .map(([key, value]) => [key, String(value)]);
+    .map(([key, value]) => [key, MONEY_KEY.test(key) ? formatINR(value as string | number) : String(value)]);
 }
 
 function PreviewModal({ report, title, onClose, onPrint, onCSV }: { report: ReportPayload | null; title: string; onClose: () => void; onPrint: () => void; onCSV: () => void }) {

@@ -15,6 +15,7 @@ import { PortalInbox, PORTAL_STAFF_ROLES } from "./orders/PortalInbox";
 import {
   parseMoney, parseQuantity, POModal, OrderDetailModal, DispatchModal, NewClientOrderModal, type ClientOrder, type SupplierOrder,
 } from "./orders/OrderModals";
+import { formatINR } from "../../../lib/format";
 
 export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => void }) {
   const [tab, setTab]                       = useState("client-orders");
@@ -57,7 +58,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
           orderDate: new Date(o.orderDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
           requiredDate: o.requiredDate ? new Date(o.requiredDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—",
           status: o.status.toLowerCase().replace("_", "-"),
-          value: o.value ? `₹${parseFloat(o.value).toLocaleString("en-IN")}` : "—",
+          value: o.value ? formatINR(o.value) : "—",
           dispatch: o.dispatchDate ? new Date(o.dispatchDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : undefined,
           delivery: o.deliveryDate ? new Date(o.deliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : undefined,
           _apiId: o.id,
@@ -70,7 +71,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
           orderDate: new Date(p.orderDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }),
           expectedDel: p.expectedDelivery ? new Date(p.expectedDelivery).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—",
           actualDel: p.actualDelivery ? new Date(p.actualDelivery).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "–",
-          cost: p.totalCost ? `₹${parseFloat(p.totalCost).toLocaleString("en-IN")}` : "–",
+          cost: p.totalCost ? formatINR(p.totalCost) : "—",
           status: p.status.toLowerCase().replace("_", "-"),
           _apiId: p.id,
         }))); else setOrdersError(true);

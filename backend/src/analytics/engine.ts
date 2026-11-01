@@ -30,6 +30,7 @@ import {
   xyzClassify,
 } from './inventoryMath';
 import { oeeProxy, pChart, pearson, safetyScore } from './productionMath';
+import { completedShort } from '../services/reports/metrics';
 
 // ── Input row shapes (numbers already converted from Prisma.Decimal) ─────────
 
@@ -571,6 +572,7 @@ interface Tally {
   completedOnTime: number;
   attainGood: number;
   attainTarget: number;
+  completedShort: number; // closed as COMPLETED below target
 }
 
 const emptyTally = (): Tally => ({
@@ -583,6 +585,7 @@ const emptyTally = (): Tally => ({
   completedOnTime: 0,
   attainGood: 0,
   attainTarget: 0,
+  completedShort: 0,
 });
 
 function addWorkOrder(t: Tally, wo: WorkOrderRow): void {
@@ -596,6 +599,7 @@ function addWorkOrder(t: Tally, wo: WorkOrderRow): void {
     // Attainment is judged on finished orders so in-progress work is not penalised
     t.attainGood += good;
     t.attainTarget += wo.targetQuantity;
+    if (completedShort(wo.status, good, wo.targetQuantity).short) t.completedShort += 1;
     if (wo.scheduledEnd) {
       const finished = wo.actualEnd ?? wo.updatedAt;
       t.completedWithDue += 1;
@@ -749,6 +753,14 @@ export function buildProductionPerformance(input: {
       wo.scheduledEnd &&
       wo.scheduledEnd < input.now,
   ).length;
+  if (overall.completedShort) {
+    insights.push({
+      severity: 'warning',
+      title: `${overall.completedShort} work order(s) were closed below target`,
+      detail:
+        'They count toward target attainment at what was actually produced, which is why attainment is under 100%.',
+    });
+  }
   if (overdue) {
     insights.push({
       severity: 'warning',
@@ -777,6 +789,7 @@ export function buildProductionPerformance(input: {
       attainment: round(o.attainment, 4),
       schedule: round(o.schedule, 4),
       oee: round(o.oee, 4),
+      completedShort: overall.completedShort,
       oeeNote:
         'OEE-style index = Quality × Target attainment × Schedule adherence. Classic OEE needs machine run-time ' +
         'data, which is not recorded, so attainment and schedule adherence stand in for Performance and Availability.',

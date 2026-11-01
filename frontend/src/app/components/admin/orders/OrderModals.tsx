@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CheckCircle2, Truck, AlertCircle } from "lucide-react";
 import { type ClientDto, type SupplierDto } from "../../../../lib/services/orders.service";
 import { Modal } from "../../shared/Modal";
+import { formatINR } from "../../../../lib/format";
 
 /* ── Types ── */
 export interface ClientOrder {
@@ -40,7 +41,7 @@ export function POModal({ prefill, suppliers, suppliersLoading, suppliersError, 
     supplier: prefill?.supplier || suppliers[0]?.name || "",
     material: prefill?.material || "",
     qty: prefill?.qty ? `${prefill.qty} kg` : "",
-    cost: prefill?.cost ? `₹${(prefill.qty || 0) * prefill.cost}` : "",
+    cost: prefill?.cost ? formatINR((prefill.qty || 0) * prefill.cost, 2) : "",
       expectedDel: "",
   });
   const [submitted, setSubmitted] = useState(false);

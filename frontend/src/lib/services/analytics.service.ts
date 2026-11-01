@@ -138,6 +138,7 @@ export interface ProductionPerformance {
     attainment: number;
     schedule: number;
     oee: number;
+    completedShort: number;
     oeeNote: string;
   };
   departments: DepartmentPerformance[];

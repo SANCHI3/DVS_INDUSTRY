@@ -53,7 +53,7 @@ beforeEach(() => {
   role("ADMIN");
   vi.spyOn(window, "confirm").mockReturnValue(true);
   vi.mocked(getProductionKPIs).mockResolvedValue({
-    totalWorkOrders: 1, activeWorkOrders: 1, completedThisMonth: 0, overdueWorkOrders: 0, totalTargetQty: "500.000", totalProducedQty: "100.000",
+    totalWorkOrders: 1, activeWorkOrders: 1, completedThisMonth: 0, completedShortThisMonth: 0, outputRecords: 1, overdueWorkOrders: 0, totalTargetQty: "500.000", totalProducedQty: "100.000",
     totalRejectedQty: "0.000", totalScrapQty: "0.000", overallCompletionRate: "92.0%", rejectionRate: "6.0%", byStatus: [], byPriority: [],
   });
   vi.mocked(getProductionTrend).mockResolvedValue([]);

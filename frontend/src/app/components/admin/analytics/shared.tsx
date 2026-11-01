@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertOctagon, AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import { Card, CardHeader } from "../../shared/UI";
 import { type Insight, type StockStatus } from "../../../../lib/services/analytics.service";
+import { formatINRCompact } from "../../../../lib/format";
 
 
 // ── Shared look ────────────────────────────────────────────────────────────────
@@ -11,12 +12,7 @@ export const INK = { primary: "#1C1C1C", secondary: "#4A4A4A", muted: "#7A6C6A",
 export const AXIS = { fontSize: 11, fill: INK.muted };
 
 export const pct = (v: number | null | undefined, digits = 0) => (v == null ? "—" : `${(v * 100).toFixed(digits)}%`);
-export const inr = (n: number) => {
-  if (n >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(2)}Cr`;
-  if (n >= 1_00_000) return `₹${(n / 1_00_000).toFixed(1)}L`;
-  if (n >= 1_000) return `₹${(n / 1_000).toFixed(1)}K`;
-  return `₹${Math.round(n)}`;
-};
+export const inr = (n: number) => formatINRCompact(n);
 export const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : "Request failed");
 

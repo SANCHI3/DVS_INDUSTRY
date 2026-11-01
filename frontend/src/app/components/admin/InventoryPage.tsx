@@ -14,6 +14,7 @@ import { downloadCSV } from "../../../lib/csv";
 import { Modal } from "../shared/Modal";
 
 import { ProductionCalculator, type InventoryMaterial } from "./inventory/ProductionCalculator";
+import { formatINR, formatINRCompact } from "../../../lib/format";
 
 /* ══════════════════════════════════════════════
    MAIN INVENTORY PAGE
@@ -254,7 +255,7 @@ export function InventoryPage() {
         {tab === "overview" && (
           <div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
-              <KPICard label="Total Inventory Value" value={totalValue === null ? unavailable : totalValue >= 100000 ? `₹${(totalValue / 100000).toFixed(1)}L` : `₹${totalValue.toFixed(0)}`} accent="#A52A2A" />
+              <KPICard label="Total Inventory Value" value={totalValue === null ? unavailable : formatINRCompact(totalValue)} sub={totalValue === null ? undefined : formatINR(totalValue, 0)} accent="#A52A2A" />
               <KPICard label="Low / Out of Stock" value={statsLoading || statsError || lowStock === null ? unavailable : lowStock} sub="materials need action" accent="#C0392B" trendDir="down" />
               <KPICard label="Materials Tracked" value={materialsLoading || materialsError || totalMaterials === null ? unavailable : totalMaterials} accent="#2E7D32" />
               <KPICard label="Reorder Suggestions" value={statsLoading || statsError || apiStats === null ? unavailable : apiStats.lowStockCount} sub="need reorder" accent="#E65100" />
@@ -295,14 +296,14 @@ export function InventoryPage() {
                       <Pie data={categoryChartData} dataKey="value" cx="50%" cy="50%" innerRadius={38} outerRadius={62} paddingAngle={2}>
                         {categoryChartData.map((e, i) => <Cell key={i} fill={e.color} />)}
                       </Pie>
-                      <Tooltip formatter={(v) => [`₹${v}`]} contentStyle={{ fontSize: "0.8rem" }} />
+                      <Tooltip formatter={(v) => [formatINR(Number(v), 0)]} contentStyle={{ fontSize: "0.8rem" }} />
                     </PieChart>}
                   </ResponsiveContainer>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 w-full mt-2">
                     {categoryChartData.map((m) => (
                       <div key={m.name} className="flex items-center gap-1.5">
                         <div className="w-2.5 h-2.5 rounded-full" style={{ background: m.color }} />
-                        <span style={{ fontSize: "0.72rem", color: "#7A6C6A" }}>{m.name}: ₹{m.value}</span>
+                        <span style={{ fontSize: "0.72rem", color: "#7A6C6A" }}>{m.name}: {formatINRCompact(m.value)}</span>
                       </div>
                     ))}
                   </div>
@@ -359,7 +360,7 @@ export function InventoryPage() {
                 category: m.category,
                 thickness: m.thickness,
                 qty: <span style={{ fontWeight: 700 }}>{m.qty} {m.unit}</span>,
-                cost: m.cost === null ? unavailable : `₹${m.cost}/${m.unit}`,
+                cost: m.cost === null ? unavailable : `${formatINR(m.cost)}/${m.unit}`,
                 threshold: `${m.threshold} ${m.unit}`,
                 location: <span style={{ fontSize: "0.775rem" }}>{m.location}</span>,
                 status: <StatusBadge status={m.status} />,
@@ -416,7 +417,7 @@ export function InventoryPage() {
           <div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-5">
               <KPICard label="Total Scrap This Month" value={apiStats ? `${apiStats.totalScrapThisMonth} kg` : unavailable} accent="#C0392B" />
-              <KPICard label="Scrap Recovery Value This Month" value={apiStats ? `₹${apiStats.scrapValueThisMonth}` : unavailable} accent="#E65100" />
+              <KPICard label="Scrap Recovery Value This Month" value={apiStats ? formatINR(apiStats.scrapValueThisMonth, 0) : unavailable} accent="#E65100" />
               <KPICard label="Worst Department" value={unavailable} accent="#4E342E" />
               <KPICard label="Average Utilization" value={unavailable} accent="#2E7D32" />
             </div>

@@ -1,14 +1,112 @@
 import { prisma } from '../../lib/prismaClient';
 import { logger } from '../../logger';
-import type { DashboardKPIs, DashboardCharts } from '../../interfaces';
+import type {
+  DashboardKPIs,
+  DashboardCharts,
+  AttendanceTrendChartEntry,
+  ProductionMonthSummary,
+} from '../../interfaces';
 import { startOfMonth, dayLabel } from './helpers';
+import {
+  completedShort,
+  percentText,
+  summariseAttendanceDay,
+  usualWeekOffDays,
+  type AttendanceStatusName,
+} from './metrics';
+
+const DAY_MS = 86_400_000;
+// Weekly offs are learned from this many weeks of attendance sheets
+const WEEK_OFF_LOOKBACK_DAYS = 56;
+
+function utcToday(now = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+/** Weekly-off context shared by today's KPIs and the 7-day trend. */
+async function loadWeekOffContext(today: Date) {
+  const [active, weekOffs] = await prisma.$transaction([
+    prisma.employee.findMany({
+      where: { deletedAt: null, status: 'ACTIVE' },
+      select: { id: true },
+    }),
+    prisma.attendance.findMany({
+      where: {
+        status: 'WEEK_OFF',
+        date: { gte: new Date(today.getTime() - WEEK_OFF_LOOKBACK_DAYS * DAY_MS), lte: today },
+      },
+      select: { employeeId: true, date: true },
+    }),
+  ]);
+  return { activeEmployeeIds: active.map((e) => e.id), usualOff: usualWeekOffDays(weekOffs) };
+}
+
+/**
+ * This month's production by the date output was recorded, against the
+ * monthly target set on the Production page. Same basis as that page.
+ */
+async function getProductionMonth(now = new Date()): Promise<ProductionMonthSummary> {
+  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+
+  const [target, output, completed] = await prisma.$transaction([
+    prisma.productionMonthlyTarget.findUnique({ where: { periodStart: monthStart } }),
+    prisma.workOrderOutput.aggregate({
+      where: { recordedAt: { gte: monthStart, lt: nextMonth }, workOrder: { deletedAt: null } },
+      _sum: { goodQty: true, rejectedQty: true },
+      _count: { _all: true },
+    }),
+    prisma.workOrder.findMany({
+      where: {
+        deletedAt: null,
+        status: 'COMPLETED',
+        OR: [
+          { actualEnd: { gte: monthStart, lt: nextMonth } },
+          { actualEnd: null, updatedAt: { gte: monthStart, lt: nextMonth } },
+        ],
+      },
+      select: { status: true, targetQuantity: true, outputs: { select: { goodQty: true } } },
+    }),
+  ]);
+
+  const outputQty = output._sum.goodQty?.toNumber() ?? 0;
+  const rejectedQty = output._sum.rejectedQty?.toNumber() ?? 0;
+  const monthlyTarget = target ? target.outputTarget.toNumber() : null;
+  const short = completed.filter(
+    (wo) =>
+      completedShort(
+        wo.status,
+        wo.outputs.reduce((s, o) => s + o.goodQty.toNumber(), 0),
+        wo.targetQuantity.toNumber(),
+      ).short,
+  ).length;
+
+  return {
+    label: monthStart.toLocaleDateString('en-IN', {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }),
+    outputQty,
+    rejectedQty,
+    outputRecords: output._count._all,
+    unit: target?.unit ?? 'pcs',
+    monthlyTarget,
+    attainmentRate:
+      monthlyTarget !== null && output._count._all > 0
+        ? percentText(outputQty, monthlyTarget)
+        : null,
+    rejectionRate: percentText(rejectedQty, outputQty + rejectedQty),
+    completedWorkOrders: completed.length,
+    completedShort: short,
+  };
+}
 
 export async function getDashboardKPIs(): Promise<DashboardKPIs> {
   logger.info('Fetching dashboard KPIs');
 
-  // Normalise today to UTC midnight for attendance lookup
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
+  const today = utcToday();
+  const openStatuses = { in: ['OPEN', 'INVESTIGATING'] as Array<'OPEN' | 'INVESTIGATING'> };
 
   const [
     totalEmployees,
@@ -25,13 +123,13 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
     activeDepts,
     todayAttendance,
     woActive,
-    woCompleted,
     woOverdue,
-    woOutputAgg,
-    woTargetAgg,
+    openIncidents,
+    investigatingIncidents,
+    criticalOpenIncidents,
+    highOpenIncidents,
     activeAlerts,
     criticalAlerts,
-    criticalIncidents,
   ] = await prisma.$transaction([
     prisma.employee.count({ where: { deletedAt: null } }),
     prisma.employee.count({ where: { deletedAt: null, status: 'ACTIVE' } }),
@@ -55,14 +153,10 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
     prisma.department.count({ where: { deletedAt: null, isActive: true } }),
     prisma.attendance.findMany({
       where: { date: today },
-      select: { status: true },
+      select: { employeeId: true, status: true },
     }),
-    // Production
     prisma.workOrder.count({
       where: { deletedAt: null, status: { in: ['RELEASED', 'IN_PROGRESS'] } },
-    }),
-    prisma.workOrder.count({
-      where: { deletedAt: null, status: 'COMPLETED', updatedAt: { gte: startOfMonth() } },
     }),
     prisma.workOrder.count({
       where: {
@@ -71,20 +165,22 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
         scheduledEnd: { lt: new Date() },
       },
     }),
-    prisma.workOrderOutput.aggregate({
-      where: { workOrder: { deletedAt: null, createdAt: { gte: startOfMonth() } } },
-      _sum: { goodQty: true, rejectedQty: true },
+    // Same filters as the Security page KPI cards
+    prisma.securityIncident.count({ where: { deletedAt: null, status: 'OPEN' } }),
+    prisma.securityIncident.count({ where: { deletedAt: null, status: 'INVESTIGATING' } }),
+    prisma.securityIncident.count({
+      where: { deletedAt: null, severity: 'CRITICAL', status: openStatuses },
     }),
-    prisma.workOrder.aggregate({
-      where: { deletedAt: null, createdAt: { gte: startOfMonth() } },
-      _sum: { targetQuantity: true },
+    prisma.securityIncident.count({
+      where: { deletedAt: null, severity: 'HIGH', status: openStatuses },
     }),
-    // Security
     prisma.securityAlert.count({ where: { status: 'ACTIVE' } }),
     prisma.securityAlert.count({ where: { status: 'ACTIVE', severity: 'CRITICAL' } }),
-    prisma.securityIncident.count({
-      where: { deletedAt: null, severity: 'CRITICAL', status: { in: ['OPEN', 'INVESTIGATING'] } },
-    }),
+  ]);
+
+  const [weekOff, productionMonth] = await Promise.all([
+    loadWeekOffContext(today),
+    getProductionMonth(),
   ]);
 
   // Inventory value
@@ -107,38 +203,29 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
     scrapVal += s.recoveryValue?.toNumber() ?? 0;
   }
 
-  // Fulfilment rate
-  const fulfillment =
-    coNotCancelled > 0 ? ((coDelivered / coNotCancelled) * 100).toFixed(1) + '%' : '0.0%';
+  const fulfillment = percentText(coDelivered, coNotCancelled) ?? '0.0%';
 
-  // Today's attendance KPIs
-  const attCounts = { present: 0, absent: 0, late: 0, onLeave: 0 };
-  for (const a of todayAttendance) {
-    if (a.status === 'PRESENT') attCounts.present++;
-    else if (a.status === 'ABSENT') attCounts.absent++;
-    else if (a.status === 'LATE') attCounts.late++;
-    else if (a.status === 'LEAVE') attCounts.onLeave++;
-    else if (a.status === 'HALF_DAY') attCounts.present++; // half-day counts as attended
-  }
-  const attTotal = todayAttendance.length;
-  const attRate =
-    attTotal > 0
-      ? (((attCounts.present + attCounts.late) / attTotal) * 100).toFixed(1) + '%'
-      : '0.0%';
-
-  // Production KPIs
-  const woProd = woOutputAgg._sum.goodQty?.toNumber() ?? 0;
-  const woTgt = woTargetAgg._sum.targetQuantity?.toNumber() ?? 0;
-  const prodRate = woTgt > 0 ? ((woProd / woTgt) * 100).toFixed(1) + '%' : '0.0%';
+  const attendance = summariseAttendanceDay({
+    records: todayAttendance.map((a) => ({
+      employeeId: a.employeeId,
+      status: a.status as AttendanceStatusName,
+    })),
+    activeEmployeeIds: weekOff.activeEmployeeIds,
+    usualOff: weekOff.usualOff,
+    weekday: today.getUTCDay(),
+  });
 
   return {
     totalEmployees,
     activeEmployees,
-    attendanceTodayPresent: attCounts.present,
-    attendanceTodayAbsent: attCounts.absent,
-    attendanceTodayLate: attCounts.late,
-    attendanceTodayOnLeave: attCounts.onLeave,
-    attendanceTodayRate: attRate,
+    attendanceTodayPresent: attendance.present,
+    attendanceTodayAbsent: attendance.absent,
+    attendanceTodayLate: attendance.late,
+    attendanceTodayOnLeave: attendance.onLeave,
+    attendanceTodayWeekOff: attendance.weekOff,
+    attendanceTodayRecorded: attendance.recorded,
+    attendanceTodayRate: attendance.rate,
+    isWeeklyOffToday: attendance.nonWorkingDay,
     totalMaterials: materials.length,
     lowStockCount: lowStock,
     outOfStockCount: outOfStock,
@@ -151,19 +238,23 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
     totalScrapThisMonth: scrapQty.toFixed(3),
     scrapValueThisMonth: scrapVal.toFixed(2),
     activeWorkOrders: woActive,
-    completedWorkOrders: woCompleted,
     overdueWorkOrders: woOverdue,
-    productionCompletionRate: prodRate,
+    productionMonth,
     totalDepartments: totalDepts,
     activeDepartments: activeDepts,
+    openIncidents,
+    investigatingIncidents,
+    criticalOpenIncidents,
+    highOpenIncidents,
     activeAlerts,
     criticalAlerts,
-    criticalIncidents,
   };
 }
 
 export async function getDashboardCharts(): Promise<DashboardCharts> {
   logger.info('Fetching dashboard chart data');
+
+  const today = utcToday();
 
   // Order status pie
   const [coPending, coApproved, coInProd, coDispatched, coDelivered] = await prisma.$transaction([
@@ -200,23 +291,14 @@ export async function getDashboardCharts(): Promise<DashboardCharts> {
     .sort((a, b) => b.kg - a.kg)
     .slice(0, 6);
 
-  // Scrap trend — last 7 days
+  // Last 7 days of scrap and attendance
+  const weekOff = await loadWeekOffContext(today);
   const scrapTrend: Array<{ day: string; scrap: number }> = [];
-  // Attendance trend — last 7 days
-  const attendanceTrend: Array<{
-    date: string;
-    present: number;
-    absent: number;
-    late: number;
-    onLeave: number;
-  }> = [];
+  const attendanceTrend: AttendanceTrendChartEntry[] = [];
 
   for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    d.setUTCHours(0, 0, 0, 0);
-    const next = new Date(d);
-    next.setDate(next.getDate() + 1);
+    const d = new Date(today.getTime() - i * DAY_MS);
+    const next = new Date(d.getTime() + DAY_MS);
 
     const [scrapAgg, attRecords] = await prisma.$transaction([
       prisma.scrapRecord.aggregate({
@@ -225,7 +307,7 @@ export async function getDashboardCharts(): Promise<DashboardCharts> {
       }),
       prisma.attendance.findMany({
         where: { date: d },
-        select: { status: true },
+        select: { employeeId: true, status: true },
       }),
     ]);
 
@@ -234,27 +316,39 @@ export async function getDashboardCharts(): Promise<DashboardCharts> {
       scrap: scrapAgg._sum.quantity?.toNumber() ?? 0,
     });
 
-    const attCounts = { present: 0, absent: 0, late: 0, onLeave: 0 };
-    for (const a of attRecords) {
-      if (a.status === 'PRESENT' || a.status === 'HALF_DAY') attCounts.present++;
-      else if (a.status === 'ABSENT') attCounts.absent++;
-      else if (a.status === 'LATE') attCounts.late++;
-      else if (a.status === 'LEAVE') attCounts.onLeave++;
-    }
-    attendanceTrend.push({ date: dayLabel(d), ...attCounts });
+    const day = summariseAttendanceDay({
+      records: attRecords.map((a) => ({
+        employeeId: a.employeeId,
+        status: a.status as AttendanceStatusName,
+      })),
+      activeEmployeeIds: weekOff.activeEmployeeIds,
+      usualOff: weekOff.usualOff,
+      weekday: d.getUTCDay(),
+    });
+    // A gap, not a drop to zero, for weekly offs and days with nothing entered yet
+    const plotted = day.recorded > 0 && !day.nonWorkingDay;
+    attendanceTrend.push({
+      date: dayLabel(d),
+      present: plotted ? day.present + day.late : null,
+      absent: day.absent,
+      late: day.late,
+      onLeave: day.onLeave,
+      weekOff: day.weekOff,
+      nonWorkingDay: day.nonWorkingDay,
+    });
   }
 
-  // Recent 5 client orders
+  // Latest 5 client orders by order date (the date the Orders page shows)
   const recentOrdersRaw = await prisma.clientOrder.findMany({
     take: 5,
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ orderDate: 'desc' }, { createdAt: 'desc' }],
     select: {
       id: true,
       orderNumber: true,
       product: true,
       quantity: true,
       status: true,
-      createdAt: true,
+      orderDate: true,
       client: { select: { name: true } },
     },
   });
@@ -266,11 +360,36 @@ export async function getDashboardCharts(): Promise<DashboardCharts> {
     product: o.product,
     qty: o.quantity,
     status: o.status.toLowerCase().replace('_', '-'),
-    date: o.createdAt.toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-    }),
+    orderDate: o.orderDate.toISOString(),
   }));
 
-  return { orderStatusPie, scrapByDepartment, scrapTrend, attendanceTrend, recentOrders };
+  // Most severe open incidents first (severity enum is ordered LOW → CRITICAL)
+  const openIncidentsRaw = await prisma.securityIncident.findMany({
+    where: { deletedAt: null, status: { in: ['OPEN', 'INVESTIGATING'] } },
+    orderBy: [{ severity: 'desc' }, { occurredAt: 'desc' }],
+    take: 5,
+    select: {
+      id: true,
+      incidentNumber: true,
+      type: true,
+      severity: true,
+      status: true,
+      location: true,
+      occurredAt: true,
+    },
+  });
+
+  const openIncidents = openIncidentsRaw.map((i) => ({
+    ...i,
+    occurredAt: i.occurredAt.toISOString(),
+  }));
+
+  return {
+    orderStatusPie,
+    scrapByDepartment,
+    scrapTrend,
+    attendanceTrend,
+    recentOrders,
+    openIncidents,
+  };
 }
