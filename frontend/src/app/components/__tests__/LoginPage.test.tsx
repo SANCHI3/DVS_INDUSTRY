@@ -19,10 +19,10 @@ const user = { id: 1, fullName: "Asha Rao", email: "asha@test.com", role: "ADMIN
 
 function signIn() {
   render(<LoginPage initialRole="admin" onNavigateHome={vi.fn()} onLoginSuccess={vi.fn()} />);
-  fireEvent.change(screen.getByPlaceholderText("Enter your email"), { target: { value: "asha@test.com" } });
-  fireEvent.change(screen.getByPlaceholderText("Enter password"), { target: { value: "secret-password" } });
-  // The mode tab and the submit button are both labelled "Sign In"; submit comes last
-  fireEvent.click(screen.getAllByRole("button", { name: /Sign In/ }).at(-1)!);
+  fireEvent.change(screen.getByLabelText(/Email Address/), { target: { value: "asha@test.com" } });
+  fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "secret-password" } });
+  // Pressing Enter in the form submits it
+  fireEvent.submit(screen.getByLabelText(/Password/).closest("form")!);
 }
 
 beforeEach(() => {
@@ -66,5 +66,24 @@ describe("Login while the server is asleep", () => {
 
     expect(await screen.findByText("Invalid email or password")).toBeTruthy();
     expect(wait).not.toHaveBeenCalled();
+  });
+});
+
+describe("Login page", () => {
+  it("falls back to the administrator portal for an unknown role instead of crashing", () => {
+    render(<LoginPage initialRole={"quality" as never} onNavigateHome={vi.fn()} onLoginSuccess={vi.fn()} />);
+    expect(screen.getByText("Administrator Portal")).toBeTruthy();
+  });
+
+  it("has no Sign Up tab and tells people who to ask for access", () => {
+    render(<LoginPage initialRole="admin" onNavigateHome={vi.fn()} onLoginSuccess={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Sign Up" })).toBeNull();
+    expect(screen.getByText("Need access? Contact your administrator.")).toBeTruthy();
+  });
+
+  it("labels the fields for password managers", () => {
+    render(<LoginPage initialRole="admin" onNavigateHome={vi.fn()} onLoginSuccess={vi.fn()} />);
+    expect(screen.getByLabelText(/Email Address/).getAttribute("autocomplete")).toBe("username");
+    expect(screen.getByLabelText(/Password/).getAttribute("autocomplete")).toBe("current-password");
   });
 });

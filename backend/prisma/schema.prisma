@@ -374,6 +374,32 @@ model PartSpec {
 }
 
 // ───────────────────────────────────────────────────────────────
+// Website inquiries (public contact form)
+// ───────────────────────────────────────────────────────────────
+
+model Inquiry {
+  id      Int     @id @default(autoincrement())
+  name    String
+  company String?
+  email   String
+  phone   String?
+  message String
+  status  InquiryStatus @default(NEW)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum InquiryStatus {
+  NEW
+  CONTACTED
+  CLOSED
+}
+
+// ───────────────────────────────────────────────────────────────
 // Orders
 // ───────────────────────────────────────────────────────────────
 

@@ -7,7 +7,7 @@ import { login as apiLogin, type FrontendRole } from "../../lib/auth";
 import api, { isServerStarting, waitForServer } from "../../lib/api";
 
 type Role = "admin" | "supplier" | "client" | "production" | "store";
-type AuthMode = "login" | "signup" | "forgot";
+type AuthMode = "login" | "forgot";
 
 interface LoginPageProps {
   initialRole?: Role;
@@ -73,8 +73,13 @@ const roles = [
   },
 ];
 
+/** An unknown role (e.g. from an old link) falls back to the administrator portal. */
+function portalFor(id: string | undefined) {
+  return roles.find((r) => r.id === id) ?? roles[0];
+}
+
 export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: LoginPageProps) {
-  const [selectedRole, setSelectedRole] = useState<Role>(initialRole ?? "admin");
+  const [selectedRole, setSelectedRole] = useState<Role>(portalFor(initialRole).id);
   const [mode, setMode] = useState<AuthMode>("login");
   const [showPass, setShowPass] = useState(false);
   const [email, setEmail] = useState("");
@@ -84,7 +89,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
   const [loading, setLoading] = useState(false);
   const [waking, setWaking] = useState(false);
 
-  const role = roles.find((r) => r.id === selectedRole)!;
+  const role = portalFor(selectedRole);
   const Icon = role.icon;
 
   const reset = () => { setError(""); setSuccess(""); setEmail(""); setPassword(""); };
@@ -120,10 +125,6 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
       setWaking(false);
       setLoading(false);
     }
-  };
-
-  const handleSignup = async () => {
-    setError("Accounts are created by an administrator. Please request access from your system administrator.");
   };
 
   const handleForgot = async () => {
@@ -327,45 +328,16 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                       {role.label} Portal
                     </p>
                     <h1 style={{ fontSize: "1.4rem", fontWeight: 700, color: "#1C1C1C", lineHeight: 1.2 }}>
-                      {mode === "login" ? "Welcome Back" : mode === "signup" ? "Request Account Access" : "Reset Password"}
+                      {mode === "login" ? "Welcome Back" : "Reset Password"}
                     </h1>
                   </div>
                 </div>
                 <p style={{ fontSize: "0.8125rem", color: "#7A6C6A" }}>
                   {mode === "login"
                     ? `Sign in to access your ${role.label} dashboard`
-                    : mode === "signup"
-                    ? "Registration is managed by an administrator."
                     : "We'll send a reset link to your email"}
                 </p>
               </div>
-
-              {/* Mode tabs */}
-              {mode !== "forgot" && (
-                <div
-                  className="flex p-1 rounded-lg mb-5"
-                  style={{ background: "#F5F0EF" }}
-                >
-                  {(["login", "signup"] as const).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => { setMode(m); reset(); }}
-                      className="flex-1 py-2 rounded-md transition-all"
-                      style={{
-                        background: mode === m ? "#fff" : "transparent",
-                        color: mode === m ? "#1C1C1C" : "#7A6C6A",
-                        fontWeight: mode === m ? 600 : 400,
-                        fontSize: "0.8375rem",
-                        border: "none",
-                        cursor: "pointer",
-                        boxShadow: mode === m ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
-                      }}
-                    >
-                      {m === "login" ? "Sign In" : "Sign Up"}
-                    </button>
-                  ))}
-                </div>
-              )}
 
               {/* Alerts */}
               {error && (
@@ -387,22 +359,26 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                 </div>
               )}
 
+              <form onSubmit={(e) => { e.preventDefault(); void (mode === "login" ? handleLogin() : handleForgot()); }} noValidate>
               {/* Fields */}
-              {mode !== "signup" && <div className="flex flex-col gap-3.5">
+              <div className="flex flex-col gap-3.5">
                 <div>
-                  <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.35rem" }}>Email Address *</label>
+                  <label htmlFor="login-email" style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.35rem" }}>Email Address *</label>
                   <div className="relative">
-                    <Mail size={14} color="#B0A0A0" style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)" }} />
-                    <input type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputBase} onFocus={handleFocus} onBlur={handleBlur} />
+                    <Mail size={14} color="#B0A0A0" aria-hidden="true" style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)" }} />
+                    <input id="login-email" name="email" type="email" autoComplete="username" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputBase} onFocus={handleFocus} onBlur={handleBlur} />
                   </div>
                 </div>
 
                 {mode !== "forgot" && (
                   <div>
-                    <label style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.35rem" }}>Password *</label>
+                    <label htmlFor="login-password" style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.35rem" }}>Password *</label>
                     <div className="relative">
-                      <Lock size={14} color="#B0A0A0" style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)" }} />
+                      <Lock size={14} color="#B0A0A0" aria-hidden="true" style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)" }} />
                       <input
+                        id="login-password"
+                        name="password"
+                        autoComplete="current-password"
                         type={showPass ? "text" : "password"}
                         placeholder="Enter password"
                         value={password}
@@ -411,19 +387,19 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                         onFocus={handleFocus}
                         onBlur={handleBlur}
                       />
-                      <button type="button" onClick={() => setShowPass(!showPass)} style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#B0A0A0" }}>
+                      <button type="button" onClick={() => setShowPass(!showPass)} aria-label={showPass ? "Hide password" : "Show password"} style={{ position: "absolute", right: "0.75rem", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#B0A0A0" }}>
                         {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                       </button>
                     </div>
                   </div>
                 )}
 
-              </div>}
+              </div>
 
               {/* Forgot password link */}
               {mode === "login" && (
                 <div className="text-right mt-2">
-                  <button onClick={() => { setMode("forgot"); reset(); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.775rem", color: role.color, fontWeight: 500 }}>
+                  <button type="button" onClick={() => { setMode("forgot"); reset(); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.775rem", color: role.color, fontWeight: 500 }}>
                     Forgot password?
                   </button>
                 </div>
@@ -431,7 +407,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
 
               {/* Submit button */}
               <button
-                onClick={mode === "login" ? handleLogin : mode === "signup" ? handleSignup : handleForgot}
+                type="submit"
                 disabled={loading}
                 className="w-full mt-5 flex items-center justify-center gap-2 py-3 rounded-xl transition-all"
                 style={{
@@ -453,12 +429,12 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                   </>
                 ) : mode === "login" ? (
                   <> Sign In <ChevronRight size={17} /></>
-                ) : mode === "signup" ? (
-                  <> Request administrator access <ChevronRight size={17} /></>
                 ) : (
                   <> Send Reset Link <ChevronRight size={17} /></>
                 )}
               </button>
+
+              </form>
 
               {waking && (
                 <p role="status" style={{ marginTop: "0.75rem", fontSize: "0.775rem", color: "#7A6C6A", textAlign: "center", lineHeight: 1.5 }}>
@@ -469,6 +445,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
               {/* Back to sign in from forgot */}
               {mode === "forgot" && (
                 <button
+                  type="button"
                   onClick={() => { setMode("login"); reset(); }}
                   className="w-full mt-3 py-2.5 rounded-xl flex items-center justify-center gap-2"
                   style={{ background: "none", border: "1px solid #E8E2E0", color: "#7A6C6A", fontSize: "0.875rem", cursor: "pointer" }}
@@ -477,20 +454,17 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                 </button>
               )}
 
-              {mode === "signup" && (
-                <div
-                  className="mt-5 p-3.5 rounded-xl"
-                  style={{ background: "#F7F3F2", border: "1px solid #EAE2DF" }}
-                >
-                  <p style={{ fontSize: "0.8rem", color: "#7A6C6A" }}>Registration is managed by an administrator.</p>
-                </div>
+              {mode === "login" && (
+                <p style={{ marginTop: "1rem", fontSize: "0.8rem", color: "#7A6C6A", textAlign: "center" }}>
+                  Need access? Contact your administrator.
+                </p>
               )}
             </div>
           </div>
 
           {/* Footer */}
           <p style={{ textAlign: "center", fontSize: "0.72rem", color: "#B0A0A0", marginTop: "1.5rem" }}>
-            DVS Industries © 2026 · Enterprise Platform v2.1
+            DVS Industries © {new Date().getFullYear()}
           </p>
         </div>
       </div>

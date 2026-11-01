@@ -36,6 +36,22 @@ services:
         sync: false
       - key: APP_URL
         sync: false
+      # Outgoing mail: password-reset links and website inquiry notices.
+      # Without SMTP_HOST neither email is sent.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_SECURE
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: INQUIRY_NOTIFY_EMAIL
+        sync: false
       # At least 16 characters; required in production.
       - key: SEED_ADMIN_PASSWORD
         sync: false

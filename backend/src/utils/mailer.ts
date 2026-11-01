@@ -1,5 +1,6 @@
 import nodemailer, { type Transporter } from 'nodemailer';
 import { env } from '../config/env';
+import type { Inquiry } from '@prisma/client';
 import { logger } from '../logger';
 
 let transporter: Transporter | null = null;
@@ -46,6 +47,41 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string): Prom
     });
   } catch (err) {
     logger.error('Failed to send password reset email', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
+ * Tells the sales inbox about a new website inquiry. Never throws: the
+ * inquiry is already saved and listed for admins either way.
+ */
+export async function sendInquiryNotification(inquiry: Inquiry): Promise<void> {
+  const mailer = getTransporter();
+  const to = env.INQUIRY_NOTIFY_EMAIL;
+  if (mailer === null || to === undefined) {
+    logger.info('Inquiry saved; email skipped (SMTP or INQUIRY_NOTIFY_EMAIL not set)', {
+      inquiryId: inquiry.id,
+    });
+    return;
+  }
+
+  try {
+    await mailer.sendMail({
+      from: env.MAIL_FROM,
+      to,
+      replyTo: inquiry.email,
+      subject: `Website inquiry from ${inquiry.name}${inquiry.company ? ` (${inquiry.company})` : ''}`,
+      text:
+        `Name: ${inquiry.name}\n` +
+        `Company: ${inquiry.company ?? '-'}\n` +
+        `Email: ${inquiry.email}\n` +
+        `Phone: ${inquiry.phone ?? '-'}\n\n` +
+        `${inquiry.message}\n`,
+    });
+  } catch (err) {
+    logger.error('Failed to send inquiry notification', {
+      inquiryId: inquiry.id,
       error: err instanceof Error ? err.message : String(err),
     });
   }

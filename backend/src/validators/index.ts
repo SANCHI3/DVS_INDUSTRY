@@ -2,6 +2,7 @@ export * from './auth.validator';
 export * from './audit.validator';
 export * from './department.validator';
 export * from './employee.validator';
+export * from './inquiry.validator';
 export * from './inventory.validator';
 export * from './orders.validator';
 export * from './production.validator';

@@ -49,6 +49,14 @@ const envSchema = z.object({
   SMTP_PASSWORD: z.string().optional(),
   MAIL_FROM: z.string().default('DVS Industries <no-reply@dvsindustry.com>'),
 
+  // Inbox that receives website contact-form inquiries (needs SMTP above).
+  // TODO(owner): set to the sales/enquiry address on Render.
+  INQUIRY_NOTIFY_EMAIL: z
+    .string()
+    .optional()
+    .transform((v) => (v?.trim() ? v.trim() : undefined))
+    .pipe(z.string().email().optional()),
+
   // Perception service files read by the dashboard (relative to backend/):
   // incident evidence and explanations.
   PERCEPTION_OUTPUT_DIR: z.string().default('../perception-service/output'),

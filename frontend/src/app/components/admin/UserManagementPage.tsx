@@ -6,6 +6,7 @@ import { isApiError } from "../../../lib/api";
 import { deactivateUser, getRoles, getUsers, registerUser, updateUser, type RoleDto, type UserDto } from "../../../lib/services/users.service";
 import { getAuditLogs } from "../../../lib/services/audit.service";
 import { Modal } from "../shared/Modal";
+import { InquiriesPanel } from "./InquiriesPanel";
 
 type IconProps = { size?: number; color?: string };
 const PlusIcon = Plus as unknown as (props: IconProps) => JSX.Element;
@@ -40,7 +41,7 @@ const labelStyle: React.CSSProperties = { fontSize: "0.72rem", fontWeight: 600, 
 const MACHINE_ROLE = "perception_service";
 
 export function UserManagementPage() {
-  const [activeTab, setActiveTab]   = useState<"users" | "permissions" | "logs">("users");
+  const [activeTab, setActiveTab]   = useState<"users" | "inquiries" | "permissions" | "logs">("users");
   const [search, setSearch]         = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [users, setUsers] = useState<User[]>([]);
@@ -266,7 +267,7 @@ export function UserManagementPage() {
       {dataError && <p className="mb-4" style={{ color: "#C0392B", fontSize: "0.8125rem" }}>{dataError}</p>}
 
       <div className="flex gap-0 mb-5" style={{ borderBottom: "2px solid #E8E2E0" }}>
-        {([["users", "All Users"], ["permissions", "Permissions"], ["logs", "Audit Logs"]] as const).map(([id, label]) => (
+        {([["users", "All Users"], ["inquiries", "Inquiries"], ["permissions", "Permissions"], ["logs", "Audit Logs"]] as const).map(([id, label]) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
@@ -358,6 +359,8 @@ export function UserManagementPage() {
           </Card>
         </div>
       )}
+
+      {activeTab === "inquiries" && <InquiriesPanel />}
 
       {activeTab === "permissions" && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
