@@ -64,14 +64,46 @@ describe('company production KPIs', () => {
         scrapQty: new Prisma.Decimal(5),
       },
     });
-    workOrder['aggregate']!.mockResolvedValue({
-      _sum: { targetQuantity: new Prisma.Decimal(1000) },
-    });
+    // One order closed this month at 840 of 1000: completed short
+    workOrder['findMany']!.mockResolvedValue([
+      {
+        status: 'COMPLETED',
+        targetQuantity: new Prisma.Decimal(1000),
+        outputs: [{ goodQty: new Prisma.Decimal(840) }],
+      },
+    ]);
 
     const kpis = await new ProductionRepository().getKPIs();
 
     expect(kpis.totalProducedQty).toBe('500.000');
-    expect(kpis.overallCompletionRate).toBe('50.0%');
+    expect(kpis.overallCompletionRate).toBe('84.0%');
+    expect(kpis.completedThisMonth).toBe(1);
+    expect(kpis.completedShortThisMonth).toBe(1);
+    expect(kpis.rejectionRate).toBe('3.8%');
+    // Output is counted by the date it was recorded, not when the order was created
+    expect(woOutput['aggregate']).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ recordedAt: expect.anything() }),
+      }),
+    );
     for (const fn of Object.values(empOutput)) expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+describe('production KPIs early in the month', () => {
+  it('report "nothing yet" (null) rather than 0.0% when no output is recorded', async () => {
+    const workOrder = prisma.workOrder as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    const woOutput = prisma.workOrderOutput as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    workOrder['findMany']!.mockResolvedValue([]);
+    woOutput['aggregate']!.mockResolvedValue({
+      _sum: { goodQty: null, rejectedQty: null, scrapQty: null },
+      _count: { _all: 0 },
+    });
+
+    const kpis = await new ProductionRepository().getKPIs();
+
+    expect(kpis.overallCompletionRate).toBeNull();
+    expect(kpis.rejectionRate).toBeNull();
+    expect(kpis.outputRecords).toBe(0);
   });
 });

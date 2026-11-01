@@ -309,6 +309,9 @@ describe('engine', () => {
     expect(perf.departments[0]?.department).toBe('A');
     expect(perf.departments[1]?.schedule).toBe(0);
     expect(perf.overall.workOrders).toBe(12);
+    // Every order was closed at 95 of 100: completed short, and the insights say so
+    expect(perf.overall.completedShort).toBe(12);
+    expect(perf.insights.some((i) => i.title.includes('closed below target'))).toBe(true);
     expect(perf.qualityControl.points.length).toBeGreaterThan(0);
 
     const health = buildPlantHealth({

@@ -152,13 +152,13 @@ describe("Production page", () => {
     vi.mocked(getProductionKPIs)
       .mockRejectedValueOnce({ status: 0, code: "NETWORK_ERROR", message: "timeout of 15000ms exceeded" })
       .mockResolvedValue({
-        totalWorkOrders: 3, activeWorkOrders: 2, completedThisMonth: 1, overdueWorkOrders: 0, totalTargetQty: "1000.000",
+        totalWorkOrders: 3, activeWorkOrders: 2, completedThisMonth: 1, completedShortThisMonth: 0, outputRecords: 2, overdueWorkOrders: 0, totalTargetQty: "1000.000",
         totalProducedQty: "500.000", totalRejectedQty: "20.000", totalScrapQty: "5.000", overallCompletionRate: "50.0%",
         rejectionRate: "3.8%", byStatus: [], byPriority: [],
       });
     render(<ProductionPage />);
     expect(await screen.findByText("50.0%")).toBeTruthy();
-    expect(screen.getByText("Work-order targets 1,000")).toBeTruthy();
+    expect(screen.getByText("2 output entries this month")).toBeTruthy();
     expect(getProductionKPIs).toHaveBeenCalledTimes(2);
     vi.unstubAllGlobals();
   });

@@ -15,7 +15,10 @@ export interface DashboardKPIs {
   attendanceTodayAbsent: number;
   attendanceTodayLate: number;
   attendanceTodayOnLeave: number;
-  attendanceTodayRate: string; // e.g. "91.3%"
+  attendanceTodayWeekOff: number; // recorded weekly offs plus people whose usual off day is today
+  attendanceTodayRecorded: number; // attendance rows entered for today
+  attendanceTodayRate: string | null; // e.g. "91.3%" of those due to work; null until entered
+  isWeeklyOffToday: boolean; // most of the workforce is off: no attendance warning
 
   // Inventory
   totalMaterials: number;
@@ -34,20 +37,37 @@ export interface DashboardKPIs {
   totalScrapThisMonth: string; // kg
   scrapValueThisMonth: string; // ₹
 
-  // Production (this month)
+  // Production
   activeWorkOrders: number;
-  completedWorkOrders: number;
   overdueWorkOrders: number;
-  productionCompletionRate: string; // e.g. "84.2%"
+  productionMonth: ProductionMonthSummary;
 
   // Departments
   totalDepartments: number;
   activeDepartments: number;
 
-  // Security
+  // Security. Incidents are what the camera AI (or a person) reported;
+  // alerts are separate manual notices. Counts match the Security page.
+  openIncidents: number; // status OPEN
+  investigatingIncidents: number; // status INVESTIGATING
+  criticalOpenIncidents: number; // CRITICAL, OPEN or INVESTIGATING
+  highOpenIncidents: number; // HIGH, OPEN or INVESTIGATING
   activeAlerts: number; // alerts with status ACTIVE
   criticalAlerts: number; // ACTIVE alerts with CRITICAL severity
-  criticalIncidents: number; // CRITICAL incidents still OPEN or INVESTIGATING
+}
+
+/** Production for the current calendar month, by date output was recorded. */
+export interface ProductionMonthSummary {
+  label: string; // "November 2026"
+  outputQty: number; // good quantity recorded this month
+  rejectedQty: number;
+  outputRecords: number;
+  unit: string;
+  monthlyTarget: number | null; // from Production → monthly target, if set
+  attainmentRate: string | null; // outputQty / monthlyTarget; null without target or output
+  rejectionRate: string | null;
+  completedWorkOrders: number; // closed this month
+  completedShort: number; // of those, closed below their target
 }
 
 export interface OrderStatusCount {
@@ -68,7 +88,9 @@ export interface ScrapTrendEntry {
 
 export interface AttendanceTrendChartEntry {
   date: string; // "Mon", "Tue" …
-  present: number;
+  present: number | null; // null = nothing recorded yet, or a weekly off (drawn as a gap)
+  weekOff: number;
+  nonWorkingDay: boolean;
   absent: number;
   late: number;
   onLeave: number;
@@ -81,7 +103,17 @@ export interface RecentOrder {
   product: string;
   qty: number;
   status: string;
-  date: string; // human-readable "12 Jun"
+  orderDate: string; // ISO; the same field the Orders page shows
+}
+
+export interface OpenIncidentSummary {
+  id: number;
+  incidentNumber: string;
+  type: string;
+  severity: string;
+  status: string;
+  location: string | null;
+  occurredAt: string; // ISO
 }
 
 export interface DashboardCharts {
@@ -89,7 +121,8 @@ export interface DashboardCharts {
   scrapByDepartment: DeptScrapEntry[];
   scrapTrend: ScrapTrendEntry[]; // last 7 days
   attendanceTrend: AttendanceTrendChartEntry[]; // last 7 days
-  recentOrders: RecentOrder[]; // last 5
+  recentOrders: RecentOrder[]; // last 5 by order date
+  openIncidents: OpenIncidentSummary[]; // 5 most severe open incidents, newest first
 }
 
 // ═══════════════════════════════════════════════════════════════

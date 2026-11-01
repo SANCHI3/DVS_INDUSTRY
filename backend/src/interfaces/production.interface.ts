@@ -148,18 +148,20 @@ export interface ProductionKPIs {
   // Counts
   totalWorkOrders: number;
   activeWorkOrders: number; // RELEASED + IN_PROGRESS
-  completedThisMonth: number;
+  completedThisMonth: number; // work orders closed in the period, whenever created
+  completedShortThisMonth: number; // of those, closed below target
   overdueWorkOrders: number; // past scheduledEnd and not COMPLETED/CANCELLED
+  outputRecords: number; // output entries recorded in the period
 
-  // Quantities (this month)
-  totalTargetQty: string;
+  // Quantities (period; output by the date it was recorded)
+  totalTargetQty: string; // summed targets of the work orders closed in the period
   totalProducedQty: string;
   totalRejectedQty: string;
   totalScrapQty: string;
 
-  // Rates
-  overallCompletionRate: string; // produced / target %
-  rejectionRate: string; // rejected / (produced + rejected) %
+  // Rates; null when there is nothing to measure yet
+  overallCompletionRate: string | null; // good output of closed orders / their targets
+  rejectionRate: string | null; // rejected / (produced + rejected) of period output
 
   // Breakdown by status
   byStatus: Array<{ status: WorkOrderStatus; count: number }>;

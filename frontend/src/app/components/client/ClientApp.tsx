@@ -12,6 +12,7 @@ import {
   type ClientDto,
   type ClientOrderDto,
 } from "../../../lib/services/orders.service";
+import { formatMoney } from "../../../lib/format";
 
 type ClientPortalData = {
   profile: ClientDto | null;
@@ -22,11 +23,6 @@ type ClientPortalData = {
 
 function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "–";
-}
-
-function formatMoney(value: string | null, currency = "INR"): string {
-  if (value === null) return "–";
-  return `${currency === "INR" ? "₹" : `${currency} `}${Number(value).toLocaleString("en-IN")}`;
 }
 
 function statusLabel(status: string): string {

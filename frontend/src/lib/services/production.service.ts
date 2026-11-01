@@ -44,14 +44,19 @@ export interface WorkOrderOutputDto {
 export interface ProductionKPIs {
   totalWorkOrders:       number;
   activeWorkOrders:      number;
+  /** Work orders closed this month, whenever they were created */
   completedThisMonth:    number;
+  completedShortThisMonth: number;
   overdueWorkOrders:     number;
+  outputRecords:         number;
   totalTargetQty:        string;
   totalProducedQty:      string;
   totalRejectedQty:      string;
   totalScrapQty:         string;
-  overallCompletionRate: string;
-  rejectionRate:         string;
+  /** Good output of orders closed this month vs their targets; null if none closed */
+  overallCompletionRate: string | null;
+  /** null until output is recorded this month */
+  rejectionRate:         string | null;
   byStatus:   Array<{ status: WorkOrderStatus; count: number }>;
   byPriority: Array<{ priority: WorkOrderPriority; count: number }>;
 }

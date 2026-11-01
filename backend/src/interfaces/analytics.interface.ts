@@ -132,6 +132,7 @@ export interface ProductionPerformance {
     attainment: number;
     schedule: number;
     oee: number;
+    completedShort: number; // completed work orders closed below target
     oeeNote: string;
   };
   departments: DepartmentPerformance[];

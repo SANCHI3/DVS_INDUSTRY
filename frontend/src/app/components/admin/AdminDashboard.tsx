@@ -9,20 +9,28 @@ import {
 } from "recharts";
 import { KPICard, Card, CardHeader, StatusBadge, Btn } from "../shared/UI";
 import { getDashboard, type DashboardKPIs, type DashboardCharts } from "../../../lib/services/dashboard.service";
-import { getAlerts, type SecurityAlertDto } from "../../../lib/services/security.service";
+import { eventTypeLabel } from "../../../lib/incidentLabels";
 import { getProductionTrend, type ProductionTrendEntry } from "../../../lib/services/production.service";
+import { formatINRCompact } from "../../../lib/format";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmt(n: number): string {
-  if (n >= 10_00_000) return `₹${(n / 10_00_000).toFixed(1)}L`;
-  if (n >= 1_000)     return `₹${(n / 1_000).toFixed(1)}K`;
-  return `₹${n}`;
+function fmtWhen(iso: string): string {
+  return new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-function fmtTime(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+/** Same short date the Orders page uses. */
+function fmtOrderDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
+}
+
+function fmtQty(n: number): string {
+  return n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+}
+
+/** "84.2%" → 84.2 */
+function pctValue(text: string | null): number | null {
+  return text === null ? null : parseFloat(text);
 }
 
 function dataMessage(loading: boolean, failed: boolean): string {
@@ -36,10 +44,8 @@ function dataMessage(loading: boolean, failed: boolean): string {
 export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void }) {
   const [kpis,    setKpis]   = useState<DashboardKPIs | null>(null);
   const [charts,  setCharts] = useState<DashboardCharts | null>(null);
-  const [alerts,  setAlerts] = useState<SecurityAlertDto[] | null>(null);
   const [trend,   setTrend]  = useState<ProductionTrendEntry[] | null>(null);
   const [dashboardError, setDashboardError] = useState(false);
-  const [alertsError, setAlertsError] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,9 +53,8 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
     setLoading(true);
     Promise.allSettled([
       getDashboard(),
-      getAlerts({ status: "ACTIVE", pageSize: 5, sortBy: "severity", sortOrder: "desc" }),
       getProductionTrend({ days: 7 }),
-    ]).then(([dashResult, alertResult, trendResult]) => {
+    ]).then(([dashResult, trendResult]) => {
       if (cancelled) return;
       setTrend(trendResult.status === "fulfilled" ? trendResult.value : []);
       if (dashResult.status === "fulfilled") {
@@ -57,11 +62,6 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
         setCharts(dashResult.value.charts);
       } else {
         setDashboardError(true);
-      }
-      if (alertResult.status === "fulfilled") {
-        setAlerts(alertResult.value.data);
-      } else {
-        setAlertsError(true);
       }
       setLoading(false);
     });
@@ -74,6 +74,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
     day: e.date,
     present: e.present,
   })) ?? [];
+  const attHasPoints = attTrend.some((e) => e.present !== null);
 
   const scrapTrend = charts?.scrapByDepartment?.slice(0, 6).map(e => ({
     dept: e.dept,
@@ -88,39 +89,63 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
     product: o.product,
     qty: o.qty,
     status: o.status,
-    date: o.date,
+    date: fmtOrderDate(o.orderDate),
   })) ?? [];
 
-  const liveAlerts = alerts?.slice(0, 4).map(a => ({
-    id: a.alertNumber,
-    type: a.type.replace(/_/g, " ").toLowerCase().replace(/^\w/, c => c.toUpperCase()),
-    location: a.location ?? "—",
-    severity: a.severity.toLowerCase(),
-    status: a.status.toLowerCase(),
-    time: fmtTime(a.createdAt),
+  const openIncidents = charts?.openIncidents?.map(i => ({
+    id: i.incidentNumber,
+    type: eventTypeLabel(i.type),
+    location: i.location ?? "—",
+    severity: i.severity.toLowerCase(),
+    status: i.status.toLowerCase(),
+    time: fmtWhen(i.occurredAt),
   })) ?? [];
 
   // AI insights derived from KPIs
-  const aiInsights = kpis ? [
+  const pm = kpis?.productionMonth;
+  const needsAttention = kpis ? kpis.openIncidents + kpis.investigatingIncidents : 0;
+  const attendanceRate = pctValue(kpis?.attendanceTodayRate ?? null);
+  const aiInsights = kpis && pm ? [
     kpis.lowStockCount > 0
       ? { type: "warn", msg: `${kpis.lowStockCount} material(s) below minimum stock level — check inventory` }
       : { type: "success", msg: "All inventory levels within safe thresholds" },
     kpis.overdueWorkOrders > 0
       ? { type: "warn", msg: `${kpis.overdueWorkOrders} work order(s) past scheduled end — review production` }
       : { type: "success", msg: "All work orders on schedule" },
-    kpis.criticalAlerts > 0
-      ? { type: "warn", msg: `${kpis.criticalAlerts} critical security alert(s) active — immediate attention required` }
-      : { type: "info", msg: "No critical security alerts active" },
-    { type: "info", msg: `Order fulfillment rate: ${kpis.orderFulfillmentRate} · Production: ${kpis.productionCompletionRate}` },
-    kpis.attendanceTodayRate
-      ? { type: kpis.attendanceTodayPresent < kpis.activeEmployees * 0.8 ? "warn" : "success", msg: `Today's attendance rate: ${kpis.attendanceTodayRate} (${kpis.attendanceTodayPresent} present)` }
-      : { type: "info", msg: "Attendance data not yet recorded today" },
-  ] : [];
+    pm.completedShort > 0
+      ? { type: "warn", msg: `${pm.completedShort} work order(s) closed below target in ${pm.label}` }
+      : null,
+    kpis.criticalOpenIncidents > 0
+      ? { type: "warn", msg: `${kpis.criticalOpenIncidents} critical security incident(s) still open — review on AI Security` }
+      : { type: "info", msg: "No critical security incidents open" },
+    pm.outputRecords === 0
+      ? { type: "info", msg: `No output recorded yet in ${pm.label}` }
+      : { type: "info", msg: `${pm.label}: ${fmtQty(pm.outputQty)} ${pm.unit} produced${pm.attainmentRate ? ` (${pm.attainmentRate} of monthly target)` : ""} · order fulfilment ${kpis.orderFulfillmentRate}` },
+    kpis.isWeeklyOffToday
+      ? { type: "info", msg: "Today is a weekly off for most of the plant — no attendance expected" }
+      : attendanceRate === null
+        ? { type: "info", msg: "Attendance not yet recorded today" }
+        : { type: attendanceRate < 80 ? "warn" : "success", msg: `Today's attendance: ${kpis.attendanceTodayRate} of those due to work (${kpis.attendanceTodayPresent + kpis.attendanceTodayLate} present)` },
+  ].filter((i): i is { type: string; msg: string } => i !== null) : [];
 
-  // ── KPI values (real or fallback) ──────────────────────────────────────────
+  // ── KPI values ────────────────────────────────────────────────────────────
 
-  const hasKpis = kpis !== null;
-  const activeAlertCnt = kpis === null ? dataMessage(loading, dashboardError) : String(kpis.activeAlerts);
+  const hasKpis = kpis !== null && pm !== undefined;
+  const pending = dataMessage(loading, dashboardError);
+
+  const production = !hasKpis ? { value: pending, sub: undefined as string | undefined, accent: "#2E7D32" }
+    : pm.outputRecords === 0
+      ? { value: "No output yet", sub: `Nothing recorded in ${pm.label}`, accent: "#9A8A88" }
+      : pm.attainmentRate
+        ? { value: pm.attainmentRate, sub: `${fmtQty(pm.outputQty)} of ${fmtQty(pm.monthlyTarget ?? 0)} ${pm.unit} target`, accent: "#2E7D32" }
+        : { value: `${fmtQty(pm.outputQty)} ${pm.unit}`, sub: "No monthly target set", accent: "#2E7D32" };
+
+  const workers = !hasKpis ? { value: pending, sub: undefined as string | undefined }
+    : kpis.isWeeklyOffToday
+      ? { value: "Weekly off", sub: `${kpis.attendanceTodayWeekOff} on weekly off today` }
+      : kpis.attendanceTodayRecorded === 0
+        ? { value: "Not entered", sub: "Attendance not yet recorded today" }
+        : { value: String(kpis.attendanceTodayPresent + kpis.attendanceTodayLate), sub: `of ${kpis.activeEmployees} active · ${kpis.attendanceTodayRate ?? "—"}` };
 
   return (
     <div className="p-6">
@@ -138,13 +163,13 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
 
       {/* KPI Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KPICard label="Active Work Orders" value={hasKpis ? String(kpis.activeWorkOrders) : dataMessage(loading, dashboardError)} sub={hasKpis ? `Completion: ${kpis.productionCompletionRate}` : undefined} icon={Factory} />
-        <KPICard label="Production Rate" value={hasKpis ? kpis.productionCompletionRate : dataMessage(loading, dashboardError)} icon={TrendingUp} accent="#2E7D32" />
-        <KPICard label="Workers Present" value={hasKpis ? String(kpis.attendanceTodayPresent) : dataMessage(loading, dashboardError)} sub={hasKpis ? `of ${kpis.activeEmployees} active` : undefined} icon={Users} accent="#1565C0" />
-        <KPICard label="Inventory Value" value={hasKpis ? fmt(parseFloat(kpis.totalInventoryValue)) : dataMessage(loading, dashboardError)} sub={hasKpis ? `${kpis.lowStockCount} low stock` : undefined} icon={Package} accent="#4E342E" />
+        <KPICard label="Active Work Orders" value={hasKpis ? String(kpis.activeWorkOrders) : pending} sub={hasKpis ? `${pm.completedWorkOrders} completed this month${pm.completedShort ? ` · ${pm.completedShort} short of target` : ""}` : undefined} icon={Factory} />
+        <KPICard label="Production This Month" value={production.value} sub={production.sub} icon={TrendingUp} accent={production.accent} />
+        <KPICard label="Workers Present Today" value={workers.value} sub={workers.sub} icon={Users} accent="#1565C0" />
+        <KPICard label="Inventory Value" value={hasKpis ? formatINRCompact(kpis.totalInventoryValue) : dataMessage(loading, dashboardError)} sub={hasKpis ? `${kpis.lowStockCount} low stock` : undefined} icon={Package} accent="#4E342E" />
         <KPICard label="Active Orders" value={hasKpis ? String(kpis.activeClientOrders) : dataMessage(loading, dashboardError)} sub={hasKpis ? `${kpis.pendingClientOrders} pending` : undefined} icon={ShoppingCart} accent="#E65100" />
         <KPICard label="Pending POs" value={hasKpis ? String(kpis.pendingPurchaseOrders) : dataMessage(loading, dashboardError)} icon={Truck} accent="#C0392B" />
-        <KPICard label="Security Alerts" value={activeAlertCnt} sub={hasKpis ? `${kpis.criticalAlerts} critical · ${kpis.criticalIncidents} open critical incidents` : undefined} icon={Shield} accent="#C0392B" />
+        <KPICard label="Open Security Incidents" value={hasKpis ? String(needsAttention) : pending} sub={hasKpis ? `${kpis.criticalOpenIncidents} critical · ${kpis.highOpenIncidents} high${kpis.activeAlerts ? ` · ${kpis.activeAlerts} manual alert(s)` : ""}` : undefined} icon={Shield} accent="#C0392B" />
         <KPICard label="Scrap This Month" value={hasKpis ? `${parseFloat(kpis.totalScrapThisMonth).toFixed(1)} kg` : dataMessage(loading, dashboardError)} icon={AlertTriangle} accent="#E65100" />
       </div>
 
@@ -196,17 +221,17 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
         {/* Attendance trend */}
         <Card>
-          <CardHeader title="Attendance Trend" subtitle="Present count (last 7 days)" />
+          <CardHeader title="Attendance Trend" subtitle="Present, last 7 days · gaps are weekly offs or days not yet entered" />
           <div className="p-4">
-            {attTrend.length > 0 ? <ResponsiveContainer width="100%" height={150}>
+            {attHasPoints ? <ResponsiveContainer width="100%" height={150}>
               <LineChart data={attTrend}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F0ECEB" />
                 <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#9A8A88" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: "#9A8A88" }} axisLine={false} tickLine={false} />
                 <Tooltip contentStyle={{ fontSize: "0.8rem" }} />
-                <Line type="monotone" dataKey="present" stroke="#1565C0" strokeWidth={2} dot={{ r: 3, fill: "#1565C0" }} name="Present" />
+                <Line type="monotone" dataKey="present" stroke="#1565C0" strokeWidth={2} dot={{ r: 3, fill: "#1565C0" }} name="Present" connectNulls={false} />
               </LineChart>
-            </ResponsiveContainer> : <p style={{ color: "#7A6C6A", fontSize: "0.8375rem" }}>{dataMessage(loading, dashboardError)}</p>}
+            </ResponsiveContainer> : <p style={{ color: "#7A6C6A", fontSize: "0.8375rem" }}>{charts ? "No attendance recorded in the last 7 days." : dataMessage(loading, dashboardError)}</p>}
           </div>
         </Card>
 
@@ -250,11 +275,11 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Security Alerts */}
         <Card>
-          <CardHeader title="Security Alerts" subtitle="Active incidents"
-            actions={<Btn size="sm" onClick={() => onNavigate("security-live")}>View All</Btn>}
+          <CardHeader title="Open Security Incidents" subtitle="Most severe first — the same list as AI Security"
+            actions={<Btn size="sm" onClick={() => onNavigate("security-incidents")}>View All</Btn>}
           />
           <div>
-            {liveAlerts.length === 0 ? <p className="p-5" style={{ color: alertsError ? "#C0392B" : "#7A6C6A", fontSize: "0.8375rem" }}>{dataMessage(loading, alertsError)}</p> : liveAlerts.map((a) => (
+            {openIncidents.length === 0 ? <p className="p-5" style={{ color: dashboardError ? "#C0392B" : "#7A6C6A", fontSize: "0.8375rem" }}>{charts ? "No open security incidents." : dataMessage(loading, dashboardError)}</p> : openIncidents.map((a) => (
               <div key={a.id} className="flex items-center gap-3 px-5 py-3" style={{ borderBottom: "1px solid #F7F3F2" }}>
                 <div className="w-2 h-2 rounded-full flex-shrink-0"
                   style={{ background: a.severity === "critical" ? "#C0392B" : a.severity === "high" ? "#E65100" : a.severity === "medium" ? "#F57F17" : "#2E7D32" }}

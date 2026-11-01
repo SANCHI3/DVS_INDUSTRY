@@ -24,6 +24,7 @@ import {
 import { getDepartments } from "../../../lib/services/departments.service";
 import { getEmployees } from "../../../lib/services/employees.service";
 import { getEmployeeOutputSummary } from "../../../lib/services/workforce.service";
+import { workOrderStatusLabel } from "../../../lib/workOrderStatus";
 
 function formatQty(value: string | number) {
   const n = Number(value);
@@ -96,8 +97,9 @@ export function ProductionPage() {
   const trendHasOutput = trendData.some((t) => t.produced + t.rejected + t.scrap > 0);
   const out = employeeOutput.data;
   const target = monthTarget.data?.target ?? null;
-  const completionNow = k ? parseFloat(k.overallCompletionRate) : NaN;
-  const rejectionNow = k ? parseFloat(k.rejectionRate) : NaN;
+  const completionNow = k?.overallCompletionRate ? parseFloat(k.overallCompletionRate) : NaN;
+  const rejectionNow = k?.rejectionRate ? parseFloat(k.rejectionRate) : NaN;
+  const noOutputYet = k !== undefined && k !== null && k.outputRecords === 0;
   const vsTarget = (actual: number, limit: number | null | undefined, atLeast: boolean) => {
     if (limit == null || Number.isNaN(actual)) return {};
     const met = atLeast ? actual >= limit : actual <= limit;
@@ -135,10 +137,10 @@ export function ProductionPage() {
           <div>
             {kpis.waking && <div className="mb-3"><InlineNotice tone="info">The server is starting up after being idle. Data will appear in up to a minute.</InlineNotice></div>}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
-              <KPICard label="Active Work Orders" value={kpiValue(k?.activeWorkOrders)} sub={k ? `${k.completedThisMonth} completed this month` : undefined} />
-              <KPICard label="Produced (This Month)" value={kpiValue(k ? formatQty(k.totalProducedQty) : undefined)} sub={k ? `Work-order targets ${formatQty(k.totalTargetQty)}` : undefined} accent="#2E7D32" />
-              <KPICard label="Completion Rate" value={kpiValue(k?.overallCompletionRate)} sub={k ? (target?.targetCompletionRate == null ? "No target set" : undefined) : undefined} accent="#1565C0" {...(k ? vsTarget(completionNow, target?.targetCompletionRate, true) : {})} />
-              <KPICard label="Rejection Rate" value={kpiValue(k?.rejectionRate)} sub={k ? `${k.overdueWorkOrders} overdue WOs` : undefined} accent="#E65100" {...(k ? vsTarget(rejectionNow, target?.maxRejectionRate, false) : {})} />
+              <KPICard label="Active Work Orders" value={kpiValue(k?.activeWorkOrders)} sub={k ? `${k.completedThisMonth} closed this month${k.completedShortThisMonth ? ` · ${k.completedShortThisMonth} short of target` : ""}` : undefined} />
+              <KPICard label="Produced (This Month)" value={kpiValue(k ? (noOutputYet ? "No output yet" : formatQty(k.totalProducedQty)) : undefined)} sub={k ? (noOutputYet ? "No output recorded yet this month" : `${k.outputRecords} output entries this month`) : undefined} accent={noOutputYet ? "#9A8A88" : "#2E7D32"} />
+              <KPICard label="Completion (Closed This Month)" value={kpiValue(k ? (k.overallCompletionRate ?? "None closed yet") : undefined)} sub={k ? (k.overallCompletionRate === null ? "No work orders closed this month" : target?.targetCompletionRate == null ? "No target set" : `Good output vs target of ${k.completedThisMonth} closed order(s)`) : undefined} accent="#1565C0" {...(k ? vsTarget(completionNow, target?.targetCompletionRate, true) : {})} />
+              <KPICard label="Rejection Rate (This Month)" value={kpiValue(k ? (k.rejectionRate ?? "—") : undefined)} sub={k ? `${k.overdueWorkOrders} overdue WOs` : undefined} accent="#E65100" {...(k ? vsTarget(rejectionNow, target?.maxRejectionRate, false) : {})} />
             </div>
             {kpis.error && <div className="mb-5"><InlineNotice tone="error" onRetry={kpis.reload}>{kpis.error}</InlineNotice></div>}
             {!kpis.error && <div className="mb-5" />}
@@ -211,7 +213,11 @@ export function ProductionPage() {
                     produced: <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>{formatQty(wo.producedQty)}</span>,
                     rate: <span style={{ fontSize: "0.8rem", fontWeight: 700, color: parseFloat(wo.completionRate) >= 90 ? "#2E7D32" : "#E65100" }}>{wo.completionRate}</span>,
                     priority: <span className="px-2 py-0.5 rounded-full" style={{ fontSize: "0.68rem", fontWeight: 600, background: wo.priority === "URGENT" ? "#FFEBEE" : wo.priority === "HIGH" ? "#FFF3E0" : "#F5F5F5", color: wo.priority === "URGENT" ? "#C0392B" : wo.priority === "HIGH" ? "#E65100" : "#7A6C6A" }}>{wo.priority}</span>,
-                    status: <span className="px-2 py-0.5 rounded-full" style={{ fontSize: "0.68rem", fontWeight: 600, background: wo.status === "COMPLETED" ? "#E8F5E9" : wo.status === "IN_PROGRESS" ? "#FFF3E0" : "#F5F5F5", color: wo.status === "COMPLETED" ? "#2E7D32" : wo.status === "IN_PROGRESS" ? "#E65100" : "#7A6C6A" }}>{wo.status.replace("_", " ")}</span>,
+                    status: (() => {
+                      const shown = workOrderStatusLabel(wo.status, wo.producedQty, wo.targetQuantity);
+                      const tone = shown.short ? { bg: "#FFF3E0", fg: "#B45309" } : wo.status === "COMPLETED" ? { bg: "#E8F5E9", fg: "#2E7D32" } : wo.status === "IN_PROGRESS" ? { bg: "#FFF3E0", fg: "#E65100" } : { bg: "#F5F5F5", fg: "#7A6C6A" };
+                      return <span className="px-2 py-0.5 rounded-full" title={shown.short ? "Closed before reaching its target quantity" : undefined} style={{ fontSize: "0.68rem", fontWeight: 600, whiteSpace: "nowrap", background: tone.bg, color: tone.fg }}>{shown.label}</span>;
+                    })(),
                     actions: (
                       <div className="flex flex-wrap items-center gap-1.5">
                         {prod.recordOutput && ACCEPTS_OUTPUT.includes(wo.status) && (

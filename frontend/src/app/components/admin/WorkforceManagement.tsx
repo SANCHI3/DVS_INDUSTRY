@@ -19,6 +19,7 @@ import { EmployeeDialog, type EmployeeDialogMode } from "./workforce/EmployeeDia
 import { RemoveWorkerDialog } from "./workforce/RemoveWorkerDialog";
 import { InlineNotice, Pager, filterStyle } from "./workforce/formControls";
 import { DemoTag, isDemoEmployee } from "./production/DemoData";
+import { formatINR } from "../../../lib/format";
 
 const PAGE_SIZE = 25;
 
@@ -179,7 +180,7 @@ export function WorkforceManagement({ addRequest = 0, onAddHandled }: { addReque
       efficiency: perfUnavailable || outputs.loading || !o ? perfCell(null)
         : <span style={{ fontWeight: 700, color: efficiencyColor(eff) }} title={eff === null ? "Expected parts missing or 0" : undefined}>{formatEfficiency(eff)}</span>,
       ops: perfCell(o?.operationsCount),
-      wage: e.dailyWageRate ? `₹${Number(e.dailyWageRate).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : <span style={{ color: "#9A8A88" }}>Not set</span>,
+      wage: e.dailyWageRate ? formatINR(e.dailyWageRate, 2) : <span style={{ color: "#9A8A88" }}>Not set</span>,
       actions: (
         <div className="flex gap-1.5">
           <button type="button" aria-label={`View ${fullName(e)}`} title="View employee" onClick={() => setDialog({ mode: "view", employee: e })} className="p-2 rounded" style={{ background: "#F5F0EF", color: "#4E342E", border: "none", cursor: "pointer" }}>
