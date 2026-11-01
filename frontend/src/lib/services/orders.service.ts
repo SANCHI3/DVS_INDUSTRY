@@ -95,6 +95,10 @@ export interface ClientOrderDto {
   deliveryDate: string | null;
   approvedAt?: string | null;
   productionStartedAt?: string | null;
+  /** Parts Master entry, when the order was made for a known part */
+  partSpecId?:  number | null;
+  /** Linked work orders: how many, and how many are completed */
+  workOrderProgress?: { total: number; completed: number };
   status:       ClientOrderStatus;
   notes:        string | null;
   dispatchNote: string | null;
@@ -175,6 +179,10 @@ export interface PurchaseOrderDto {
   dispatchDate?:    string | null;
   dispatchedAt?:    string | null;
   supplierNote?:    string | null;
+  /** Stock material this PO fills; receiving it adds to stock */
+  materialId?:      number | null;
+  quantityValue?:   string | null;
+  receivedQty?:     string;
   status:           PurchaseOrderStatus;
   notes:            string | null;
   createdAt:        string;
@@ -203,8 +211,12 @@ export async function confirmPurchaseOrder(id: number): Promise<PurchaseOrderDto
   return unwrap(res);
 }
 
-export async function deliverPurchaseOrder(id: number): Promise<PurchaseOrderDto> {
-  const res = await api.patch<{ success: true; data: PurchaseOrderDto }>(`/orders/purchase-orders/${id}/deliver`, {});
+/** Receives a PO. With a stock material, `receivedQty` goes into stock (default: all that is due). */
+export async function deliverPurchaseOrder(id: number, receivedQty?: number): Promise<PurchaseOrderDto> {
+  const res = await api.patch<{ success: true; data: PurchaseOrderDto }>(
+    `/orders/purchase-orders/${id}/deliver`,
+    receivedQty === undefined ? {} : { receivedQty },
+  );
   return unwrap(res);
 }
 

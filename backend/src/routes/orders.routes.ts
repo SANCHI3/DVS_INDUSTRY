@@ -22,6 +22,7 @@ import {
   updatePurchaseOrderSchema,
   purchaseOrderIdParamSchema,
   supplierPurchaseOrderActionSchema,
+  receivePurchaseOrderSchema,
   purchaseOrderQuerySchema,
 } from '../validators/orders.validator';
 import { ROLES } from '../constants';
@@ -315,7 +316,7 @@ router.patch(
 router.patch(
   '/purchase-orders/:id/deliver',
   authorize(...STORE_WRITE),
-  validateRequest({ params: purchaseOrderIdParamSchema }),
+  validateRequest({ params: purchaseOrderIdParamSchema, body: receivePurchaseOrderSchema }),
   asyncHandler(OrdersController.deliverPurchaseOrder),
 );
 

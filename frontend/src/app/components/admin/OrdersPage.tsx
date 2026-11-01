@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast as showSonnerToast } from "sonner";
-import { BarChart3, Plus, Download, Eye, CheckCircle2, Truck } from "lucide-react";
+import { BarChart3, Plus, Download, Eye, CheckCircle2, Truck, PackageCheck } from "lucide-react";
 import { PageHeader, Card, CardHeader, KPICard, StatusBadge, Btn, DataTable, TabBar } from "../shared/UI";
 import { useERP } from "./ERPContext";
 import {
   getClientOrders, getPurchaseOrders, getOrderStats, getClients, getSuppliers,
   approveClientOrder, dispatchClientOrder, createClientOrder, createPurchaseOrder,
+  confirmPurchaseOrder, deliverPurchaseOrder,
   type OrderStatistics, type ClientDto, type SupplierDto,
 } from "../../../lib/services/orders.service";
 import { downloadCSV } from "../../../lib/csv";
@@ -15,10 +16,21 @@ import { canOpen, orderActions } from "../../../lib/permissions";
 import { daysOverdue, overdueFirst, overdueLabel } from "../../../lib/overdue";
 
 import {
-  parseMoney, parseQuantity, POModal, OrderDetailModal, DispatchModal, NewClientOrderModal, type ClientOrder, type SupplierOrder,
+  parseMoney, parseQuantity, POModal, OrderDetailModal, DispatchModal, NewClientOrderModal, ReceivePOModal, type ClientOrder, type SupplierOrder,
 } from "./orders/OrderModals";
+import { WorkOrderDialog, type WorkOrderSource } from "./production/WorkOrderDialogs";
+import { getDepartments } from "../../../lib/services/departments.service";
+import { getMaterials, getPartSpecs } from "../../../lib/services/inventory.service";
+import { useApiData } from "../../../lib/useApiData";
 import { formatINR } from "../../../lib/format";
 import { useTabHash } from "../../../lib/useTabHash";
+import { receivedText } from "../../../lib/materialUse";
+
+/** "1 of 2 done" for the work orders linked to a client order. */
+export function workOrderProgressText(p: { total: number; completed: number } | undefined): string {
+  if (!p || p.total === 0) return "No work order";
+  return p.completed === p.total ? `${p.total} done` : `${p.completed} of ${p.total} done`;
+}
 
 /** A due date, with "Overdue by N days" under it when it has passed. */
 function DueDate({ date, overdueDays }: { date: string; overdueDays: number }) {
@@ -56,6 +68,12 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
   const [showNewPO, setShowNewPO]           = useState(false);
   const [selectedOrder, setSelectedOrder]   = useState<ClientOrder | null>(null);
   const [dispatchOrder, setDispatchOrder]   = useState<ClientOrder | null>(null);
+  const [receivePO, setReceivePO]           = useState<SupplierOrder | null>(null);
+  const [workOrderFor, setWorkOrderFor]     = useState<WorkOrderSource | null>(null);
+  // Pickers: Parts Master for client orders, stock materials for POs, departments for work orders
+  const parts = useApiData(() => getPartSpecs(), [], "load the Parts Master", actions.createClientOrder);
+  const stockMaterials = useApiData(() => getMaterials({ pageSize: 100 }).then((r) => r.data), [], "load materials", actions.managePurchaseOrders);
+  const departments = useApiData(() => getDepartments({ pageSize: 100 }), [], "load departments", workOrderFor !== null);
   const { pendingPO, setPendingPO } = useERP();
 
   // ── Load real data ──────────────────────────────────────────────────────────
@@ -82,6 +100,8 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
           dispatch: o.dispatchDate ? new Date(o.dispatchDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : undefined,
           delivery: o.deliveryDate ? new Date(o.deliveryDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : undefined,
           overdueDays: daysOverdue(o.requiredDate, o.status),
+          partSpecId: o.partSpecId ?? null,
+          workOrders: o.workOrderProgress,
           _apiId: o.id,
         })))); else setOrdersError(true);
     if (poRes) setSupplierOrders(overdueFirst(poRes.data.map(p => ({
@@ -95,6 +115,10 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
           cost: p.totalCost ? formatINR(p.totalCost) : "—",
           status: p.status.toLowerCase().replace("_", "-"),
           overdueDays: daysOverdue(p.expectedDelivery, p.status),
+          materialId: p.materialId ?? null,
+          orderedQty: p.quantityValue ?? null,
+          receivedQty: p.receivedQty ?? "0",
+          unit: p.unit,
           _apiId: p.id,
         })))); else setOrdersError(true);
       if (statsRes) setApiStats(statsRes); else setStatsError(true);
@@ -139,6 +163,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
       quantity: o.qty,
       unit: "pcs",
       value: parseMoney(o.value) ?? null,
+      ...(o.partSpecId ? { partSpecId: o.partSpecId } : {}),
       requiredDate: o.requiredDate ? new Date(o.requiredDate).toISOString() : null,
     });
     await loadAll();
@@ -155,11 +180,32 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
       unit: parseQuantity(po.qty).unit,
       totalCost: parseMoney(po.cost) ?? null,
       expectedDelivery: po.expectedDel ? new Date(po.expectedDel).toISOString() : null,
+      ...(po.materialId ? { materialId: po.materialId } : {}),
       notes: null,
     });
     await loadAll();
     setPendingPO(null);
     showSonnerToast.success("Purchase order saved successfully.");
+  };
+
+  const handleConfirmPO = async (o: SupplierOrder) => {
+    try {
+      await confirmPurchaseOrder(o._apiId!);
+      await loadAll();
+      showSonnerToast.success(`${o.id} confirmed.`);
+    } catch (err) {
+      showSonnerToast.error(err instanceof Error ? err.message : "The purchase order could not be confirmed.");
+    }
+  };
+
+  const handleReceivePO = async (o: SupplierOrder, quantity: number | undefined) => {
+    const po = await deliverPurchaseOrder(o._apiId!, quantity);
+    await loadAll();
+    showSonnerToast.success(
+      o.materialId != null
+        ? `${quantity} ${o.unit ?? ""} of ${o.material} added to stock${po.status === "DELIVERED" ? `; ${o.id} is fully received.` : "."}`
+        : `${o.id} marked delivered.`,
+    );
   };
 
   const handleExport = () => {
@@ -175,14 +221,29 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
 
   return (
     <>
-    {showNewOrder && <NewClientOrderModal clients={clients} clientsLoading={clientsLoading} clientsError={clientsError} onClose={() => setShowNewOrder(false)} onSubmit={handleAddOrder} />}
-    {showNewPO && <POModal suppliers={suppliers} suppliersLoading={suppliersLoading} suppliersError={suppliersError} prefill={poPrefill} onClose={() => { setShowNewPO(false); setPendingPO(null); }} onSubmit={handleAddPO} />}
+    {showNewOrder && <NewClientOrderModal clients={clients} clientsLoading={clientsLoading} clientsError={clientsError} parts={parts.data ?? []} onClose={() => setShowNewOrder(false)} onSubmit={handleAddOrder} />}
+    {showNewPO && <POModal suppliers={suppliers} suppliersLoading={suppliersLoading} suppliersError={suppliersError} materials={stockMaterials.data ?? []} prefill={poPrefill} onClose={() => { setShowNewPO(false); setPendingPO(null); }} onSubmit={handleAddPO} />}
+    {receivePO && <ReceivePOModal order={receivePO} onClose={() => setReceivePO(null)} onReceive={(q) => handleReceivePO(receivePO, q)} />}
+    {workOrderFor && (
+      <WorkOrderDialog
+        departments={departments.data ?? []}
+        from={workOrderFor}
+        onClose={() => setWorkOrderFor(null)}
+        onSaved={(wo) => { showSonnerToast.success(`${wo.workOrderNumber} created for ${workOrderFor.orderNumber}.`); setWorkOrderFor(null); void loadAll(); }}
+      />
+    )}
     {selectedOrder && !dispatchOrder && (
       <OrderDetailModal
         order={selectedOrder}
         onClose={() => setSelectedOrder(null)}
         {...(actions.approveClientOrder && { onApprove: () => handleApprove(selectedOrder.id) })}
         {...(actions.dispatchClientOrder && { onDispatch: () => { setDispatchOrder(selectedOrder); setSelectedOrder(null); } })}
+        {...(actions.createWorkOrder && selectedOrder._apiId !== undefined && {
+          onCreateWorkOrder: () => setWorkOrderFor({
+            clientOrderId: selectedOrder._apiId!, orderNumber: selectedOrder.id, product: selectedOrder.product,
+            quantity: selectedOrder.qty, partSpecId: selectedOrder.partSpecId ?? null,
+          }),
+        })}
       />
     )}
     {dispatchOrder && (
@@ -245,6 +306,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
                 { key: "orderDate", label: "Order Date" },
                 { key: "requiredDate", label: "Required By" },
                 { key: "value", label: "Value" },
+                { key: "production", label: "Work Orders" },
                 { key: "status", label: "Status" },
                 { key: "actions", label: "Actions" },
               ]}
@@ -256,6 +318,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
                 orderDate: o.orderDate,
                 requiredDate: <DueDate date={o.requiredDate} overdueDays={o.overdueDays ?? 0} />,
                 value: <span style={{ fontWeight: 600, color: "#1C1C1C" }}>{o.value}</span>,
+                production: <span style={{ fontSize: "0.775rem", color: o.workOrders && o.workOrders.total > 0 && o.workOrders.completed === o.workOrders.total ? "#2E7D32" : "#7A6C6A" }}>{workOrderProgressText(o.workOrders)}</span>,
                 status: <StatusBadge status={o.status} label={o.status.replace("-", " ")} />,
                 actions: (
                   <div className="flex gap-1.5">
@@ -292,6 +355,7 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
                 { key: "actualDel", label: "Actual Del." },
                 { key: "cost", label: "Total Cost" },
                 { key: "status", label: "Status" },
+                ...(actions.managePurchaseOrders ? [{ key: "actions", label: "Actions" }] : []),
               ]}
               searchable
               paginate={8}
@@ -301,12 +365,24 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
                 id: <span style={{ fontSize: "0.775rem", fontFamily: "JetBrains Mono, monospace", color: "#4E342E", fontWeight: 600 }}>{o.id}</span>,
                 supplier: <span style={{ fontWeight: 500 }}>{o.supplier}</span>,
                 material: o.material,
-                qty: o.qty,
+                qty: o.materialId != null && Number(o.receivedQty ?? 0) > 0 && o.status !== "delivered"
+                  ? <span className="flex flex-col"><span>{o.qty}</span><span style={{ fontSize: "0.7rem", color: "#7A6C6A" }}>{receivedText(o.orderedQty ?? null, o.receivedQty, o.unit ?? null)}</span></span>
+                  : o.qty,
                 orderDate: o.orderDate,
                 expectedDel: <DueDate date={o.expectedDel} overdueDays={o.overdueDays ?? 0} />,
                 actualDel: <span style={{ color: o.actualDel === "–" ? "#9A8A88" : "#2E7D32" }}>{o.actualDel}</span>,
                 cost: <span style={{ fontWeight: 600 }}>{o.cost}</span>,
                 status: <StatusBadge status={o.status} label={o.status.replace("-", " ")} />,
+                actions: (
+                  <div className="flex gap-1.5">
+                    {o.status === "pending" && (
+                      <button onClick={() => void handleConfirmPO(o)} title="Confirm purchase order" aria-label={`Confirm ${o.id}`} className="p-1.5 rounded" style={{ background: "#E8F5E9", color: "#2E7D32" }}><CheckCircle2 size={12} /></button>
+                    )}
+                    {(o.status === "confirmed" || o.status === "in-transit") && (
+                      <button onClick={() => setReceivePO(o)} title="Receive delivery" aria-label={`Receive ${o.id}`} className="p-1.5 rounded" style={{ background: "#E3F2FD", color: "#1565C0" }}><PackageCheck size={12} /></button>
+                    )}
+                  </div>
+                ),
               }))}
             />
           </Card>

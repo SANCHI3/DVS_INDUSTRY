@@ -78,6 +78,13 @@ describe('actions', () => {
     expect(sales.dispatchClientOrder).toBe(false);
   });
 
+  it('lets only Admin and Production make work orders from a client order', () => {
+    expect(orderActions('ADMIN').createWorkOrder).toBe(true);
+    expect(orderActions('PRODUCTION').createWorkOrder).toBe(true);
+    expect(orderActions('MANAGER').createWorkOrder).toBe(false);
+    expect(orderActions('SALES').createWorkOrder).toBe(false);
+  });
+
   it('lets Store run purchase orders and dispatch, not approve', () => {
     const store = orderActions('STORE');
     expect(store.managePurchaseOrders).toBe(true);

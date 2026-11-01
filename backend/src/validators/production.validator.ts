@@ -42,6 +42,9 @@ export const createWorkOrderSchema = z
     assignedToId: z.coerce.number().int().positive().optional().nullable(),
     assignedToName: z.string().max(150).trim().optional().nullable(),
     clientOrderId: z.coerce.number().int().positive().optional().nullable(),
+    partSpecId: z.coerce.number().int().positive().optional().nullable(),
+    materialId: z.coerce.number().int().positive().optional().nullable(),
+    deductMaterial: z.boolean().optional(),
     notes: z.string().max(1000).trim().optional().nullable(),
   })
   .refine(
@@ -65,6 +68,9 @@ export const updateWorkOrderSchema = z
     assignedToId: z.coerce.number().int().positive().optional().nullable(),
     assignedToName: z.string().max(150).trim().optional().nullable(),
     clientOrderId: z.coerce.number().int().positive().optional().nullable(),
+    partSpecId: z.coerce.number().int().positive().optional().nullable(),
+    materialId: z.coerce.number().int().positive().optional().nullable(),
+    deductMaterial: z.boolean().optional(),
     notes: z.string().max(1000).trim().optional().nullable(),
   })
   .refine((d) => Object.values(d).some((v) => v !== undefined), {

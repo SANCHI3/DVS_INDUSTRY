@@ -308,8 +308,10 @@ model Material {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  transactions StockTransaction[]
-  scrapRecords ScrapRecord[]
+  transactions   StockTransaction[]
+  scrapRecords   ScrapRecord[]
+  purchaseOrders PurchaseOrder[]    @relation("PurchaseOrderMaterial")
+  workOrders     WorkOrder[]
 
   @@index([code])
   @@index([isActive])
@@ -381,6 +383,9 @@ model PartSpec {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  clientOrders ClientOrder[]
+  workOrders   WorkOrder[]
 
   @@index([rmGrade])
 }
@@ -486,6 +491,10 @@ model ClientOrder {
   dispatchDate DateTime?
   deliveryDate DateTime?
 
+  // The part from the Parts Master (product text stays for older rows)
+  partSpecId Int?
+  partSpec   PartSpec? @relation(fields: [partSpecId], references: [id], onDelete: SetNull)
+
   // Timeline for the client portal
   approvedAt          DateTime?
   productionStartedAt DateTime?
@@ -513,11 +522,17 @@ model PurchaseOrder {
   supplierId Int
   supplier   Supplier @relation(fields: [supplierId], references: [id])
 
-  material  String
-  quantity  String // e.g. "500 kg"
-  unit      String?
-  totalCost Decimal? @db.Decimal(14, 2)
-  currency  String   @default("INR")
+  material String
+  quantity String // e.g. "500 kg" (kept for older rows)
+  unit     String?
+
+  // The stock material this PO buys; receiving it adds to stock
+  materialId    Int?
+  stockMaterial Material? @relation("PurchaseOrderMaterial", fields: [materialId], references: [id], onDelete: SetNull)
+  quantityValue Decimal?  @db.Decimal(12, 3) // ordered amount in the material's unit
+  receivedQty   Decimal   @default(0) @db.Decimal(12, 3) // received so far (partial receipts)
+  totalCost     Decimal?  @db.Decimal(14, 2)
+  currency      String    @default("INR")
 
   orderDate        DateTime  @default(now())
   expectedDelivery DateTime?
@@ -540,6 +555,7 @@ model PurchaseOrder {
   @@index([status])
   @@index([orderDate])
   @@index([poNumber])
+  @@index([materialId])
 }
 
 // ───────────────────────────────────────────────────────────────
@@ -571,6 +587,13 @@ model WorkOrder {
   assignedToId   Int? // Employee (supervisor)
   assignedToName String?
   clientOrderId  Int? // Optional link to a ClientOrder
+
+  // Optional: deduct raw material from stock when output is recorded
+  partSpecId     Int?
+  partSpec       PartSpec? @relation(fields: [partSpecId], references: [id], onDelete: SetNull)
+  materialId     Int?
+  material       Material? @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  deductMaterial Boolean   @default(false)
 
   notes String?
 
@@ -605,6 +628,9 @@ model WorkOrderOutput {
   recordedByName String?
 
   remarks String?
+
+  // Raw material taken out of stock for this output (Deduct raw material)
+  materialIssued Decimal @default(0) @db.Decimal(12, 3)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

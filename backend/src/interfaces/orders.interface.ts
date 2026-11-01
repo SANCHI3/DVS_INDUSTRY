@@ -69,6 +69,9 @@ export interface ClientOrderDto {
   deliveryDate: Date | null;
   approvedAt: Date | null;
   productionStartedAt: Date | null;
+  partSpecId: number | null;
+  /** Linked work orders (list view): how many, and how many are completed */
+  workOrderProgress?: { total: number; completed: number };
   status: ClientOrderStatus;
   notes: string | null;
   dispatchNote: string | null;
@@ -109,6 +112,9 @@ export interface PurchaseOrderDto {
   orderDate: Date;
   expectedDelivery: Date | null;
   actualDelivery: Date | null;
+  materialId: number | null; // stock material bought
+  quantityValue: string | null; // ordered amount in the material's unit
+  receivedQty: string; // received so far
   confirmedAt: Date | null; // supplier accepted it
   dispatchDate: Date | null; // planned, then actual, dispatch date
   dispatchedAt: Date | null;
@@ -282,6 +288,7 @@ export interface CreateClientOrderData {
   requiredDate?: Date | null | undefined;
   notes?: string | null | undefined;
   createdById?: number | null | undefined;
+  partSpecId?: number | null | undefined;
 }
 
 export interface UpdateClientOrderData {
@@ -291,6 +298,7 @@ export interface UpdateClientOrderData {
   value?: string | null | undefined;
   requiredDate?: Date | null | undefined;
   notes?: string | null | undefined;
+  partSpecId?: number | null | undefined;
 }
 
 export interface DispatchOrderData {
@@ -309,6 +317,8 @@ export interface CreatePurchaseOrderData {
   expectedDelivery?: Date | null | undefined;
   notes?: string | null | undefined;
   createdById?: number | null | undefined;
+  materialId?: number | null | undefined;
+  quantityValue?: string | null | undefined;
 }
 
 export interface UpdatePurchaseOrderData {
@@ -318,4 +328,6 @@ export interface UpdatePurchaseOrderData {
   totalCost?: string | null | undefined;
   expectedDelivery?: Date | null | undefined;
   notes?: string | null | undefined;
+  materialId?: number | null | undefined;
+  quantityValue?: string | null | undefined;
 }

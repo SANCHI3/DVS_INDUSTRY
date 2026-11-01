@@ -47,6 +47,9 @@ export async function createWorkOrder(req: AuthenticatedRequest, res: Response):
     assignedToId: body.assignedToId ?? null,
     assignedToName: body.assignedToName ?? null,
     clientOrderId: body.clientOrderId ?? null,
+    partSpecId: body.partSpecId ?? null,
+    materialId: body.materialId ?? null,
+    deductMaterial: body.deductMaterial ?? false,
     notes: body.notes ?? null,
     createdById: req.user?.id ?? null,
   };
@@ -107,6 +110,9 @@ export async function updateWorkOrder(req: Request, res: Response): Promise<void
   if (body.assignedToId !== undefined) data.assignedToId = body.assignedToId;
   if (body.assignedToName !== undefined) data.assignedToName = body.assignedToName;
   if (body.clientOrderId !== undefined) data.clientOrderId = body.clientOrderId;
+  if (body.partSpecId !== undefined) data.partSpecId = body.partSpecId;
+  if (body.materialId !== undefined) data.materialId = body.materialId;
+  if (body.deductMaterial !== undefined) data.deductMaterial = body.deductMaterial;
   if (body.notes !== undefined) data.notes = body.notes;
 
   sendSuccess(res, await svc.updateWorkOrder(id, data), 200, 'Work order updated successfully');

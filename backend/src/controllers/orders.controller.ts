@@ -28,7 +28,10 @@ import type {
   UpdateClientOrderData,
   UpdatePurchaseOrderData,
 } from '../interfaces';
-import type { SupplierPurchaseOrderActionInput } from '../validators/orders.validator';
+import type {
+  ReceivePurchaseOrderInput,
+  SupplierPurchaseOrderActionInput,
+} from '../validators/orders.validator';
 
 const svc = new OrdersService();
 
@@ -273,6 +276,8 @@ export async function createClientOrder(req: AuthenticatedRequest, res: Response
     currency: body.currency,
     requiredDate: body.requiredDate ?? null,
     notes: body.notes ?? null,
+    // Portal clients order by description; DVS staff can pick the part
+    ...(!isClientRequest(req) && body.partSpecId != null && { partSpecId: body.partSpecId }),
     createdById: req.user?.id ?? null,
   });
   sendCreated(res, order, 'Client order created successfully');
@@ -323,6 +328,7 @@ export async function updateClientOrder(req: AuthenticatedRequest, res: Response
   if (body.value !== undefined) data.value = body.value;
   if (body.requiredDate !== undefined) data.requiredDate = body.requiredDate;
   if (body.notes !== undefined) data.notes = body.notes;
+  if (body.partSpecId !== undefined && !isClientRequest(req)) data.partSpecId = body.partSpecId;
 
   sendSuccess(res, await svc.updateClientOrder(id, data), 200, 'Order updated');
 }
@@ -382,6 +388,7 @@ export async function createPurchaseOrder(req: AuthenticatedRequest, res: Respon
     currency: body.currency,
     expectedDelivery: body.expectedDelivery ?? null,
     notes: body.notes ?? null,
+    materialId: body.materialId ?? null,
     createdById: req.user?.id ?? null,
   });
   sendCreated(res, po, 'Purchase order created successfully');
@@ -437,6 +444,7 @@ export async function updatePurchaseOrder(req: Request, res: Response): Promise<
   if (body.totalCost !== undefined) data.totalCost = body.totalCost;
   if (body.expectedDelivery !== undefined) data.expectedDelivery = body.expectedDelivery;
   if (body.notes !== undefined) data.notes = body.notes;
+  if (body.materialId !== undefined) data.materialId = body.materialId;
 
   sendSuccess(
     res,
@@ -464,12 +472,20 @@ export async function markPOInTransit(req: Request, res: Response): Promise<void
   );
 }
 
-export async function deliverPurchaseOrder(req: Request, res: Response): Promise<void> {
+export async function deliverPurchaseOrder(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const body = (req.body ?? {}) as ReceivePurchaseOrderInput;
+  const po = await svc.deliverPurchaseOrder(parseId(req.params['id']), body.receivedQty, {
+    id: req.user?.id ?? null,
+    name: req.user?.fullName ?? null,
+  });
   sendSuccess(
     res,
-    await svc.deliverPurchaseOrder(parseId(req.params['id'])),
+    po,
     200,
-    'Purchase order delivered',
+    po.status === 'DELIVERED' ? 'Purchase order delivered' : 'Part of the order received',
   );
 }
 

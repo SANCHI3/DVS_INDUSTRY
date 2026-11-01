@@ -172,7 +172,8 @@ export function stockDelta(type: StockTransactionType, quantity: string): Prisma
   return qty.negated(); // OUT, SCRAP, RETURN (to supplier) deduct stock
 }
 
-async function applyStockMovement(tx: Prisma.TransactionClient, data: StockAdjustmentData) {
+/** Moves stock for one material inside a transaction (row locked); used by POs and output too. */
+export async function applyStockMovement(tx: Prisma.TransactionClient, data: StockAdjustmentData) {
   const rows = await tx.$queryRaw<{ currentStock: string; unit: string; deletedAt: Date | null }[]>`
     SELECT "currentStock"::text AS "currentStock", "unit", "deletedAt"
       FROM "Material"

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, Truck, AlertCircle } from "lucide-react";
+import { CheckCircle2, Truck, AlertCircle, Factory, PackageCheck } from "lucide-react";
 import { type ClientDto, type SupplierDto } from "../../../../lib/services/orders.service";
 import { Modal } from "../../shared/Modal";
 import { isApiError } from "../../../../lib/api";
@@ -7,6 +7,8 @@ import { formatINR } from "../../../../lib/format";
 import { useApiData } from "../../../../lib/useApiData";
 import { getClientOrderDetail } from "../../../../lib/services/orders.service";
 import { dispatchReadiness } from "../../../../lib/dispatchReadiness";
+import type { MaterialDto, PartSpecDto } from "../../../../lib/services/inventory.service";
+import { quantityDue, receivedText } from "../../../../lib/materialUse";
 
 /* ── Types ── */
 export interface ClientOrder {
@@ -17,6 +19,10 @@ export interface ClientOrder {
   dispatch?: string; delivery?: string;
   /** Days past the required-by date (0 = on time). */
   overdueDays?: number;
+  /** Parts Master entry the order is for */
+  partSpecId?: number | null;
+  /** Linked work orders: how many, and how many are completed */
+  workOrders?: { total: number; completed: number };
   _apiId?: number;
 }
 export interface SupplierOrder {
@@ -24,6 +30,12 @@ export interface SupplierOrder {
   orderDate: string; expectedDel: string; actualDel: string; cost: string; status: string;
   /** Days past the expected delivery (0 = on time). */
   overdueDays?: number;
+  /** Stock material this PO fills (receiving it adds to stock) */
+  materialId?: number | null;
+  /** Ordered and received so far, as numbers in the material's unit */
+  orderedQty?: string | null;
+  receivedQty?: string;
+  unit?: string | null;
   _apiId?: number;
 }
 
@@ -59,9 +71,11 @@ export function parseQuantity(value: string): { quantity: string; unit: string |
 }
 
 /* ── PO Creation Modal ── */
-export function POModal({ prefill, suppliers, suppliersLoading, suppliersError, onClose, onSubmit }: {
+export function POModal({ prefill, suppliers, suppliersLoading, suppliersError, materials = [], onClose, onSubmit }: {
   prefill?: { material: string; qty: number; cost: number; supplier: string };
   suppliers: SupplierDto[];
+  /** Stock materials; choosing one makes the delivery add to stock */
+  materials?: MaterialDto[];
   suppliersLoading: boolean;
   suppliersError: boolean;
   onClose: () => void;
@@ -69,6 +83,7 @@ export function POModal({ prefill, suppliers, suppliersLoading, suppliersError, 
 }) {
   const [form, setForm] = useState({
     supplier: prefill?.supplier || suppliers[0]?.name || "",
+    materialId: String(materials.find((m) => prefill && m.name === prefill.material)?.id ?? ""),
     material: prefill?.material || "",
     qty: prefill?.qty ? `${prefill.qty} kg` : "",
     cost: prefill?.cost ? formatINR((prefill.qty || 0) * prefill.cost, 2) : "",
@@ -119,9 +134,24 @@ export function POModal({ prefill, suppliers, suppliersLoading, suppliersError, 
             ))}
           </div>
         </div>
+        <div>
+          <label htmlFor="po-stock-material" style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.3rem" }}>Stock material</label>
+          <select id="po-stock-material" value={form.materialId}
+            onChange={(e) => {
+              const m = materials.find((x) => String(x.id) === e.target.value);
+              setForm((p) => ({ ...p, materialId: e.target.value, ...(m && { material: m.name, qty: `${parseQuantity(p.qty).quantity || ""} ${m.unit}`.trim() }) }));
+            }}
+            style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #D4BFBB", borderRadius: "0.375rem", fontSize: "0.8375rem", background: "#fff" }}>
+            <option value="">Not a stock item</option>
+            {materials.filter((m) => m.isActive).map((m) => <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>)}
+          </select>
+          <p style={{ fontSize: "0.72rem", color: "#7A6C6A", marginTop: "0.25rem" }}>
+            {form.materialId ? "When this PO is received, the quantity is added to stock." : "Choose the stock material so the delivery is added to stock."}
+          </p>
+        </div>
         {[
           { label: "Material *", key: "material", placeholder: "e.g. Steel Sheet 2mm" },
-          { label: "Quantity *", key: "qty", placeholder: "e.g. 500 kg" },
+          { label: "Quantity *", key: "qty", placeholder: form.materialId ? `e.g. 500 ${materials.find((m) => String(m.id) === form.materialId)?.unit ?? ""}`.trim() : "e.g. 500 kg" },
           { label: "Total Cost (₹)", key: "cost", placeholder: "e.g. ₹36,000" },
           { label: "Expected Delivery *", key: "expectedDel", placeholder: "", type: "date" },
         ].map((f) => (
@@ -143,7 +173,7 @@ export function POModal({ prefill, suppliers, suppliersLoading, suppliersError, 
             setSaving(true);
             setError("");
             try {
-              await onSubmit({ supplier: form.supplier, material: form.material, qty: form.qty, cost: form.cost || "–", expectedDel: form.expectedDel, status: "pending" });
+              await onSubmit({ supplier: form.supplier, material: form.material, qty: form.qty, cost: form.cost || "–", expectedDel: form.expectedDel, status: "pending", materialId: form.materialId ? Number(form.materialId) : null });
               setSubmitted(true);
             } catch (err) {
               setError(saveError(err, "Purchase order could not be saved."));
@@ -160,9 +190,11 @@ export function POModal({ prefill, suppliers, suppliersLoading, suppliersError, 
 }
 
 /* ── Order Detail Modal ── */
-export function OrderDetailModal({ order, onClose, onApprove, onDispatch }: {
+export function OrderDetailModal({ order, onClose, onApprove, onDispatch, onCreateWorkOrder }: {
   order: ClientOrder; onClose: () => void;
   onApprove?: () => void; onDispatch?: () => void;
+  /** Make a work order for this (approved) order */
+  onCreateWorkOrder?: () => void;
 }) {
   const canDispatch = order.status === "approved";
   // Readiness comes from the work orders linked to this order
@@ -219,6 +251,11 @@ export function OrderDetailModal({ order, onClose, onApprove, onDispatch }: {
           {order.status === "pending" && onApprove && (
             <button onClick={() => { onApprove(); onClose(); }} style={{ flex: 1, padding: "0.625rem", border: "none", borderRadius: "0.5rem", background: "#2E7D32", color: "#fff", cursor: "pointer", fontSize: "0.875rem", fontWeight: 600 }}>
               Approve Order
+            </button>
+          )}
+          {showReadiness && onCreateWorkOrder && (
+            <button onClick={() => { onCreateWorkOrder(); onClose(); }} style={{ flex: 1, padding: "0.625rem", border: "1px solid #A52A2A", borderRadius: "0.5rem", background: "#fff", color: "#A52A2A", cursor: "pointer", fontSize: "0.875rem", fontWeight: 600 }}>
+              <Factory size={14} style={{ display: "inline", marginRight: "0.35rem" }} />Create Work Order
             </button>
           )}
           {canDispatch && onDispatch && (
@@ -294,9 +331,75 @@ export function DispatchModal({ order, onClose, onConfirm }: { order: ClientOrde
   );
 }
 
+/* ── Receive Purchase Order ── */
+export function ReceivePOModal({ order, onClose, onReceive }: {
+  order: SupplierOrder;
+  onClose: () => void;
+  /** `quantity` is undefined for POs that are not stock items */
+  onReceive: (quantity: number | undefined) => Promise<void>;
+}) {
+  const stock = order.materialId != null;
+  const due = quantityDue(order.orderedQty ?? null, order.receivedQty);
+  const [qty, setQty] = useState(due !== null ? String(due) : "");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const value = Number(qty);
+  const qtyError = stock && (qty.trim() === "" || !Number.isFinite(value) || value <= 0) ? "Enter the quantity received." : "";
+
+  const save = async () => {
+    if (qtyError || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onReceive(stock ? value : undefined);
+      onClose();
+    } catch (err) {
+      setError(saveError(err, "The receipt could not be saved."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal title={`Receive ${order.id}`} onClose={onClose}>
+      <div className="flex flex-col gap-3.5">
+        <p style={{ fontSize: "0.8375rem", color: "#4A4A4A" }}>
+          <strong>{order.material}</strong> from <strong>{order.supplier}</strong> · ordered {order.qty}
+        </p>
+        {stock ? (
+          <>
+            <p style={{ fontSize: "0.8rem", color: "#7A6C6A" }}>
+              {receivedText(order.orderedQty ?? null, order.receivedQty, order.unit ?? null)} so far. The quantity received now is added to stock;
+              the PO closes when everything has arrived.
+            </p>
+            <div>
+              <label htmlFor="receive-qty" style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.3rem" }}>
+                Quantity received now{order.unit ? ` (${order.unit})` : ""} *
+              </label>
+              <input id="receive-qty" type="number" inputMode="decimal" min={0} step="any" value={qty} onChange={(e) => setQty(e.target.value)}
+                aria-invalid={qtyError !== ""} aria-describedby="receive-qty-error"
+                style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #D4BFBB", borderRadius: "0.375rem", fontSize: "0.8375rem" }} />
+              {qtyError && <p id="receive-qty-error" role="alert" style={{ color: "#C0392B", fontSize: "0.75rem", marginTop: "0.25rem" }}>{qtyError}</p>}
+            </div>
+          </>
+        ) : (
+          <p style={{ fontSize: "0.8rem", color: "#7A6C6A" }}>This PO is not linked to a stock material, so stock does not change. It is marked delivered.</p>
+        )}
+        {error && <p role="alert" style={{ color: "#C0392B", fontSize: "0.8rem" }}>{error}</p>}
+        <div className="flex gap-2 mt-1">
+          <button onClick={onClose} style={{ flex: 1, padding: "0.625rem", border: "1px solid #E8E2E0", borderRadius: "0.5rem", background: "#fff", cursor: "pointer" }}>Cancel</button>
+          <button disabled={!!qtyError || saving} onClick={() => void save()} style={{ flex: 2, padding: "0.625rem", border: "none", borderRadius: "0.5rem", background: qtyError ? "#D4BFBB" : "#2E7D32", color: "#fff", cursor: qtyError ? "not-allowed" : "pointer", fontWeight: 600 }}>
+            <PackageCheck size={14} style={{ display: "inline", marginRight: "0.35rem" }} />{saving ? "Saving..." : "Confirm Receipt"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /* ── New Client Order Modal ── */
-export function NewClientOrderModal({ clients, clientsLoading, clientsError, onClose, onSubmit }: { clients: ClientDto[]; clientsLoading: boolean; clientsError: boolean; onClose: () => void; onSubmit: (o: ClientOrder) => Promise<void> }) {
-  const [form, setForm] = useState({ clientId: "", product: "", qty: "", requiredDate: "", value: "" });
+export function NewClientOrderModal({ clients, clientsLoading, clientsError, parts = [], onClose, onSubmit }: { clients: ClientDto[]; clientsLoading: boolean; clientsError: boolean; parts?: PartSpecDto[]; onClose: () => void; onSubmit: (o: ClientOrder) => Promise<void> }) {
+  const [form, setForm] = useState({ clientId: "", partSpecId: "", product: "", qty: "", requiredDate: "", value: "" });
   const chosen = clients.find((c) => String(c.id) === form.clientId);
   const [done, setDone] = useState(false);
   const [error, setError] = useState("");
@@ -335,6 +438,20 @@ export function NewClientOrderModal({ clients, clientsLoading, clientsError, onC
             {clients.filter((c) => c.isActive).map((c) => <option key={c.id} value={c.id}>{c.name}{c.code ? ` (${c.code})` : ""}</option>)}
           </select>
         </div>
+        {parts.length > 0 && (
+          <div>
+            <label htmlFor="new-order-part" style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.3rem" }}>Part (Parts Master)</label>
+            <select id="new-order-part" value={form.partSpecId}
+              onChange={(e) => {
+                const part = parts.find((x) => String(x.id) === e.target.value);
+                setForm((p) => ({ ...p, partSpecId: e.target.value, ...(part && { product: part.partNumber }) }));
+              }}
+              style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #D4BFBB", borderRadius: "0.375rem", fontSize: "0.8375rem", background: "#fff" }}>
+              <option value="">Not in the Parts Master (type the product below)</option>
+              {parts.map((x) => <option key={x.id} value={x.id}>{x.partNumber} · {x.rmGrade} {x.thicknessMm} mm</option>)}
+            </select>
+          </div>
+        )}
         {[
           { label: "Product / Part *", key: "product", placeholder: "e.g. Steel Frames 2mm" },
           { label: "Quantity (pcs) *", key: "qty", placeholder: "e.g. 500", type: "number" },
@@ -359,7 +476,7 @@ export function NewClientOrderModal({ clients, clientsLoading, clientsError, onC
             setSaving(true);
             setError("");
             try {
-              await onSubmit({ id: "", client: chosen!.name, clientId: chosen!.id, product: form.product, qty: parseInt(form.qty), orderDate: dateStr, requiredDate: form.requiredDate, status: "pending", value: form.value || "–" });
+              await onSubmit({ id: "", client: chosen!.name, clientId: chosen!.id, product: form.product, qty: parseInt(form.qty), orderDate: dateStr, requiredDate: form.requiredDate, status: "pending", value: form.value || "–", partSpecId: form.partSpecId ? Number(form.partSpecId) : null });
               setDone(true);
             } catch (err) {
               setError(saveError(err, "Client order could not be saved."));

@@ -119,6 +119,8 @@ export function orderActions(role: string | null | undefined) {
     approveClientOrder: is(role, "ADMIN", "MANAGER", "SALES"),
     cancelClientOrder: is(role, "ADMIN", "MANAGER", "SALES"),
     startProduction: is(role, "ADMIN", "MANAGER", "PRODUCTION"),
+    /** production.routes PROD_WRITE */
+    createWorkOrder: is(role, "ADMIN", "PRODUCTION"),
     dispatchClientOrder: is(role, "ADMIN", "MANAGER", "STORE"),
     deliverClientOrder: is(role, "ADMIN", "MANAGER", "STORE"),
     managePurchaseOrders: is(role, "ADMIN", "MANAGER", "STORE"),

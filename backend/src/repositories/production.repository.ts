@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prismaClient';
+import { applyStockMovement } from './inventory.repository';
 import { nextDocumentNumber, withUniqueNumberRetry } from '../utils/documentNumber';
 import type {
   WorkOrderDto,
@@ -43,6 +44,9 @@ const workOrderSelect = {
   assignedToId: true,
   assignedToName: true,
   clientOrderId: true,
+  partSpecId: true,
+  materialId: true,
+  deductMaterial: true,
   notes: true,
   createdById: true,
   createdAt: true,
@@ -75,6 +79,9 @@ const workOrderListSelect = {
   assignedToId: true,
   assignedToName: true,
   clientOrderId: true,
+  partSpecId: true,
+  materialId: true,
+  deductMaterial: true,
   notes: true,
   createdById: true,
   createdAt: true,
@@ -100,6 +107,7 @@ const outputSelect = {
   recordedById: true,
   recordedByName: true,
   remarks: true,
+  materialIssued: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -155,6 +163,9 @@ function toWorkOrderDto(r: PrismaWorkOrder): WorkOrderDto {
     assignedToId: r.assignedToId,
     assignedToName: r.assignedToName,
     clientOrderId: r.clientOrderId,
+    partSpecId: r.partSpecId,
+    materialId: r.materialId,
+    deductMaterial: r.deductMaterial,
     notes: r.notes,
     createdById: r.createdById,
     createdAt: r.createdAt,
@@ -179,12 +190,21 @@ function toOutputDto(r: PrismaOutput): WorkOrderOutputDto {
     recordedById: r.recordedById,
     recordedByName: r.recordedByName,
     remarks: r.remarks,
+    materialIssued: r.materialIssued.toString(),
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** Raw material moved by an output entry (Deduct raw material). */
+export interface MaterialIssue {
+  materialId: number;
+  quantity: number;
+  referenceNo: string;
+  reason: string;
+}
 
 export class ProductionRepository {
   // ══ WORK ORDERS ══════════════════════════════════════════════════════════
@@ -206,6 +226,9 @@ export class ProductionRepository {
           assignedToId: data.assignedToId ?? null,
           assignedToName: data.assignedToName ?? null,
           clientOrderId: data.clientOrderId ?? null,
+          partSpecId: data.partSpecId ?? null,
+          materialId: data.materialId ?? null,
+          deductMaterial: data.deductMaterial ?? false,
           notes: data.notes ?? null,
           createdById: data.createdById ?? null,
         },
@@ -231,6 +254,15 @@ export class ProductionRepository {
     if (data.assignedToId !== undefined) up.assignedToId = data.assignedToId;
     if (data.assignedToName !== undefined) up.assignedToName = data.assignedToName;
     if (data.clientOrderId !== undefined) up.clientOrderId = data.clientOrderId;
+    if (data.partSpecId !== undefined) {
+      up.partSpec =
+        data.partSpecId === null ? { disconnect: true } : { connect: { id: data.partSpecId } };
+    }
+    if (data.materialId !== undefined) {
+      up.material =
+        data.materialId === null ? { disconnect: true } : { connect: { id: data.materialId } };
+    }
+    if (data.deductMaterial !== undefined) up.deductMaterial = data.deductMaterial;
     if (data.notes !== undefined) up.notes = data.notes;
 
     const raw = await prisma.workOrder.update({
@@ -331,7 +363,35 @@ export class ProductionRepository {
 
   // ══ OUTPUTS ══════════════════════════════════════════════════════════════
 
-  async createOutput(data: CreateOutputData): Promise<WorkOrderOutputDto> {
+  async createOutput(data: CreateOutputData, issue?: MaterialIssue): Promise<WorkOrderOutputDto> {
+    if (issue !== undefined && issue.quantity > 0) {
+      const raw = await prisma.$transaction(async (tx) => {
+        await applyStockMovement(tx, {
+          materialId: issue.materialId,
+          type: 'OUT',
+          quantity: issue.quantity.toFixed(3),
+          referenceNo: issue.referenceNo,
+          reason: issue.reason,
+          performedById: data.recordedById ?? null,
+          performedByName: data.recordedByName ?? null,
+        });
+        return tx.workOrderOutput.create({
+          data: {
+            workOrderId: data.workOrderId,
+            goodQty: data.goodQty,
+            rejectedQty: data.rejectedQty ?? '0',
+            scrapQty: data.scrapQty ?? '0',
+            recordedAt: data.recordedAt ?? new Date(),
+            recordedById: data.recordedById ?? null,
+            recordedByName: data.recordedByName ?? null,
+            remarks: data.remarks ?? null,
+            materialIssued: issue.quantity.toFixed(3),
+          },
+          select: outputSelect,
+        });
+      });
+      return toOutputDto(raw);
+    }
     const raw = await prisma.workOrderOutput.create({
       data: {
         workOrderId: data.workOrderId,
@@ -348,7 +408,11 @@ export class ProductionRepository {
     return toOutputDto(raw);
   }
 
-  async updateOutput(outputId: number, data: UpdateOutputData): Promise<WorkOrderOutputDto> {
+  async updateOutput(
+    outputId: number,
+    data: UpdateOutputData,
+    issue?: MaterialIssue & { previous: number },
+  ): Promise<WorkOrderOutputDto> {
     const up: Prisma.WorkOrderOutputUpdateInput = {};
     if (data.goodQty !== undefined) up.goodQty = data.goodQty;
     if (data.rejectedQty !== undefined) up.rejectedQty = data.rejectedQty;
@@ -356,6 +420,27 @@ export class ProductionRepository {
     if (data.recordedAt !== undefined) up.recordedAt = data.recordedAt;
     if (data.recordedByName !== undefined) up.recordedByName = data.recordedByName;
     if (data.remarks !== undefined) up.remarks = data.remarks;
+
+    const change =
+      issue === undefined ? 0 : Math.round((issue.quantity - issue.previous) * 1000) / 1000;
+    if (issue !== undefined && change !== 0) {
+      const raw = await prisma.$transaction(async (tx) => {
+        // More pieces take more material out; fewer give the difference back
+        await applyStockMovement(tx, {
+          materialId: issue.materialId,
+          type: change > 0 ? 'OUT' : 'ADJUSTMENT',
+          quantity: Math.abs(change).toFixed(3),
+          referenceNo: issue.referenceNo,
+          reason: change > 0 ? issue.reason : `${issue.reason} (output corrected)`,
+        });
+        return tx.workOrderOutput.update({
+          where: { id: outputId },
+          data: { ...up, materialIssued: issue.quantity.toFixed(3) },
+          select: outputSelect,
+        });
+      });
+      return toOutputDto(raw);
+    }
 
     const raw = await prisma.workOrderOutput.update({
       where: { id: outputId },
@@ -397,7 +482,20 @@ export class ProductionRepository {
     return { data: raws.map(toOutputDto), total };
   }
 
-  async deleteOutput(outputId: number): Promise<void> {
+  async deleteOutput(outputId: number, giveBack?: MaterialIssue): Promise<void> {
+    if (giveBack !== undefined && giveBack.quantity > 0) {
+      await prisma.$transaction(async (tx) => {
+        await applyStockMovement(tx, {
+          materialId: giveBack.materialId,
+          type: 'ADJUSTMENT',
+          quantity: giveBack.quantity.toFixed(3),
+          referenceNo: giveBack.referenceNo,
+          reason: giveBack.reason,
+        });
+        await tx.workOrderOutput.delete({ where: { id: outputId } });
+      });
+      return;
+    }
     await prisma.workOrderOutput.delete({ where: { id: outputId } });
   }
 

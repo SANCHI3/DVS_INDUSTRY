@@ -7,6 +7,9 @@ import {
   type WorkOrderStatus,
 } from "../../../../lib/services/production.service";
 import { localIsoDate } from "../../../../lib/workforce";
+import { getMaterials, getPartSpecs } from "../../../../lib/services/inventory.service";
+import { useApiData } from "../../../../lib/useApiData";
+import { DEDUCTION_UNIT_HELP, materialPerPiece } from "../../../../lib/materialUse";
 import { DialogFrame, Field, InlineNotice, PrimaryButton, SecondaryButton, inputStyle } from "../workforce/formControls";
 
 /** Mirrors ALLOWED_TRANSITIONS in backend/src/services/production.service.ts. */
@@ -43,10 +46,24 @@ export const CAN_DELETE = (s: WorkOrderStatus): boolean => s !== "COMPLETED";
 
 const day = (iso: string | null): string => (iso ? localIsoDate(new Date(iso)) : "");
 
-function initialForm(wo: WorkOrderDto | null) {
+/** A client order a new work order is made for (from the order's detail). */
+export interface WorkOrderSource {
+  clientOrderId: number;
+  orderNumber: string;
+  product: string;
+  quantity: number;
+  partSpecId: number | null;
+}
+
+const idText = (id: number | null | undefined): string => (id != null ? String(id) : "");
+
+function initialForm(wo: WorkOrderDto | null, from?: WorkOrderSource) {
   return {
-    product: wo?.product ?? "",
-    targetQuantity: wo ? String(Number(wo.targetQuantity)) : "",
+    product: wo?.product ?? from?.product ?? "",
+    targetQuantity: wo ? String(Number(wo.targetQuantity)) : from ? String(from.quantity) : "",
+    partSpecId: idText(wo ? wo.partSpecId : from?.partSpecId),
+    materialId: idText(wo?.materialId),
+    deductMaterial: wo?.deductMaterial ? "yes" : "",
     unit: wo?.unit ?? "pcs",
     priority: (wo?.priority ?? "NORMAL") as WorkOrderPriority,
     departmentId: wo?.departmentId != null ? String(wo.departmentId) : "",
@@ -57,14 +74,22 @@ function initialForm(wo: WorkOrderDto | null) {
 }
 
 /** Without `workOrder` it creates a Draft; with one it edits it (changed fields only). */
-export function WorkOrderDialog({ departments, workOrder = null, onClose, onSaved }: {
+export function WorkOrderDialog({ departments, workOrder = null, from, onClose, onSaved }: {
   departments: DepartmentDto[];
   workOrder?: WorkOrderDto | null;
+  /** Making the work order for this client order */
+  from?: WorkOrderSource;
   onClose: () => void;
   onSaved: (wo: WorkOrderDto) => void;
 }) {
   const editing = workOrder !== null;
-  const [f, setF] = useState(() => initialForm(workOrder));
+  const [f, setF] = useState(() => initialForm(workOrder, from));
+  const parts = useApiData(() => getPartSpecs(), [], "load the Parts Master");
+  const materials = useApiData(() => getMaterials({ pageSize: 100 }).then((r) => r.data), [], "load materials");
+  const part = parts.data?.find((p) => String(p.id) === f.partSpecId);
+  const material = materials.data?.find((m) => String(m.id) === f.materialId);
+  // Deduction needs a part whose yield matches the material's unit
+  const deductible = part !== undefined && material !== undefined && materialPerPiece(material.unit, part) !== null;
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,10 +118,13 @@ export function WorkOrderDialog({ departments, workOrder = null, onClose, onSave
       scheduledStart: f.scheduledStart || null,
       scheduledEnd: f.scheduledEnd || null,
       notes: f.notes.trim() || null,
+      partSpecId: f.partSpecId ? Number(f.partSpecId) : null,
+      materialId: f.materialId ? Number(f.materialId) : null,
+      deductMaterial: f.deductMaterial === "yes" && deductible,
     };
     try {
       if (workOrder === null) {
-        onSaved(await createWorkOrder(values));
+        onSaved(await createWorkOrder(from ? { ...values, clientOrderId: from.clientOrderId } : values));
         return;
       }
       // Send only what changed, so nothing else on the order is touched
@@ -106,6 +134,7 @@ export function WorkOrderDialog({ departments, workOrder = null, onClose, onSave
         const changed = k === "targetQuantity" ? Number(f[k]) !== Number(before[k]) : f[k].trim() !== before[k].trim();
         if (!changed) continue;
         if (k === "departmentId") { patch["departmentId"] = values["departmentId"]; patch["departmentName"] = values["departmentName"]; }
+        else if (k === "deductMaterial") { if (values["deductMaterial"] !== workOrder.deductMaterial) patch[k] = values[k]; }
         else patch[k] = values[k];
       }
       if (Object.keys(patch).length === 0) { onClose(); return; }
@@ -121,7 +150,7 @@ export function WorkOrderDialog({ departments, workOrder = null, onClose, onSave
     <DialogFrame
       width="max-w-xl"
       title={editing ? "Edit Work Order" : "New Work Order"}
-      subtitle={editing ? `${workOrder.workOrderNumber} · status and recorded output are not changed here` : "Created as a Draft. Release it to start recording output."}
+      subtitle={editing ? `${workOrder.workOrderNumber} · status and recorded output are not changed here` : from ? `For client order ${from.orderNumber}. Created as a Draft; the order moves to In Production.` : "Created as a Draft. Release it to start recording output."}
       onClose={onClose}
       footer={
         <>
@@ -138,6 +167,34 @@ export function WorkOrderDialog({ departments, workOrder = null, onClose, onSave
           <Field id="wo-product" label="Product" required error={errors.product}>
             <input id="wo-product" value={f.product} maxLength={200} onChange={(e) => set("product", e.target.value)} style={inputStyle} aria-invalid={!!errors.product} />
           </Field>
+        </div>
+        <Field id="wo-part" label="Part (Parts Master)" hint={parts.error ?? undefined}>
+          <select id="wo-part" value={f.partSpecId} disabled={parts.loading}
+            onChange={(e) => {
+              const chosen = parts.data?.find((p) => String(p.id) === e.target.value);
+              set("partSpecId", e.target.value);
+              if (chosen && !f.product.trim()) set("product", chosen.partNumber);
+            }} style={inputStyle}>
+            <option value="">{parts.loading ? "Loading parts…" : "Not linked"}</option>
+            {(parts.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.partNumber} · {p.rmGrade} {p.thicknessMm} mm</option>)}
+          </select>
+        </Field>
+        <Field id="wo-material" label="Raw material" hint={materials.error ?? undefined}>
+          <select id="wo-material" value={f.materialId} disabled={materials.loading} onChange={(e) => set("materialId", e.target.value)} style={inputStyle}>
+            <option value="">{materials.loading ? "Loading materials…" : "Not linked"}</option>
+            {(materials.data ?? []).filter((m) => m.isActive || String(m.id) === f.materialId).map((m) => <option key={m.id} value={m.id}>{m.name} ({m.unit})</option>)}
+          </select>
+        </Field>
+        <div className="sm:col-span-2">
+          <label className="flex items-start gap-2" style={{ fontSize: "0.8rem", color: deductible ? "#1C1C1C" : "#9A8A88" }}>
+            <input id="wo-deduct" type="checkbox" checked={f.deductMaterial === "yes" && deductible} disabled={!deductible}
+              onChange={(e) => set("deductMaterial", e.target.checked ? "yes" : "")} style={{ marginTop: 3 }} />
+            <span>
+              <strong>Deduct raw material</strong> from stock as output is recorded
+              {material && part && !deductible && <span className="block" style={{ fontSize: "0.72rem" }}>{DEDUCTION_UNIT_HELP}</span>}
+              {deductible && <span className="block" style={{ fontSize: "0.72rem", color: "#7A6C6A" }}>1 {material!.unit.replace(/s$/i, "")} per {material!.unit.toLowerCase().startsWith("sheet") ? part!.piecesPerSheet : part!.piecesPerStrip} pieces made (good, rejected and scrap).</span>}
+            </span>
+          </label>
         </div>
         <Field id="wo-target" label="Target quantity" required error={errors.targetQuantity}>
           <input id="wo-target" type="number" inputMode="decimal" min={0} step="any" value={f.targetQuantity} onChange={(e) => set("targetQuantity", e.target.value)} style={inputStyle} aria-invalid={!!errors.targetQuantity} />

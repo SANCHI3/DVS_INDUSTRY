@@ -26,6 +26,7 @@ import type {
 } from '../interfaces';
 import { ConflictError, NotFoundError, BadRequestError, ValidationError } from '../errors';
 import { logger } from '../logger';
+import { prisma } from '../lib/prismaClient';
 
 /**
  * OrdersService — business rules:
@@ -266,6 +267,7 @@ export class OrdersService {
       throw new BadRequestError('Cannot create order for an inactive client');
     }
     assertNotBeforeOrderDate(data.requiredDate, new Date(), 'requiredDate', 'Required-by date');
+    if (data.partSpecId) await this.assertPartExists(data.partSpecId);
     const order = await this.repo.createClientOrder(data);
     logger.info('Client order created', {
       id: order.id,
@@ -285,6 +287,7 @@ export class OrdersService {
       'requiredDate',
       'Required-by date',
     );
+    if (data.partSpecId) await this.assertPartExists(data.partSpecId);
     const updated = await this.repo.updateClientOrder(id, data);
     logger.info('Client order updated', { id });
     return updated;
@@ -326,6 +329,14 @@ export class OrdersService {
   async dispatchClientOrder(id: number, data: DispatchOrderData): Promise<ClientOrderDto> {
     const existing = await this.getClientOrderOrThrow(id);
     this.assertTransition(existing.status, 'DISPATCHED', ['APPROVED', 'IN_PRODUCTION']);
+    const open = (await this.repo.findLinkedWorkOrders(id)).filter(
+      (wo) => wo.status !== 'COMPLETED' && wo.status !== 'CANCELLED',
+    );
+    if (open.length > 0) {
+      throw new BadRequestError(
+        `Finish the linked work order${open.length === 1 ? '' : 's'} first: ${open.map((wo) => wo.workOrderNumber).join(', ')}`,
+      );
+    }
 
     // Auto-generate reference numbers if not supplied
     const challan = data.challanNumber ?? `DC-${Date.now().toString().slice(-6)}`;
@@ -385,7 +396,7 @@ export class OrdersService {
       'expectedDelivery',
       'Expected delivery',
     );
-    const po = await this.repo.createPurchaseOrder(data);
+    const po = await this.repo.createPurchaseOrder(await this.withStockMaterial(data));
     logger.info('Purchase order created', {
       id: po.id,
       poNumber: po.poNumber,
@@ -404,7 +415,7 @@ export class OrdersService {
       'expectedDelivery',
       'Expected delivery',
     );
-    const updated = await this.repo.updatePurchaseOrder(id, data);
+    const updated = await this.repo.updatePurchaseOrder(id, await this.withStockMaterial(data));
     logger.info('Purchase order updated', { id });
     return updated;
   }
@@ -467,6 +478,33 @@ export class OrdersService {
     return updated;
   }
 
+  /** A chosen stock material sets the PO's material name and unit; numeric quantities are stored as numbers. */
+  private async withStockMaterial<T extends UpdatePurchaseOrderData>(data: T): Promise<T> {
+    const out: T = { ...data };
+    if (data.quantity !== undefined) {
+      const n = data.quantity.trim();
+      out.quantityValue = /^\d+(\.\d+)?$/.test(n) ? n : null;
+    }
+    if (data.materialId) {
+      const material = await prisma.material.findFirst({
+        where: { id: data.materialId, deletedAt: null },
+        select: { name: true, unit: true },
+      });
+      if (material === null) throw new NotFoundError('Material not found');
+      out.material = material.name;
+      out.unit = material.unit;
+    }
+    return out;
+  }
+
+  private async assertPartExists(partSpecId: number): Promise<void> {
+    const part = await prisma.partSpec.findUnique({
+      where: { id: partSpecId },
+      select: { id: true },
+    });
+    if (part === null) throw new NotFoundError('Part not found in the Parts Master');
+  }
+
   /** A PO that belongs to this supplier; another supplier's PO is "not found". */
   private async getOwnPurchaseOrder(id: number, supplierId: number): Promise<PurchaseOrderDto> {
     const po = await this.getPurchaseOrderOrThrow(id);
@@ -482,9 +520,35 @@ export class OrdersService {
     return updated;
   }
 
-  async deliverPurchaseOrder(id: number): Promise<PurchaseOrderDto> {
+  async deliverPurchaseOrder(
+    id: number,
+    receivedQty?: number,
+    actor: { id: number | null; name: string | null } = { id: null, name: null },
+  ): Promise<PurchaseOrderDto> {
     const existing = await this.getPurchaseOrderOrThrow(id);
     this.assertPOTransition(existing.status, 'DELIVERED', ['CONFIRMED', 'IN_TRANSIT']);
+
+    // Linked to a stock material: the receipt goes into stock (partial receipts allowed)
+    if (existing.materialId !== null) {
+      const ordered = existing.quantityValue === null ? null : Number(existing.quantityValue);
+      const already = Number(existing.receivedQty);
+      const due = ordered === null ? null : Math.max(0, ordered - already);
+      const quantity = receivedQty ?? due;
+      if (quantity === null || quantity <= 0) {
+        throw new BadRequestError('Enter the quantity received');
+      }
+      const updated = await this.repo.receivePurchaseOrder(id, {
+        materialId: existing.materialId,
+        quantity,
+        fullyReceived: ordered === null || already + quantity >= ordered - 1e-9,
+        poNumber: existing.poNumber,
+        performedById: actor.id,
+        performedByName: actor.name,
+      });
+      logger.info('Purchase order received into stock', { id, quantity, status: updated.status });
+      return updated;
+    }
+
     const updated = await this.repo.updatePurchaseOrderStatus(id, 'DELIVERED', {
       actualDelivery: new Date(),
     });

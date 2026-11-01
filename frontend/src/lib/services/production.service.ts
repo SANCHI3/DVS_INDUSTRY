@@ -20,6 +20,10 @@ export interface WorkOrderDto {
   assignedToId:    number | null;
   assignedToName:  string | null;
   clientOrderId:   number | null;
+  partSpecId?:     number | null;
+  materialId?:     number | null;
+  /** Take raw material out of stock as output is recorded */
+  deductMaterial?: boolean;
   notes:           string | null;
   producedQty:     string;
   rejectedQty:     string;
@@ -39,6 +43,8 @@ export interface WorkOrderOutputDto {
   recordedAt:     string;
   recordedByName: string | null;
   remarks:        string | null;
+  /** Raw material taken out of stock for this entry */
+  materialIssued?: string;
 }
 
 export interface ProductionKPIs {

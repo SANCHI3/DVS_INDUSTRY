@@ -137,6 +137,8 @@ export const createClientOrderSchema = z.object({
   currency: z.string().length(3).toUpperCase().optional().default('INR'),
   requiredDate: z.coerce.date().optional().nullable(),
   notes: optStr(500),
+  // Part from the Parts Master; product text stays the description
+  partSpecId: z.coerce.number().int().positive().optional().nullable(),
 });
 
 export const updateClientOrderSchema = z
@@ -147,6 +149,7 @@ export const updateClientOrderSchema = z
     value: optCost,
     requiredDate: z.coerce.date().optional().nullable(),
     notes: optStr(500),
+    partSpecId: z.coerce.number().int().positive().optional().nullable(),
   })
   .refine((d) => Object.values(d).some((v) => v !== undefined), {
     message: 'At least one field must be provided',
@@ -189,6 +192,8 @@ export const createPurchaseOrderSchema = z.object({
   currency: z.string().length(3).toUpperCase().optional().default('INR'),
   expectedDelivery: z.coerce.date().optional().nullable(),
   notes: optStr(500),
+  // Stock material bought; receiving the PO adds to its stock
+  materialId: z.coerce.number().int().positive().optional().nullable(),
 });
 
 export const updatePurchaseOrderSchema = z
@@ -199,6 +204,7 @@ export const updatePurchaseOrderSchema = z
     totalCost: optCost,
     expectedDelivery: z.coerce.date().optional().nullable(),
     notes: optStr(500),
+    materialId: z.coerce.number().int().positive().optional().nullable(),
   })
   .refine((d) => Object.values(d).some((v) => v !== undefined), {
     message: 'At least one field must be provided',
@@ -246,3 +252,9 @@ export const supplierPurchaseOrderActionSchema = z.object({
   note: optStr(300),
 });
 export type SupplierPurchaseOrderActionInput = z.infer<typeof supplierPurchaseOrderActionSchema>;
+
+/** Receiving a PO: the quantity that arrived (defaults to what is still due). */
+export const receivePurchaseOrderSchema = z.object({
+  receivedQty: z.coerce.number().positive().max(1e9).optional(),
+});
+export type ReceivePurchaseOrderInput = z.infer<typeof receivePurchaseOrderSchema>;

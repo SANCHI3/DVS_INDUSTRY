@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prismaClient';
+import { applyStockMovement } from './inventory.repository';
 import { nextDocumentNumber, withUniqueNumberRetry } from '../utils/documentNumber';
 import type {
   SupplierDto,
@@ -85,6 +86,7 @@ const clientOrderSelect = {
   deliveryDate: true,
   approvedAt: true,
   productionStartedAt: true,
+  partSpecId: true,
   status: true,
   notes: true,
   dispatchNote: true,
@@ -108,6 +110,9 @@ const purchaseOrderSelect = {
   orderDate: true,
   expectedDelivery: true,
   actualDelivery: true,
+  materialId: true,
+  quantityValue: true,
+  receivedQty: true,
   confirmedAt: true,
   dispatchDate: true,
   dispatchedAt: true,
@@ -152,6 +157,7 @@ function toClientOrderDto(r: PrismaClientOrder): ClientOrderDto {
     deliveryDate: r.deliveryDate,
     approvedAt: r.approvedAt,
     productionStartedAt: r.productionStartedAt,
+    partSpecId: r.partSpecId,
     status: r.status as ClientOrderStatus,
     notes: r.notes,
     dispatchNote: r.dispatchNote,
@@ -177,6 +183,9 @@ function toPurchaseOrderDto(r: PrismaPurchaseOrder): PurchaseOrderDto {
     orderDate: r.orderDate,
     expectedDelivery: r.expectedDelivery,
     actualDelivery: r.actualDelivery,
+    materialId: r.materialId,
+    quantityValue: r.quantityValue?.toString() ?? null,
+    receivedQty: r.receivedQty.toString(),
     confirmedAt: r.confirmedAt,
     dispatchDate: r.dispatchDate,
     dispatchedAt: r.dispatchedAt,
@@ -451,6 +460,7 @@ export class OrdersRepository {
           currency: data.currency ?? 'INR',
           requiredDate: data.requiredDate ?? null,
           notes: data.notes ?? null,
+          partSpecId: data.partSpecId ?? null,
           createdById: data.createdById ?? null,
         },
         select: clientOrderSelect,
@@ -467,6 +477,10 @@ export class OrdersRepository {
     if (data.value !== undefined) up.value = data.value;
     if (data.requiredDate !== undefined) up.requiredDate = data.requiredDate;
     if (data.notes !== undefined) up.notes = data.notes;
+    if (data.partSpecId !== undefined) {
+      up.partSpec =
+        data.partSpecId === null ? { disconnect: true } : { connect: { id: data.partSpecId } };
+    }
     const raw = await prisma.clientOrder.update({
       where: { id },
       data: up,
@@ -542,7 +556,29 @@ export class OrdersRepository {
       }),
       prisma.clientOrder.count({ where }),
     ]);
-    return { data: data.map(toClientOrderDto), total };
+    // Linked work-order progress for each order on the page
+    const ids = data.map((o) => o.id);
+    const linked =
+      ids.length === 0
+        ? []
+        : await prisma.workOrder.findMany({
+            where: { clientOrderId: { in: ids }, deletedAt: null, status: { not: 'CANCELLED' } },
+            select: { clientOrderId: true, status: true },
+          });
+    const progress = new Map<number, { total: number; completed: number }>();
+    for (const wo of linked) {
+      const p = progress.get(wo.clientOrderId!) ?? { total: 0, completed: 0 };
+      p.total += 1;
+      if (wo.status === 'COMPLETED') p.completed += 1;
+      progress.set(wo.clientOrderId!, p);
+    }
+    return {
+      data: data.map((o) => ({
+        ...toClientOrderDto(o),
+        workOrderProgress: progress.get(o.id) ?? { total: 0, completed: 0 },
+      })),
+      total,
+    };
   }
 
   async updateClientOrderStatus(
@@ -582,6 +618,8 @@ export class OrdersRepository {
           currency: data.currency ?? 'INR',
           expectedDelivery: data.expectedDelivery ?? null,
           notes: data.notes ?? null,
+          materialId: data.materialId ?? null,
+          quantityValue: data.quantityValue ?? null,
           createdById: data.createdById ?? null,
         },
         select: purchaseOrderSelect,
@@ -598,6 +636,11 @@ export class OrdersRepository {
     if (data.totalCost !== undefined) up.totalCost = data.totalCost;
     if (data.expectedDelivery !== undefined) up.expectedDelivery = data.expectedDelivery;
     if (data.notes !== undefined) up.notes = data.notes;
+    if (data.quantityValue !== undefined) up.quantityValue = data.quantityValue;
+    if (data.materialId !== undefined) {
+      up.stockMaterial =
+        data.materialId === null ? { disconnect: true } : { connect: { id: data.materialId } };
+    }
     const raw = await prisma.purchaseOrder.update({
       where: { id },
       data: up,
@@ -653,6 +696,43 @@ export class OrdersRepository {
       prisma.purchaseOrder.count({ where }),
     ]);
     return { data: data.map(toPurchaseOrderDto), total };
+  }
+
+  /**
+   * Receives (part of) a PO: adds the quantity to the material's stock and
+   * records the movement, in one transaction with the PO update.
+   */
+  async receivePurchaseOrder(
+    id: number,
+    receipt: {
+      materialId: number;
+      quantity: number;
+      fullyReceived: boolean;
+      poNumber: string;
+      performedById: number | null;
+      performedByName: string | null;
+    },
+  ): Promise<PurchaseOrderDto> {
+    const raw = await prisma.$transaction(async (tx) => {
+      await applyStockMovement(tx, {
+        materialId: receipt.materialId,
+        type: 'IN',
+        quantity: receipt.quantity.toFixed(3),
+        referenceNo: receipt.poNumber,
+        reason: `Received against ${receipt.poNumber}`,
+        performedById: receipt.performedById,
+        performedByName: receipt.performedByName,
+      });
+      return tx.purchaseOrder.update({
+        where: { id },
+        data: {
+          receivedQty: { increment: receipt.quantity.toFixed(3) },
+          ...(receipt.fullyReceived && { status: 'DELIVERED', actualDelivery: new Date() }),
+        },
+        select: purchaseOrderSelect,
+      });
+    });
+    return toPurchaseOrderDto(raw);
   }
 
   async updatePurchaseOrderStatus(

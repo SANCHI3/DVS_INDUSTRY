@@ -180,6 +180,7 @@ describe('ProductionService', () => {
       recordedById: null,
       recordedByName: null,
       remarks: null,
+      materialIssued: '0',
       createdAt: new Date(),
       updatedAt: new Date(),
     };

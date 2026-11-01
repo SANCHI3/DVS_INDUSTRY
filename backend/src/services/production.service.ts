@@ -1,4 +1,6 @@
-import { ProductionRepository } from '../repositories/production.repository';
+import { ProductionRepository, type MaterialIssue } from '../repositories/production.repository';
+import { prisma } from '../lib/prismaClient';
+import { DEDUCTION_UNIT_HELP, materialIssuedFor, materialPerPiece } from '../utils/materialUse';
 import { WorkforceRepository } from '../repositories/workforce.repository';
 import {
   checkThreshold,
@@ -73,9 +75,84 @@ export class ProductionService {
   // ══ WORK ORDERS ══════════════════════════════════════════════════════════
 
   async createWorkOrder(data: CreateWorkOrderData): Promise<WorkOrderDto> {
+    const order = data.clientOrderId
+      ? await this.clientOrderForWorkOrder(data.clientOrderId)
+      : null;
+    if (data.deductMaterial)
+      await this.assertDeductible(data.partSpecId ?? null, data.materialId ?? null);
     const wo = await this.repo.createWorkOrder(data);
+    // The client order is now being made
+    if (order !== null && order.status === 'APPROVED') {
+      await prisma.clientOrder.update({
+        where: { id: order.id },
+        data: { status: 'IN_PRODUCTION', productionStartedAt: new Date() },
+      });
+    }
     logger.info('Work order created', { id: wo.id, workOrderNumber: wo.workOrderNumber });
     return wo;
+  }
+
+  /** Work orders are made for approved client orders (or ones already in production). */
+  private async clientOrderForWorkOrder(id: number): Promise<{ id: number; status: string }> {
+    const order = await prisma.clientOrder.findUnique({
+      where: { id },
+      select: { id: true, status: true, orderNumber: true },
+    });
+    if (order === null) throw new NotFoundError('Client order not found');
+    if (order.status !== 'APPROVED' && order.status !== 'IN_PRODUCTION') {
+      throw new BadRequestError(
+        `${order.orderNumber} is ${order.status.toLowerCase().replace('_', ' ')}; work orders are made for approved orders`,
+      );
+    }
+    return order;
+  }
+
+  /** Deducting raw material needs a part with a yield that fits the material's unit. */
+  private async assertDeductible(
+    partSpecId: number | null,
+    materialId: number | null,
+  ): Promise<void> {
+    if (partSpecId === null || materialId === null) {
+      throw new BadRequestError('Choose the part and the raw material to deduct');
+    }
+    const [part, material] = await Promise.all([
+      prisma.partSpec.findUnique({
+        where: { id: partSpecId },
+        select: { piecesPerSheet: true, piecesPerStrip: true },
+      }),
+      prisma.material.findFirst({
+        where: { id: materialId, deletedAt: null },
+        select: { unit: true },
+      }),
+    ]);
+    if (part === null) throw new NotFoundError('Part not found in the Parts Master');
+    if (material === null) throw new NotFoundError('Material not found');
+    if (materialPerPiece(material.unit, part) === null)
+      throw new BadRequestError(DEDUCTION_UNIT_HELP);
+  }
+
+  /** How much raw material an output of these pieces uses, when the work order deducts it. */
+  private async materialIssue(
+    wo: WorkOrderDto,
+    pieces: { good: number; rejected: number; scrap: number },
+  ): Promise<MaterialIssue | undefined> {
+    if (!wo.deductMaterial || wo.partSpecId === null || wo.materialId === null) return undefined;
+    const [part, material] = await Promise.all([
+      prisma.partSpec.findUnique({
+        where: { id: wo.partSpecId },
+        select: { partNumber: true, piecesPerSheet: true, piecesPerStrip: true },
+      }),
+      prisma.material.findUnique({ where: { id: wo.materialId }, select: { unit: true } }),
+    ]);
+    if (part === null || material === null) return undefined;
+    const perPiece = materialPerPiece(material.unit, part);
+    if (perPiece === null) return undefined;
+    return {
+      materialId: wo.materialId,
+      quantity: materialIssuedFor(pieces, perPiece),
+      referenceNo: wo.workOrderNumber,
+      reason: `Used for ${wo.workOrderNumber} (${part.partNumber})`,
+    };
   }
 
   async updateWorkOrder(id: number, data: UpdateWorkOrderData): Promise<WorkOrderDto> {
@@ -104,6 +181,21 @@ export class ProductionService {
       ) {
         data.actualStart = new Date();
       }
+    }
+
+    const deduct = data.deductMaterial ?? existing.deductMaterial;
+    const touchesDeduction =
+      data.deductMaterial !== undefined ||
+      data.partSpecId !== undefined ||
+      data.materialId !== undefined;
+    if (deduct && touchesDeduction) {
+      await this.assertDeductible(
+        data.partSpecId !== undefined ? data.partSpecId : existing.partSpecId,
+        data.materialId !== undefined ? data.materialId : existing.materialId,
+      );
+    }
+    if (data.clientOrderId && data.clientOrderId !== existing.clientOrderId) {
+      await this.clientOrderForWorkOrder(data.clientOrderId);
     }
 
     const wo = await this.repo.updateWorkOrder(id, data);
@@ -172,7 +264,12 @@ export class ProductionService {
       );
     }
 
-    const output = await this.repo.createOutput({ ...data, workOrderId });
+    const issue = await this.materialIssue(wo, {
+      good: Number(data.goodQty),
+      rejected: Number(data.rejectedQty ?? 0),
+      scrap: Number(data.scrapQty ?? 0),
+    });
+    const output = await this.repo.createOutput({ ...data, workOrderId }, issue);
     logger.info('Output recorded', { workOrderId, outputId: output.id, goodQty: output.goodQty });
     return output;
   }
@@ -182,7 +279,7 @@ export class ProductionService {
     outputId: number,
     data: UpdateOutputData,
   ): Promise<WorkOrderOutputDto> {
-    await this.getWorkOrderOrThrow(workOrderId);
+    const wo = await this.getWorkOrderOrThrow(workOrderId);
     const existing = await this.getOutputOrThrow(outputId);
 
     // Rule 9 — ownership check
@@ -190,7 +287,18 @@ export class ProductionService {
       throw new BadRequestError(`Output ${outputId} does not belong to work order ${workOrderId}`);
     }
 
-    const output = await this.repo.updateOutput(outputId, data);
+    // Material already taken out for this entry is corrected to the new quantities
+    const previous = Number(existing.materialIssued);
+    const issue = await this.materialIssue(wo, {
+      good: Number(data.goodQty ?? existing.goodQty),
+      rejected: Number(data.rejectedQty ?? existing.rejectedQty),
+      scrap: Number(data.scrapQty ?? existing.scrapQty),
+    });
+    const output = await this.repo.updateOutput(
+      outputId,
+      data,
+      issue !== undefined ? { ...issue, previous } : undefined,
+    );
     logger.info('Output updated', { workOrderId, outputId });
     return output;
   }
@@ -203,7 +311,20 @@ export class ProductionService {
       throw new BadRequestError(`Output ${outputId} does not belong to work order ${workOrderId}`);
     }
 
-    await this.repo.deleteOutput(outputId);
+    // Material taken out for this entry goes back to stock
+    const issued = Number(existing.materialIssued);
+    const wo = await this.getWorkOrderOrThrow(workOrderId);
+    await this.repo.deleteOutput(
+      outputId,
+      issued > 0 && wo.materialId !== null
+        ? {
+            materialId: wo.materialId,
+            quantity: issued,
+            referenceNo: wo.workOrderNumber,
+            reason: `Output entry for ${wo.workOrderNumber} removed`,
+          }
+        : undefined,
+    );
     logger.info('Output deleted', { workOrderId, outputId });
   }
 

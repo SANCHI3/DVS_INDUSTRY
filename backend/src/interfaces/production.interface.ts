@@ -24,6 +24,10 @@ export interface WorkOrderDto {
   assignedToId: number | null;
   assignedToName: string | null;
   clientOrderId: number | null;
+  partSpecId: number | null;
+  materialId: number | null;
+  /** Take raw material out of stock as output is recorded */
+  deductMaterial: boolean;
   notes: string | null;
   createdById: number | null;
   createdAt: Date;
@@ -51,6 +55,9 @@ export interface CreateWorkOrderData {
   assignedToId?: number | null | undefined;
   assignedToName?: string | null | undefined;
   clientOrderId?: number | null | undefined;
+  partSpecId?: number | null | undefined;
+  materialId?: number | null | undefined;
+  deductMaterial?: boolean | undefined;
   notes?: string | null | undefined;
   createdById?: number | null | undefined;
 }
@@ -70,6 +77,9 @@ export interface UpdateWorkOrderData {
   assignedToId?: number | null | undefined;
   assignedToName?: string | null | undefined;
   clientOrderId?: number | null | undefined;
+  partSpecId?: number | null | undefined;
+  materialId?: number | null | undefined;
+  deductMaterial?: boolean | undefined;
   notes?: string | null | undefined;
 }
 
@@ -104,6 +114,8 @@ export interface WorkOrderOutputDto {
   recordedById: number | null;
   recordedByName: string | null;
   remarks: string | null;
+  /** Raw material taken out of stock for this entry (0 when not deducted) */
+  materialIssued: string;
   createdAt: Date;
   updatedAt: Date;
 }
