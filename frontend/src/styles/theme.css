@@ -79,6 +79,18 @@
 }
 
 @theme inline {
+  /* DVS brand colours (use as bg-brand, text-ink-muted, border-line, …) */
+  --color-brand: #A52A2A;
+  --color-brand-dark: #8B2222;
+  --color-ink: #1C1C1C;
+  --color-ink-soft: #4A4A4A;
+  --color-ink-muted: #7A6C6A;
+  --color-ink-faint: #9A8A88;
+  --color-line: #E8E2E0;
+  --color-tint: #F5F0EF;
+  --color-tint-strong: #EFE4E1;
+  --color-danger-tint: #FFEBEE;
+  --color-row-hover: #FDFBFB;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

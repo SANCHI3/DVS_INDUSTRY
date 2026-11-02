@@ -526,7 +526,7 @@ export function SecurityPage() {
                   select: incident.rawStatus === "OPEN" || incident.rawStatus === "INVESTIGATING"
                     ? <input type="checkbox" aria-label={`Select ${incident.id}`} checked={selected.has(incident.numericId)} onChange={() => toggle(incident.numericId)} />
                     : null,
-                  id: <button onClick={() => setSelectedIncidentId(incident.numericId)} title="View evidence" style={{ color: "#A52A2A", fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", fontWeight: 700, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>{incident.id}</button>,
+                  id: <button onClick={() => setSelectedIncidentId(incident.numericId)} title="View evidence" aria-label="View evidence" style={{ color: "#A52A2A", fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", fontWeight: 700, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>{incident.id}</button>,
                   datetime: <div><p style={{ color: "#302725", fontSize: "0.78rem", fontWeight: 600 }}>{incident.dateTime.date}</p><p style={{ color: "#9A8A88", fontSize: "0.7rem" }}>{incident.dateTime.time}</p></div>,
                   location: <span style={{ fontSize: "0.78rem" }}>{incident.location}</span>,
                   type: <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>{incident.type}</span>,

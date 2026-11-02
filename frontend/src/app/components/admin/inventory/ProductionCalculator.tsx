@@ -394,7 +394,7 @@ export function ProductionCalculator({ materials, parts = [] }: { materials: Inv
                 <button
                   onClick={runCalculation}
                   disabled={running}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl"
+                  className="hover-brand-dark flex-1 flex items-center justify-center gap-2 py-3 rounded-xl"
                   style={{
                     background: running ? "#D4BFBB" : "#A52A2A",
                     color: "#fff", fontWeight: 700, fontSize: "0.9rem",
@@ -402,8 +402,6 @@ export function ProductionCalculator({ materials, parts = [] }: { materials: Inv
                     boxShadow: running ? "none" : "0 4px 14px rgba(165,42,42,0.35)",
                     transition: "all 0.2s",
                   }}
-                  onMouseEnter={(e) => { if (!running) e.currentTarget.style.background = "#8B2222"; }}
-                  onMouseLeave={(e) => { if (!running) e.currentTarget.style.background = "#A52A2A"; }}
                 >
                   {running ? (
                     <><div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Processing…</>

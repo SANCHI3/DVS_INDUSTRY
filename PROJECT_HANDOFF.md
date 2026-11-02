@@ -202,6 +202,7 @@ The backend reads `backend/.env`, which is ignored by Git. Important settings in
 - `REFRESH_TOKEN_SECRET`: refresh-token signing secret
 - `CORS_ORIGINS`: allowed frontend origins
 - `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`: seed credentials
+- `SEED_TEST_DATA`: set to `true` only on a development database to also seed the test logins (`SEED_STORE_PASSWORD` and friends) and "(Test)" partners. Leave it unset for Neon; `npm run cleanup:test-data` lists (dry run) and, with `-- --apply`, removes what earlier seeds left there
 
 Never copy real `.env` values into documentation, source control, screenshots, or chat.
 

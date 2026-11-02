@@ -8,3 +8,24 @@
   body.printing-report > *:not(.report-print) { display: none !important; }
   body.printing-report .report-print { display: block; color: #000; font-family: "Inter", sans-serif; }
 }
+
+/* Keyboard focus: a clear outline on everything you can tab to (mouse clicks stay clean) */
+:where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2px solid var(--color-brand) !important;
+  outline-offset: 2px;
+}
+
+/* Hover styles. !important because the components set their resting colours inline. */
+.hover-tint:hover:not(:disabled) { background: var(--color-tint) !important; }
+.hover-tint-strong:hover:not(:disabled) { background: var(--color-tint-strong) !important; }
+.hover-danger-tint:hover:not(:disabled) { background: var(--color-danger-tint) !important; }
+.hover-row:hover { background: var(--color-row-hover) !important; }
+.hover-brand-dark:hover:not(:disabled) { background: var(--color-brand-dark) !important; }
+.hover-dim:hover:not(:disabled) { filter: brightness(0.92); }
+.hover-ink:hover { color: var(--color-ink-soft) !important; }
+.hover-nav:hover { background: var(--color-tint) !important; color: var(--color-brand) !important; }
+.hover-glass:hover { background: rgba(255, 255, 255, 0.14) !important; }
+.hover-card:hover { border-color: var(--color-brand) !important; box-shadow: 0 6px 20px rgba(165, 42, 42, 0.1) !important; }
+.hover-lift:hover { border-color: var(--color-brand) !important; box-shadow: 0 6px 20px rgba(165, 42, 42, 0.1) !important; transform: translateY(-2px); }
+.hover-dark-card:hover { background: rgba(165, 42, 42, 0.2) !important; border-color: rgba(165, 42, 42, 0.4) !important; }
+.hover-footer-link:hover { color: #E57373 !important; }

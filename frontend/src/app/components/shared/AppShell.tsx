@@ -223,16 +223,10 @@ export function AppShell({ role, userName, portalNotifications, activeSection, o
             <div key={item.id}>
               <button
                 onClick={() => handleNavClick(item)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md mb-0.5 transition-all duration-150"
+                className={`${isActive ? "" : "hover-tint "}w-full flex items-center gap-3 px-3 py-2.5 rounded-md mb-0.5 transition-all duration-150`}
                 style={{
                   background: isActive ? accentColor : "transparent",
                   color: isActive ? "#fff" : "#4A4A4A",
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) e.currentTarget.style.background = "#F5F0EF";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = isActive ? accentColor : "transparent";
                 }}
               >
                 <Icon size={17} className="flex-shrink-0" />
@@ -267,11 +261,9 @@ export function AppShell({ role, userName, portalNotifications, activeSection, o
           return onOpenProfile ? (
             <button
               onClick={() => { onOpenProfile(); setMobileSidebarOpen(false); }}
-              title="Open My Profile"
-              className="w-full flex items-center gap-3 px-3 py-2 mb-2 rounded-md transition-all duration-150"
+              title="Open My Profile" aria-label="Open My Profile"
+              className="hover-tint-strong w-full flex items-center gap-3 px-3 py-2 mb-2 rounded-md transition-all duration-150"
               style={{ background: activeSection === "profile" ? "#EFE4E1" : "#F5F0EF", border: "none", cursor: "pointer" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "#EFE4E1"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = activeSection === "profile" ? "#EFE4E1" : "#F5F0EF"; }}
             >
               {content}
             </button>
@@ -281,10 +273,8 @@ export function AppShell({ role, userName, portalNotifications, activeSection, o
         })()}
         <button
           onClick={onLogout}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-150"
+          className="hover-danger-tint w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-150"
           style={{ color: "#C0392B" }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "#FFEBEE"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
         >
           <LogOut size={16} />
           {sidebarOpen && <span style={{ fontSize: "0.8625rem" }}>Sign Out</span>}
@@ -331,10 +321,8 @@ export function AppShell({ role, userName, portalNotifications, activeSection, o
         >
           <button
             onClick={() => { setSidebarOpen(!sidebarOpen); setMobileSidebarOpen(!mobileSidebarOpen); }}
-            className="p-2 rounded-md transition-colors"
+            className="hover-tint p-2 rounded-md transition-colors"
             style={{ color: "#4A4A4A" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "#F5F0EF"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
           >
             {mobileSidebarOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
@@ -370,10 +358,8 @@ export function AppShell({ role, userName, portalNotifications, activeSection, o
                   const Icon = item.icon;
                   return (
                     <button key={item.id} onMouseDown={() => { onSectionChange(item.id); setSearchQuery(""); setShowSearchResults(false); }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 transition-colors"
-                      style={{ background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = "#F5F0EF"; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                      className="hover-tint w-full flex items-center gap-3 px-4 py-2.5 transition-colors"
+                      style={{ background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
                       <Icon size={15} color="#A52A2A" />
                       <span style={{ fontSize: "0.8375rem", color: "#1C1C1C" }}>{item.label}</span>
                     </button>
@@ -393,10 +379,8 @@ export function AppShell({ role, userName, portalNotifications, activeSection, o
                 aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
                 aria-expanded={showNotifs}
                 onClick={() => { setShowNotifs(!showNotifs); if (!showNotifs) markAllRead(); }}
-                className="relative p-2 rounded-md transition-colors"
+                className="hover-tint relative p-2 rounded-md transition-colors"
                 style={{ color: "#4A4A4A" }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "#F5F0EF"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
                 <Bell size={18} />
                 {unreadCount > 0 && (

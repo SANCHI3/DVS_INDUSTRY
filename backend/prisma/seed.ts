@@ -11,8 +11,15 @@ import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import { seedPerceptionServiceAccount } from './seed-perception-service';
 import { seedBusinessData } from './seed-business-data';
+import { testDataWanted } from '../src/utils/seedGuard';
 
 const prisma = new PrismaClient();
+
+function skipTestData(what: string): boolean {
+  if (testDataWanted()) return false;
+  console.log(`\n⚠  Skipping ${what} (set SEED_TEST_DATA=true on a development database to add it).`);
+  return true;
+}
 
 // ── Seed data ───────────────────────────────────────────────────────────────
 
@@ -110,10 +117,7 @@ async function seedAdminUser(adminRoleId: number): Promise<void> {
 }
 
 async function seedSupplierData(supplierRoleId: number): Promise<void> {
-  if (process.env['NODE_ENV'] === 'production') {
-    console.log('\n⚠  Skipping development supplier test data in production.');
-    return;
-  }
+  if (skipTestData('development supplier test data')) return;
 
   const supplierEmail = process.env['SEED_SUPPLIER_EMAIL'] ?? 'supplier.test@dvsindustry.local';
   const supplierPassword = process.env['SEED_SUPPLIER_PASSWORD'];
@@ -181,10 +185,7 @@ async function seedSupplierData(supplierRoleId: number): Promise<void> {
 }
 
 async function seedClientData(clientRoleId: number): Promise<void> {
-  if (process.env['NODE_ENV'] === 'production') {
-    console.log('\n⚠  Skipping development client test data in production.');
-    return;
-  }
+  if (skipTestData('development client test data')) return;
 
   const clientEmail = process.env['SEED_CLIENT_EMAIL'] ?? 'client.test@dvsindustry.local';
   const clientPassword = process.env['SEED_CLIENT_PASSWORD'];
@@ -253,10 +254,7 @@ async function seedClientData(clientRoleId: number): Promise<void> {
  * Store). Each is created/updated only when its SEED_<ROLE>_PASSWORD is set.
  */
 async function seedStaffUsers(roleMap: Map<string, number>): Promise<void> {
-  if (process.env['NODE_ENV'] === 'production') {
-    console.log('\n⚠  Skipping development staff accounts in production.');
-    return;
-  }
+  if (skipTestData('development staff accounts')) return;
 
   const staff = [
     { role: 'PRODUCTION', envPrefix: 'SEED_PRODUCTION', defaultEmail: 'production.test@dvsindustry.local', fullName: 'Development Production User' },

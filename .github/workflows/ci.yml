@@ -65,6 +65,7 @@ jobs:
       CORS_ORIGINS: http://localhost:4173
       APP_URL: http://localhost:4173
       SEED_ADMIN_PASSWORD: e2e-admin-password-2026
+      SEED_TEST_DATA: "true"
       SEED_STORE_PASSWORD: e2e-store-password-2026
       E2E_ADMIN_PASSWORD: e2e-admin-password-2026
       E2E_STORE_PASSWORD: e2e-store-password-2026

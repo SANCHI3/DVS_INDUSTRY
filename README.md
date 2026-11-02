@@ -1,5 +1,7 @@
 # DVS Industries: ERP with multi-model CCTV safety AI
 
+[![CI](https://github.com/SANCHI3/DVS_INDUSTRY/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/SANCHI3/DVS_INDUSTRY/actions/workflows/ci.yml)
+
 A full-stack ERP for a manufacturing plant (workforce, inventory, orders,
 production, reports, analytics) with an integrated CCTV AI. The AI detects
 fights, falls, fire/smoke, crowding and unusual activity,
@@ -15,6 +17,17 @@ live on every open dashboard.
   client and purchase orders; production work orders; reports; audit trail;
   role-based access for 8 roles plus a service role; a **My Profile** page
   where every user edits their name and phone and changes their password.
+- **Connected order flow:** an approved client order becomes a work order in
+  one click (and moves to In Production); dispatch waits until its work
+  orders are finished. Receiving a purchase order adds the material to stock,
+  part deliveries included, and work orders can take sheet or strip material
+  out of stock as output is recorded.
+- **Supplier and client portals:** suppliers confirm and dispatch their own
+  purchase orders; clients follow their orders on a timeline; both message
+  the DVS team.
+- **Everyday tools:** a notification bell and search in the top bar, website
+  inquiries in User Management, a Reports Center with print and CSV, and
+  bulk actions on security incidents (close, mark false alarm).
 - **Smart Analytics:** demand forecasting (Holt / Croston–SBA), dynamic
   reorder points, ABC-XYZ, stock-anomaly detection, an OEE-style index with SPC
   charts, a supplier scorecard, and a Plant Health Index.
@@ -104,6 +117,10 @@ Detailed diagrams (perception pipeline, ER diagram, incident sequence):
 ## Screenshots
 
 <!-- Taken at 1366x768 from the dev database on 15 Oct 2026; retake after a rehearsal if you want fuller data. -->
+> These screenshots are from 15 Oct 2026. The Orders, Production, Inventory
+> and portal screens have changed since (November review); retake them from
+> the live site before the final report.
+
 | | |
 |---|---|
 | ![Security page with live AI detections](docs/screenshots/security.png) | ![Incident evidence with Grad-CAM](docs/screenshots/evidence.png) |
@@ -192,6 +209,15 @@ and protocols: [docs/RESULTS.md](docs/RESULTS.md)):
 | [perception-service/README.md](perception-service/README.md) | Perception service: run options, demo mode, tests |
 | [docs/REALTIME_SECURITY_ALERTS.md](docs/REALTIME_SECURITY_ALERTS.md) | Live alert stream, pop-up rules, latency measurements |
 | [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md) | Architecture, data storage, workflows, setup details |
+| [docs/INCIDENT_EVIDENCE_STORAGE.md](docs/INCIDENT_EVIDENCE_STORAGE.md) | Design note: keeping camera evidence once the real CCTV is installed |
+
+### Maintenance scripts (run from `backend/`)
+
+| Command | What it does |
+|---|---|
+| `npm run cleanup:test-data` | Lists seeded test logins, "(Test)" partners and TEST orders. **Dry run**; add `-- --apply` to remove them, and `-- --incidents` to include camera-trial incidents ("Test Room") |
+| `npm run audit:incidents` | Read-only report on perception-service incidents |
+| `npm run db:seed` | Roles, admin and business data. Test logins only with `SEED_TEST_DATA=true`, never in production |
 
 ## Tech stack
 

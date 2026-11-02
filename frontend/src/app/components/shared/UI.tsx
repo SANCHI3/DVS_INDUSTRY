@@ -154,10 +154,8 @@ export function Btn({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-center gap-1.5 rounded-md font-medium transition-all duration-150 ${className}`}
+      className={`${variant === "primary" ? "hover-brand-dark " : ""}flex items-center gap-1.5 rounded-md font-medium transition-all duration-150 ${className}`}
       style={{ ...styles[variant], padding: pad, fontSize: size === "sm" ? "0.775rem" : "0.8375rem", opacity: disabled ? 0.5 : 1, cursor: disabled ? "not-allowed" : "pointer" }}
-      onMouseEnter={(e) => { if (!disabled && variant === "primary") e.currentTarget.style.background = "#8B2222"; }}
-      onMouseLeave={(e) => { if (!disabled && variant === "primary") e.currentTarget.style.background = "#A52A2A"; }}
     >
       {children}
     </button>
@@ -289,11 +287,9 @@ export function DataTable({ columns, rows, emptyMsg = "No data", searchable = fa
               </tr>
             ) : (
               paged.map((row, i) => (
-                <tr
+                <tr className="hover-row"
                   key={i}
                   style={{ borderBottom: "1px solid #F0ECEB" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "#FDFBFB"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                 >
                   {columns.map((col) => (
                     <td key={col.key} style={{ padding: "0.75rem 1rem", fontSize: "0.8375rem", color: "#2C2C2C", verticalAlign: "middle" }}>

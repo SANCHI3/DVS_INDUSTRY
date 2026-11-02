@@ -156,7 +156,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
     border: "1px solid #D4BFBB",
     borderRadius: "0.5rem",
     fontSize: "0.875rem",
-    color: "#1C1C1C",
+    color: "var(--color-ink)",
     background: "#FAFAFA",
     outline: "none",
     transition: "border-color 0.15s, box-shadow 0.15s",
@@ -176,7 +176,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
       {/* ── LEFT PANEL ── */}
       <div
         className="hidden lg:flex flex-col w-96 flex-shrink-0 relative overflow-hidden"
-        style={{ background: "#FFFFFF", borderRight: "1px solid #E8E2E0" }}
+        style={{ background: "#FFFFFF", borderRight: "1px solid var(--color-line)" }}
       >
         {/* Subtle top accent bar */}
         <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, #A52A2A, #4E342E)` }} />
@@ -184,12 +184,12 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
         <div className="flex flex-col flex-1 p-8">
           {/* Logo */}
           <div className="flex items-center gap-3 mb-10">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "#A52A2A" }}>
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "var(--color-brand)" }}>
               <Factory size={18} color="#fff" />
             </div>
             <div>
-              <p style={{ fontSize: "0.9rem", fontWeight: 800, color: "#1C1C1C", letterSpacing: "0.06em" }}>DVS INDUSTRIES</p>
-              <p style={{ fontSize: "0.6rem", color: "#A52A2A", letterSpacing: "0.12em", fontWeight: 600 }}>ENTERPRISE PLATFORM</p>
+              <p style={{ fontSize: "0.9rem", fontWeight: 800, color: "var(--color-ink)", letterSpacing: "0.06em" }}>DVS INDUSTRIES</p>
+              <p style={{ fontSize: "0.6rem", color: "var(--color-brand)", letterSpacing: "0.12em", fontWeight: 600 }}>ENTERPRISE PLATFORM</p>
             </div>
           </div>
 
@@ -214,7 +214,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                         className="flex items-center gap-3 p-3 rounded-xl text-left w-full transition-all duration-150"
                         style={{
                           background: active ? r.bgColor : "#FAFAFA",
-                          border: `1.5px solid ${active ? r.color : "#E8E2E0"}`,
+                          border: `1.5px solid ${active ? r.color : "var(--color-line)"}`,
                           cursor: "pointer",
                         }}
                       >
@@ -222,8 +222,8 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                           <RIcon size={15} color={active ? "#fff" : "#9A8A88"} />
                         </div>
                         <div className="flex-1">
-                          <p style={{ fontSize: "0.8375rem", fontWeight: 600, color: active ? "#1C1C1C" : "#4A4A4A" }}>{r.label}</p>
-                          <p style={{ fontSize: "0.7rem", color: active ? r.color : "#9A8A88" }}>{r.desc}</p>
+                          <p style={{ fontSize: "0.8375rem", fontWeight: 600, color: active ? "#1C1C1C" : "var(--color-ink-soft)" }}>{r.label}</p>
+                          <p style={{ fontSize: "0.7rem", color: active ? r.color : "var(--color-ink-faint)" }}>{r.desc}</p>
                         </div>
                         {active && <ChevronRight size={14} color={r.color} />}
                       </button>
@@ -245,23 +245,21 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
             {role.permissions.map((p) => (
               <div key={p} className="flex items-center gap-2 mb-2">
                 <CheckCircle2 size={12} color={role.color} />
-                <span style={{ fontSize: "0.8rem", color: "#4A4A4A" }}>{p}</span>
+                <span style={{ fontSize: "0.8rem", color: "var(--color-ink-soft)" }}>{p}</span>
               </div>
             ))}
           </div>
 
           {/* Tagline */}
           <div className="mt-auto">
-            <p style={{ fontSize: "0.8125rem", color: "#7A6C6A", lineHeight: 1.6, fontStyle: "italic" }}>
+            <p style={{ fontSize: "0.8125rem", color: "var(--color-ink-muted)", lineHeight: 1.6, fontStyle: "italic" }}>
               "{role.tagline}"
             </p>
             <div className="mt-6 pt-5" style={{ borderTop: "1px solid #F0ECEB" }}>
               <button
                 onClick={onNavigateHome}
-                className="flex items-center gap-2 transition-colors"
-                style={{ background: "none", border: "none", cursor: "pointer", color: "#9A8A88", fontSize: "0.8125rem" }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = "#4A4A4A"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.color = "#9A8A88"; }}
+                className="hover-ink flex items-center gap-2 transition-colors"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-ink-faint)", fontSize: "0.8125rem" }}
               >
                 <ArrowLeft size={14} /> Back to Homepage
               </button>
@@ -278,7 +276,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
             <button
               onClick={onNavigateHome}
               className="flex items-center gap-1.5 mb-4"
-              style={{ background: "none", border: "none", cursor: "pointer", color: "#7A6C6A", fontSize: "0.8125rem" }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-ink-muted)", fontSize: "0.8125rem" }}
             >
               <ArrowLeft size={14} /> Back to Homepage
             </button>
@@ -297,9 +295,9 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                       return (
                         <button key={r.id} onClick={() => handleRoleSelect(r.id)}
                           className="flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl"
-                          style={{ background: active ? r.bgColor : "#fff", border: `1.5px solid ${active ? r.color : "#E8E2E0"}`, cursor: "pointer" }}>
+                          style={{ background: active ? r.bgColor : "#fff", border: `1.5px solid ${active ? r.color : "var(--color-line)"}`, cursor: "pointer" }}>
                           <RIcon size={16} color={active ? r.color : "#9A8A88"} />
-                          <span style={{ fontSize: "0.65rem", color: active ? r.color : "#7A6C6A", fontWeight: active ? 600 : 400 }}>{r.label}</span>
+                          <span style={{ fontSize: "0.65rem", color: active ? r.color : "var(--color-ink-muted)", fontWeight: active ? 600 : 400 }}>{r.label}</span>
                         </button>
                       );
                     })}
@@ -314,7 +312,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
             className="rounded-2xl overflow-hidden"
             style={{
               background: "#FFFFFF",
-              border: "1px solid #E8E2E0",
+              border: "1px solid var(--color-line)",
               boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
             }}
           >
@@ -335,12 +333,12 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                     <p style={{ fontSize: "0.68rem", fontWeight: 700, color: role.color, textTransform: "uppercase", letterSpacing: "0.1em" }}>
                       {role.label} Portal
                     </p>
-                    <h1 style={{ fontSize: "1.4rem", fontWeight: 700, color: "#1C1C1C", lineHeight: 1.2 }}>
+                    <h1 style={{ fontSize: "1.4rem", fontWeight: 700, color: "var(--color-ink)", lineHeight: 1.2 }}>
                       {mode === "login" ? "Welcome Back" : "Reset Password"}
                     </h1>
                   </div>
                 </div>
-                <p style={{ fontSize: "0.8125rem", color: "#7A6C6A" }}>
+                <p style={{ fontSize: "0.8125rem", color: "var(--color-ink-muted)" }}>
                   {mode === "login"
                     ? `Sign in to access your ${role.label} dashboard`
                     : "We'll send a reset link to your email"}
@@ -371,7 +369,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
               {/* Fields */}
               <div className="flex flex-col gap-3.5">
                 <div>
-                  <label htmlFor="login-email" style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.35rem" }}>Email Address *</label>
+                  <label htmlFor="login-email" style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "var(--color-ink-soft)", marginBottom: "0.35rem" }}>Email Address *</label>
                   <div className="relative">
                     <Mail size={14} color="#B0A0A0" aria-hidden="true" style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)" }} />
                     <input id="login-email" name="email" type="email" autoComplete="username" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputBase} onFocus={handleFocus} onBlur={handleBlur} />
@@ -380,7 +378,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
 
                 {mode !== "forgot" && (
                   <div>
-                    <label htmlFor="login-password" style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "#4A4A4A", marginBottom: "0.35rem" }}>Password *</label>
+                    <label htmlFor="login-password" style={{ display: "block", fontSize: "0.775rem", fontWeight: 600, color: "var(--color-ink-soft)", marginBottom: "0.35rem" }}>Password *</label>
                     <div className="relative">
                       <Lock size={14} color="#B0A0A0" aria-hidden="true" style={{ position: "absolute", left: "0.75rem", top: "50%", transform: "translateY(-50%)" }} />
                       <input
@@ -413,7 +411,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                 </div>
               )}
               {mode === "login" && mailOk === false && (
-                <p className="text-right mt-2" style={{ fontSize: "0.775rem", color: "#7A6C6A" }}>
+                <p className="text-right mt-2" style={{ fontSize: "0.775rem", color: "var(--color-ink-muted)" }}>
                   Forgot your password? Ask your administrator to reset it.
                 </p>
               )}
@@ -422,7 +420,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-5 flex items-center justify-center gap-2 py-3 rounded-xl transition-all"
+                className="hover-dim w-full mt-5 flex items-center justify-center gap-2 py-3 rounded-xl transition-all"
                 style={{
                   background: loading ? "#D4BFBB" : role.color,
                   color: "#fff",
@@ -432,8 +430,6 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                   cursor: loading ? "not-allowed" : "pointer",
                   boxShadow: loading ? "none" : `0 4px 14px ${role.color}40`,
                 }}
-                onMouseEnter={(e) => { if (!loading) e.currentTarget.style.filter = "brightness(0.92)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
               >
                 {loading ? (
                   <>
@@ -450,7 +446,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
               </form>
 
               {waking && (
-                <p role="status" style={{ marginTop: "0.75rem", fontSize: "0.775rem", color: "#7A6C6A", textAlign: "center", lineHeight: 1.5 }}>
+                <p role="status" style={{ marginTop: "0.75rem", fontSize: "0.775rem", color: "var(--color-ink-muted)", textAlign: "center", lineHeight: 1.5 }}>
                   The server sleeps when idle and can take up to a minute to start. You will be signed in automatically.
                 </p>
               )}
@@ -461,14 +457,14 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
                   type="button"
                   onClick={() => { setMode("login"); reset(); }}
                   className="w-full mt-3 py-2.5 rounded-xl flex items-center justify-center gap-2"
-                  style={{ background: "none", border: "1px solid #E8E2E0", color: "#7A6C6A", fontSize: "0.875rem", cursor: "pointer" }}
+                  style={{ background: "none", border: "1px solid var(--color-line)", color: "var(--color-ink-muted)", fontSize: "0.875rem", cursor: "pointer" }}
                 >
                   <ArrowLeft size={14} /> Back to Sign In
                 </button>
               )}
 
               {mode === "login" && (
-                <p style={{ marginTop: "1rem", fontSize: "0.8rem", color: "#7A6C6A", textAlign: "center" }}>
+                <p style={{ marginTop: "1rem", fontSize: "0.8rem", color: "var(--color-ink-muted)", textAlign: "center" }}>
                   Need access? Contact your administrator.
                 </p>
               )}

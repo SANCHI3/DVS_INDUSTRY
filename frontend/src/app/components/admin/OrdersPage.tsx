@@ -322,12 +322,12 @@ export function OrdersPage({ onNavigate }: { onNavigate?: (section: string) => v
                 status: <StatusBadge status={o.status} label={o.status.replace("-", " ")} />,
                 actions: (
                   <div className="flex gap-1.5">
-                    <button onClick={() => setSelectedOrder(o)} title="View details" className="p-1.5 rounded" style={{ background: "#F0F4FF", color: "#1565C0" }}><Eye size={12} /></button>
+                    <button onClick={() => setSelectedOrder(o)} title="View details" aria-label="View details" className="p-1.5 rounded" style={{ background: "#F0F4FF", color: "#1565C0" }}><Eye size={12} /></button>
                     {o.status === "pending" && actions.approveClientOrder && (
-                      <button onClick={() => handleApprove(o.id)} title="Approve order" className="p-1.5 rounded" style={{ background: "#E8F5E9", color: "#2E7D32" }}><CheckCircle2 size={12} /></button>
+                      <button onClick={() => handleApprove(o.id)} title="Approve order" aria-label="Approve order" className="p-1.5 rounded" style={{ background: "#E8F5E9", color: "#2E7D32" }}><CheckCircle2 size={12} /></button>
                     )}
                     {o.status === "approved" && actions.dispatchClientOrder && (
-                      <button onClick={() => setDispatchOrder(o)} title="Dispatch order" className="p-1.5 rounded" style={{ background: "#FFF3E0", color: "#E65100" }}><Truck size={12} /></button>
+                      <button onClick={() => setDispatchOrder(o)} title="Dispatch order" aria-label="Dispatch order" className="p-1.5 rounded" style={{ background: "#FFF3E0", color: "#E65100" }}><Truck size={12} /></button>
                     )}
                   </div>
                 ),
