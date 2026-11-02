@@ -88,3 +88,7 @@ perception-service/demo_videos/*
 
 # Research paper: kept locally, not published in this repository
 docs/paper/
+
+# CCTV: camera pictures and recorded footage stay on the factory PC
+perception-service/calibration/snapshots/
+perception-service/recordings/
