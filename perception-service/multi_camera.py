@@ -25,6 +25,7 @@ from ingestion.evidence_grabber import MainStreamGrabber
 from ingestion.stream_reader import StreamReader
 from main import build_detector, camera_info, inference_device, _env_float
 from pipeline import CameraPipeline, section_configs
+from reporting.camera_heartbeat import CameraHeartbeat
 from reporting.incident_report import IncidentReporter
 from scheduler import FrameScheduler
 
@@ -104,6 +105,13 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
         print(f"[{cam.id}] {cam.location}: channel {cam.channel}, {cam.detect_stream} stream, "
               f"{cam.fps:g} fps, rules {', '.join(pipelines[cam.id].events) or 'none'}")
 
+    if heartbeat is None and os.getenv("DASHBOARD_BACKEND_URL", "").strip():
+        heartbeat = CameraHeartbeat(cameras, info=lambda: {
+            "device": inference_device(),
+            "remoteMode": setup.remote_mode,
+            "maxInferFps": limit,
+        })
+        print(f"[multi] camera status to the website as '{heartbeat.instance_id}' ({heartbeat.source})")
     scheduler = FrameScheduler({c.id: c.fps for c in cameras}, max_total_fps=limit)
     last_index = {c.id: -1 for c in cameras}
     was_lost = {c.id: False for c in cameras}

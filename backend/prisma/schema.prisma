@@ -705,6 +705,14 @@ model SecurityIncident {
   falseAlarm       Boolean @default(false)
   falseAlarmReason String?
 
+  // Which DVR camera saw it (null for manual reports and older records)
+  cameraId   String?
+  camera     Camera?        @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+  // Which perception PC sent it, and whether it is a real (LIVE) detection or
+  // a developer test (DEV, hidden from counts and lists by default)
+  instanceId String?
+  source     IncidentSource @default(LIVE)
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -716,6 +724,8 @@ model SecurityIncident {
   @@index([severity])
   @@index([status])
   @@index([departmentId])
+  @@index([cameraId])
+  @@index([source])
   @@index([occurredAt])
 }
 
@@ -927,6 +937,55 @@ enum IncidentSeverity {
   MEDIUM
   HIGH
   CRITICAL
+}
+
+enum IncidentSource {
+  LIVE
+  DEV
+}
+
+enum CameraStatus {
+  CONNECTING
+  ONLINE
+  OFFLINE
+  VIDEO_LOSS
+}
+
+/// A DVR channel as reported by the perception PC's heartbeat. Status older
+/// than 3 minutes is shown as OFFLINE (computed when read).
+model Camera {
+  id              String       @id // dvr-ch1
+  channel         Int?
+  name            String
+  zone            String?
+  enabled         Boolean      @default(true)
+  status          CameraStatus @default(CONNECTING)
+  statusDetail    String?
+  /// When the current status began (for "offline since 14:32")
+  statusSince     DateTime?
+  lastHeartbeatAt DateTime?
+  lastFrameAt     DateTime?
+  achievedFps     Float?
+  inferMs         Float?
+  /// Latest picture only (overwritten every ~2 minutes, <= 100 KB)
+  lastSnapshot    Bytes?
+  snapshotAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  incidents SecurityIncident[]
+}
+
+/// One running perception service (the factory PC, a developer laptop).
+model PerceptionInstance {
+  id              String         @id // PERCEPTION_INSTANCE_ID, e.g. factory-pc
+  source          IncidentSource @default(LIVE)
+  lastHeartbeatAt DateTime
+  cameraIds       String[]
+  /// Device, connection path, queue size: what the doctor/heartbeat reports
+  info            Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
 
 enum IncidentStatus {

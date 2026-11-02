@@ -49,21 +49,28 @@ class DashboardClient:
         path: str,
         payload: Optional[dict[str, Any]] = None,
         method: str = "GET",
+        *,
+        data: Optional[bytes] = None,
+        content_type: Optional[str] = None,
     ) -> Any:
-        """Make one authenticated request, retrying one 401 exactly once."""
+        """Make one authenticated request, retrying one 401 exactly once.
+
+        `data` + `content_type` send a raw body (a JPEG, a multipart form)
+        instead of JSON.
+        """
 
         self._validate_configuration()
         if self._access_token is None:
             self._login()
 
         try:
-            return self._send_api_request(path, payload, method)
+            return self._send_api_request(path, payload, method, data, content_type)
         except _DashboardHttpError as exc:
             if exc.status_code != 401:
                 raise
             self._reauthenticate()
             try:
-                return self._send_api_request(path, payload, method)
+                return self._send_api_request(path, payload, method, data, content_type)
             except _DashboardHttpError as retry_error:
                 if retry_error.status_code == 401:
                     raise DashboardClientError(
@@ -137,9 +144,12 @@ class DashboardClient:
         path: str,
         payload: Optional[dict[str, Any]],
         method: str,
+        data: Optional[bytes] = None,
+        content_type: Optional[str] = None,
     ) -> Any:
         body = (
-            json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            data if data is not None
+            else json.dumps(payload, ensure_ascii=False).encode("utf-8")
             if payload is not None
             else None
         )
@@ -148,7 +158,7 @@ class DashboardClient:
             "Authorization": f"Bearer {self._access_token}",
         }
         if body is not None:
-            headers["Content-Type"] = "application/json"
+            headers["Content-Type"] = content_type or "application/json"
         request = urllib.request.Request(
             f"{self.base_url}{path}",
             data=body,
@@ -194,7 +204,9 @@ class DashboardClient:
     def _decode_json(response) -> Any:
         try:
             with response:
-                return json.loads(response.read().decode("utf-8"))
+                raw = response.read()
+                # 204 No Content (e.g. a snapshot upload) has no body
+                return json.loads(raw.decode("utf-8")) if raw.strip() else None
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise DashboardClientError(
                 f"Dashboard response was invalid: {type(exc).__name__}.",

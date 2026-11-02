@@ -63,7 +63,16 @@ def camera_fields(report: dict) -> dict:
         fields["cameraZone"] = camera["zone"]
     if camera.get("channel") is not None:
         fields["cameraChannel"] = camera["channel"]
+    instance_id, source = _identity()
+    fields["instanceId"] = instance_id
+    fields["source"] = source
     return {k: v for k, v in fields.items() if v is not None}
+
+
+def _identity() -> tuple[str, str]:
+    from reporting.camera_heartbeat import instance_identity
+
+    return instance_identity()
 
 
 class IncidentReporter:

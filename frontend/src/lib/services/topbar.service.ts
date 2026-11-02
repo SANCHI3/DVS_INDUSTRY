@@ -2,7 +2,7 @@ import api, { unwrap } from '../api';
 
 export interface StaffNotification {
   id: string;
-  kind: 'incident' | 'low-stock' | 'overdue-po' | 'overdue-order' | 'inquiry';
+  kind: 'incident' | 'camera' | 'low-stock' | 'overdue-po' | 'overdue-order' | 'inquiry';
   severity: 'critical' | 'warn' | 'info';
   message: string;
   at: string;

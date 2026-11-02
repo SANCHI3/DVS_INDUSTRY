@@ -56,6 +56,9 @@ export interface SecurityIncidentDto {
   correctiveAction: string | null;
   falseAlarm: boolean;
   falseAlarmReason: string | null;
+  cameraId: string | null;
+  instanceId: string | null;
+  source: 'LIVE' | 'DEV';
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;
@@ -90,6 +93,9 @@ export interface CreateIncidentData {
   assignedToId?: number | null | undefined;
   assignedToName?: string | null | undefined;
   occurredAt?: Date | undefined;
+  camera?: { id: string; name: string; zone: string | null; channel: number | null } | undefined;
+  instanceId?: string | null | undefined;
+  source?: 'LIVE' | 'DEV' | undefined;
 }
 
 export interface UpdateIncidentData {
@@ -130,6 +136,8 @@ export interface IncidentFilters {
   severity?: IncidentSeverity | 'all' | undefined;
   status?: IncidentStatus | 'all' | undefined;
   departmentId?: number | undefined;
+  cameraId?: string | undefined;
+  includeTest?: boolean | undefined;
   fromDate?: Date | undefined;
   toDate?: Date | undefined;
   sortBy?: 'occurredAt' | 'createdAt' | 'severity' | 'status' | undefined;

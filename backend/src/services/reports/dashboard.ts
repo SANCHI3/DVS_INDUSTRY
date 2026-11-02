@@ -166,13 +166,15 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
       },
     }),
     // Same filters as the Security page KPI cards
-    prisma.securityIncident.count({ where: { deletedAt: null, status: 'OPEN' } }),
-    prisma.securityIncident.count({ where: { deletedAt: null, status: 'INVESTIGATING' } }),
+    prisma.securityIncident.count({ where: { deletedAt: null, source: 'LIVE', status: 'OPEN' } }),
     prisma.securityIncident.count({
-      where: { deletedAt: null, severity: 'CRITICAL', status: openStatuses },
+      where: { deletedAt: null, source: 'LIVE', status: 'INVESTIGATING' },
     }),
     prisma.securityIncident.count({
-      where: { deletedAt: null, severity: 'HIGH', status: openStatuses },
+      where: { deletedAt: null, source: 'LIVE', severity: 'CRITICAL', status: openStatuses },
+    }),
+    prisma.securityIncident.count({
+      where: { deletedAt: null, source: 'LIVE', severity: 'HIGH', status: openStatuses },
     }),
     prisma.securityAlert.count({ where: { status: 'ACTIVE' } }),
     prisma.securityAlert.count({ where: { status: 'ACTIVE', severity: 'CRITICAL' } }),
@@ -365,7 +367,7 @@ export async function getDashboardCharts(): Promise<DashboardCharts> {
 
   // Most severe open incidents first (severity enum is ordered LOW → CRITICAL)
   const openIncidentsRaw = await prisma.securityIncident.findMany({
-    where: { deletedAt: null, status: { in: ['OPEN', 'INVESTIGATING'] } },
+    where: { deletedAt: null, source: 'LIVE', status: { in: ['OPEN', 'INVESTIGATING'] } },
     orderBy: [{ severity: 'desc' }, { occurredAt: 'desc' }],
     take: 5,
     select: {

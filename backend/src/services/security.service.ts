@@ -1,4 +1,5 @@
 import { SecurityRepository } from '../repositories/security.repository';
+import { CameraRepository } from '../repositories/camera.repository';
 import type {
   BulkIncidentAction,
   BulkIncidentResult,
@@ -57,6 +58,7 @@ const SEVERITY_ORDER: IncidentSeverity[] = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
 
 export class SecurityService {
   private readonly repo: SecurityRepository;
+  private readonly cameras = new CameraRepository();
 
   constructor() {
     this.repo = new SecurityRepository();
@@ -78,6 +80,8 @@ export class SecurityService {
     }
 
     try {
+      // The camera row may not exist yet if the incident beats the first heartbeat
+      if (data.camera) await this.cameras.ensure(data.camera);
       const incident = await this.repo.createIncident(data);
       logger.info('Security incident created', {
         id: incident.id,

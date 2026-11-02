@@ -13,7 +13,12 @@ export async function getSecurityReport(filters: ReportFilters): Promise<Securit
 
   const [incidents, alerts] = await prisma.$transaction([
     prisma.securityIncident.findMany({
-      where: { deletedAt: null, ...deptWhere, ...(dateWhere ? { occurredAt: dateWhere } : {}) },
+      where: {
+        deletedAt: null,
+        source: 'LIVE',
+        ...deptWhere,
+        ...(dateWhere ? { occurredAt: dateWhere } : {}),
+      },
       orderBy: { occurredAt: 'desc' },
       select: {
         incidentNumber: true,

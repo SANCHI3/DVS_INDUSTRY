@@ -51,6 +51,9 @@ const incidentSelect = {
   correctiveAction: true,
   falseAlarm: true,
   falseAlarmReason: true,
+  cameraId: true,
+  instanceId: true,
+  source: true,
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
@@ -153,6 +156,9 @@ export class SecurityRepository {
           assignedToId: data.assignedToId ?? null,
           assignedToName: data.assignedToName ?? null,
           occurredAt: data.occurredAt ?? new Date(),
+          cameraId: data.camera?.id ?? null,
+          instanceId: data.instanceId ?? null,
+          source: data.source ?? 'LIVE',
         },
         select: incidentSelect,
       });
@@ -231,6 +237,8 @@ export class SecurityRepository {
       severity = 'all',
       status = 'all',
       departmentId,
+      cameraId,
+      includeTest = false,
       fromDate,
       toDate,
       sortBy = 'occurredAt',
@@ -240,6 +248,8 @@ export class SecurityRepository {
     } = f;
 
     const where: Prisma.SecurityIncidentWhereInput = { deletedAt: null };
+    if (!includeTest) where.source = 'LIVE';
+    if (cameraId !== undefined) where.cameraId = cameraId;
 
     if (type !== 'all') where.type = type as IncidentType;
     if (severity !== 'all') where.severity = severity as IncidentSeverity;
@@ -481,6 +491,7 @@ export class SecurityRepository {
 
     const incBase: Prisma.SecurityIncidentWhereInput = {
       deletedAt: null,
+      source: 'LIVE',
       ...(departmentId ? { departmentId } : {}),
     };
 

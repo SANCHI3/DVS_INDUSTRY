@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prismaClient';
 import { ROLES } from '../constants';
+import { CameraService } from './camera.service';
 
 /**
  * The notification bell for staff: computed from current data, filtered by
@@ -8,7 +9,7 @@ import { ROLES } from '../constants';
  */
 export interface NotificationItem {
   id: string;
-  kind: 'incident' | 'low-stock' | 'overdue-po' | 'overdue-order' | 'inquiry';
+  kind: 'incident' | 'camera' | 'low-stock' | 'overdue-po' | 'overdue-order' | 'inquiry';
   severity: 'critical' | 'warn' | 'info';
   message: string;
   at: string; // ISO; when it became worth knowing
@@ -50,6 +51,43 @@ function daysLate(due: Date, now: Date): number {
   return Math.max(1, Math.round((utcDay(now) - utcDay(due)) / DAY_MS));
 }
 
+/**
+ * Camera problems, not security incidents (they never count as incidents).
+ * When the whole monitoring PC is silent, one item instead of one per camera.
+ */
+export async function cameraNotifications(
+  now: Date,
+  cameras = new CameraService(),
+): Promise<Array<Omit<NotificationItem, 'unread'>>> {
+  const { cameras: list, monitoring } = await cameras.list(now);
+  if (monitoring.state === 'offline') {
+    return [
+      {
+        id: 'cctv-pc-offline',
+        kind: 'camera',
+        severity: 'critical',
+        message: 'CCTV monitoring PC is offline',
+        at: monitoring.since ?? now.toISOString(),
+        section: 'security-cameras',
+      },
+    ];
+  }
+  if (monitoring.state === 'never') return [];
+  return list
+    .filter((c) => c.enabled && (c.status === 'OFFLINE' || c.status === 'VIDEO_LOSS'))
+    .map((c) => ({
+      id: `camera-${c.id}-${c.status}`,
+      kind: 'camera' as const,
+      severity: 'warn' as const,
+      message:
+        c.status === 'OFFLINE'
+          ? `${c.name}${c.zone ? ` (${c.zone})` : ''} is offline`
+          : `${c.name}${c.zone ? ` (${c.zone})` : ''} shows no picture`,
+      at: c.statusSince ?? now.toISOString(),
+      section: 'security-cameras',
+    }));
+}
+
 export class NotificationsService {
   async list(
     user: { id: number; role: string },
@@ -63,6 +101,7 @@ export class NotificationsService {
       const incidents = await prisma.securityIncident.findMany({
         where: {
           deletedAt: null,
+          source: 'LIVE',
           status: { in: ['OPEN', 'INVESTIGATING'] },
           severity: { in: ['CRITICAL', 'HIGH'] },
           occurredAt: { gte: new Date(now.getTime() - INCIDENT_WINDOW_DAYS * DAY_MS) },
@@ -81,6 +120,7 @@ export class NotificationsService {
           section: 'security-incidents',
         });
       }
+      items.push(...(await cameraNotifications(now)));
     }
 
     if (STOCK_READ.includes(role as never)) {

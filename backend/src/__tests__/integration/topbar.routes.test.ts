@@ -34,6 +34,10 @@ vi.mock('../../lib/prismaClient', () => ({
     employee: { findMany: vi.fn() },
     workOrder: { findMany: vi.fn() },
     auditLog: { create: vi.fn().mockResolvedValue({}) },
+    // No CCTV reported yet: no camera notifications
+    camera: { findMany: vi.fn().mockResolvedValue([]) },
+    perceptionInstance: { findMany: vi.fn().mockResolvedValue([]) },
+    $queryRaw: vi.fn().mockResolvedValue([]),
   },
 }));
 

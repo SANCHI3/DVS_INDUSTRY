@@ -82,6 +82,16 @@ export async function createIncident(req: AuthenticatedRequest, res: Response): 
     assignedToName: body.assignedToName ?? null,
     occurredAt: body.occurredAt,
   };
+  if (body.cameraId) {
+    data.camera = {
+      id: body.cameraId,
+      name: body.cameraName ?? body.cameraId,
+      zone: body.cameraZone ?? null,
+      channel: body.cameraChannel ?? null,
+    };
+  }
+  if (body.instanceId) data.instanceId = body.instanceId;
+  if (body.source) data.source = body.source;
   sendCreated(res, await svc.createIncident(data), 'Security incident reported successfully');
 }
 
@@ -98,6 +108,8 @@ export async function getAllIncidents(req: Request, res: Response): Promise<void
   };
   if (q.search !== undefined) filters.search = q.search;
   if (q.departmentId !== undefined) filters.departmentId = q.departmentId;
+  if (q.cameraId !== undefined) filters.cameraId = q.cameraId;
+  if (q.includeTest) filters.includeTest = true;
   if (q.fromDate !== undefined) filters.fromDate = q.fromDate;
   if (q.toDate !== undefined) filters.toDate = q.toDate;
 

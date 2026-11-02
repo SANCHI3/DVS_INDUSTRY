@@ -3,7 +3,7 @@ import os
 import tempfile
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 from reporting.incident_report import IncidentReporter
 
@@ -81,6 +81,8 @@ class IncidentReporterTests(unittest.TestCase):
                 "occurredAt": report["detected_at"],
                 "reportedByName": "Perception Service",
                 "cameraId": "CAM-01",
+                "instanceId": ANY,  # PERCEPTION_INSTANCE_ID or the host name
+                "source": "live",
             },
         )
 

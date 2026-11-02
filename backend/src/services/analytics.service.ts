@@ -272,7 +272,11 @@ export class AnalyticsService {
       this.getInventoryIntelligence(params, now),
       this.getProductionPerformance(params.historyDays, undefined, now),
       prisma.securityIncident.findMany({
-        where: { deletedAt: null, occurredAt: { gte: sinceDays(now, params.historyDays) } },
+        where: {
+          deletedAt: null,
+          source: 'LIVE',
+          occurredAt: { gte: sinceDays(now, params.historyDays) },
+        },
         select: { type: true, severity: true, departmentName: true, occurredAt: true },
       }),
       prisma.attendance.findMany({

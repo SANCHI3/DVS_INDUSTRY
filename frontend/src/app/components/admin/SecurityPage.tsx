@@ -34,10 +34,15 @@ import { securityActions } from "../../../lib/permissions";
 import { useTabHash } from "../../../lib/useTabHash";
 import { downloadCSV } from "../../../lib/csv";
 import { Modal } from "../shared/Modal";
+import { useApiData } from "../../../lib/useApiData";
+import { getCameras, type CameraDto } from "../../../lib/services/cameras.service";
+import { liveBadgeState, monitoringBanner } from "../../../lib/cameraStatus";
+import { CamerasPanel } from "./security/CamerasPanel";
 
-const SECURITY_TABS = ["live", "incidents", "reports"];
+const SECURITY_TABS = ["live", "cameras", "incidents", "reports"];
 const tabs = [
   { id: "live", label: "Live Monitoring" },
+  { id: "cameras", label: "Cameras" },
   { id: "incidents", label: "Incident Center" },
   { id: "reports", label: "Security Reports" },
 ];
@@ -56,6 +61,8 @@ type DisplayIncident = {
   falseAlarm: boolean;
   rawType: string;
   occurredAt: string;
+  cameraId: string | null;
+  isTest: boolean;
   severity: string;
   assigned: string;
   numericId: number;
@@ -103,8 +110,11 @@ function EmptyState({
   );
 }
 
-const LIVE_BADGE: Record<StreamStatus, { label: string; color: string; background: string }> = {
+type BadgeStatus = StreamStatus | "cctv-offline";
+
+const LIVE_BADGE: Record<BadgeStatus, { label: string; color: string; background: string }> = {
   live: { label: "Live", color: "#2E7D32", background: "#E8F5E9" },
+  "cctv-offline": { label: "Cameras not reporting", color: "#A52A2A", background: "#FBECEA" },
   connecting: { label: "Connecting…", color: "#8A6D00", background: "#FFF8E1" },
   offline: { label: "Reconnecting…", color: "#A52A2A", background: "#FBECEA" },
   forbidden: { label: "Live updates unavailable", color: "#7A6C6A", background: "#F3EFEE" },
@@ -124,7 +134,7 @@ export function timeAgo(iso: string, now: number = Date.now()): string {
   return unit(Math.round(days / 30), "month");
 }
 
-function LiveBadge({ status }: { status: StreamStatus }) {
+function LiveBadge({ status }: { status: BadgeStatus }) {
   const badge = LIVE_BADGE[status];
   return (
     <span
@@ -171,6 +181,26 @@ export function SecurityPage() {
   const [assigningIncidentId, setAssigningIncidentId] = useState<number | null>(null);
   const [streamStatus, setStreamStatus] = useState<StreamStatus>("connecting");
   const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(null);
+  const [cameraFilter, setCameraFilter] = useState("all");
+  const [includeTest, setIncludeTest] = useState(false);
+
+  // Factory cameras: status, pictures and whether the monitoring PC reports
+  const cameras = useApiData(getCameras, [], "load the cameras");
+  useEffect(() => {
+    const timer = setInterval(cameras.reload, 60_000);
+    return () => clearInterval(timer);
+    // reload only bumps a counter; the first one stays valid
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const monitoring = cameras.data?.monitoring ?? (cameras.loading ? null : undefined);
+  const badge = liveBadgeState(streamStatus, monitoring);
+  const banner = monitoringBanner(cameras.data?.monitoring);
+  const cameraName = (id: string | null | undefined) =>
+    cameras.data?.cameras.find((c) => c.id === id)?.name ?? null;
+  const showCameraIncidents = (camera: CameraDto) => {
+    setCameraFilter(camera.id);
+    setTab("incidents");
+  };
 
   const [waking, setWaking] = useState(false);
 
@@ -189,7 +219,7 @@ export function SecurityPage() {
 
     Promise.allSettled([
       wake(() => getSecurityKPIs()),
-      wake(() => fetchAllPages((page) => getIncidents({ page, pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" }), 2_000).then((data) => ({ data }))),
+      wake(() => fetchAllPages((page) => getIncidents({ page, pageSize: 100, sortBy: "occurredAt", sortOrder: "desc", ...(includeTest && { includeTest: true }) }), 2_000).then((data) => ({ data }))),
       wake(() => getIncidents({ status: "OPEN", pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" })),
       wake(() => getIncidents({ status: "INVESTIGATING", pageSize: 100, sortBy: "occurredAt", sortOrder: "desc" })),
       // Only roles that can assign incidents need the list of assignees
@@ -212,7 +242,8 @@ export function SecurityPage() {
     });
   };
 
-  useEffect(() => { loadAll(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadAll(); }, [includeTest]);
 
   // Live updates: incidents pushed by the backend appear immediately; KPI
   // totals are re-fetched quietly (debounced) so bursts cause one request.
@@ -259,6 +290,8 @@ export function SecurityPage() {
     falseAlarm: incident.falseAlarm === true,
     rawType: incident.type,
     occurredAt: incident.occurredAt,
+    cameraId: incident.cameraId ?? null,
+    isTest: incident.source === "DEV",
     severity: incident.severity.toLowerCase(),
     assigned: incident.assignedToName ?? "Unassigned",
     numericId: incident.id,
@@ -270,6 +303,7 @@ export function SecurityPage() {
     if (filter !== "all" && incident.status !== filter) return false;
     if (severityFilter !== "all" && incident.severity !== severityFilter) return false;
     if (typeFilter !== "all" && incident.rawType !== typeFilter) return false;
+    if (cameraFilter !== "all" && incident.cameraId !== cameraFilter) return false;
     const day = incident.occurredAt.slice(0, 10);
     if (fromDate && day < fromDate) return false;
     if (toDate && day > toDate) return false;
@@ -380,11 +414,17 @@ export function SecurityPage() {
           subtitle="Incidents detected by the CCTV AI appear here as they happen. Open an incident to see the camera snapshots and why the AI raised it."
           actions={
             <>
-              <LiveBadge status={streamStatus} />
-              <Btn variant="secondary" size="sm" onClick={loadAll}><RefreshCw size={14} /> Refresh</Btn>
+              <LiveBadge status={badge} />
+              <Btn variant="secondary" size="sm" onClick={() => { loadAll(); cameras.reload(); }}><RefreshCw size={14} /> Refresh</Btn>
             </>
           }
         />
+
+        {banner && (
+          <p role="alert" className="mb-4 flex items-center gap-2 rounded-lg px-4 py-3" style={{ background: "#FBECEA", color: "#8C1D18", fontSize: "0.82rem", border: "1px solid #F2C4BE", fontWeight: 600 }}>
+            <AlertTriangle size={16} aria-hidden="true" /> {banner}. New incidents and camera pictures will not arrive until it is back.
+          </p>
+        )}
 
         {waking && (
           <p role="status" className="mb-4 rounded-lg px-4 py-3" style={{ background: "#FFF8E1", color: "#7A5B00", fontSize: "0.8rem", border: "1px solid #FFE8A3" }}>
@@ -410,7 +450,7 @@ export function SecurityPage() {
               <CardHeader title="Latest AI Detections" subtitle="Newest incidents reported by the CCTV perception service; updates live" actions={
                 <div className="flex items-center gap-2">
                   {newestAi && <span style={{ color: "#837572", fontSize: "0.72rem" }}>Last detection: {timeAgo(newestAi.occurredAt)}</span>}
-                  <LiveBadge status={streamStatus} />
+                  <LiveBadge status={badge} />
                 </div>
               } />
               <div className="p-5">
@@ -481,6 +521,15 @@ export function SecurityPage() {
           </div>
         )}
 
+        {tab === "cameras" && (
+          <Card style={{ borderRadius: "0.75rem" }}>
+            <CardHeader title="Cameras" subtitle="Status and latest picture of each factory camera; refreshes every minute" />
+            <div className="p-5">
+              <CamerasPanel overview={cameras.data} loading={cameras.loading} error={cameras.error} onSelect={showCameraIncidents} />
+            </div>
+          </Card>
+        )}
+
         {tab === "incidents" && (
           <div className="space-y-4">
             <div className="flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center" style={{ background: "#FFFFFF", borderColor: "#E7DEDA" }}>
@@ -498,8 +547,18 @@ export function SecurityPage() {
                   <option value="all">All</option>{incidentTypes.map((t) => <option key={t} value={t}>{formatEventType(t)}</option>)}
                 </select>
               </label>
+              {(cameras.data?.cameras.length ?? 0) > 0 && (
+                <label className="flex flex-col gap-1">Camera
+                  <select value={cameraFilter} onChange={(e) => setCameraFilter(e.target.value)} className="rounded-md px-2 py-1.5" style={{ border: "1px solid #E7DEDA" }}>
+                    <option value="all">All</option>{cameras.data!.cameras.map((c) => <option key={c.id} value={c.id}>{c.name}{c.zone ? ` (${c.zone})` : ""}</option>)}
+                  </select>
+                </label>
+              )}
               <label className="flex flex-col gap-1">From<input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-md px-2 py-1" style={{ border: "1px solid #E7DEDA" }} /></label>
               <label className="flex flex-col gap-1">To<input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-md px-2 py-1" style={{ border: "1px solid #E7DEDA" }} /></label>
+              <label className="flex items-center gap-1.5 self-center" title="Detections from a developer's test computer; never counted in the totals">
+                <input type="checkbox" checked={includeTest} onChange={(e) => setIncludeTest(e.target.checked)} /> Show test detections
+              </label>
             </div>
             {actions.manageIncidents && selected.size > 0 && (
               <div role="region" aria-label="Bulk actions" className="flex flex-wrap items-center gap-2 rounded-xl border p-3" style={{ background: "#FFF8F7", borderColor: "#F2D4CF" }}>
@@ -528,8 +587,8 @@ export function SecurityPage() {
                     : null,
                   id: <button onClick={() => setSelectedIncidentId(incident.numericId)} title="View evidence" aria-label="View evidence" style={{ color: "#A52A2A", fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", fontWeight: 700, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>{incident.id}</button>,
                   datetime: <div><p style={{ color: "#302725", fontSize: "0.78rem", fontWeight: 600 }}>{incident.dateTime.date}</p><p style={{ color: "#9A8A88", fontSize: "0.7rem" }}>{incident.dateTime.time}</p></div>,
-                  location: <span style={{ fontSize: "0.78rem" }}>{incident.location}</span>,
-                  type: <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>{incident.type}</span>,
+                  location: <span style={{ fontSize: "0.78rem" }}>{incident.location}{incident.cameraId && cameraName(incident.cameraId) && !incident.location.includes(cameraName(incident.cameraId)!) ? <span style={{ display: "block", color: "#9A8A88", fontSize: "0.7rem" }}>{cameraName(incident.cameraId)}</span> : null}</span>,
+                  type: <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>{incident.type}{incident.isTest && <span className="ml-1.5 rounded px-1.5 py-0.5" style={{ background: "#EEF2FF", color: "#3949AB", fontSize: "0.65rem", fontWeight: 700 }}>Test</span>}</span>,
                   aiSummary: incident.aiSummary ? <span style={{ color: "#665956", display: "block", fontSize: "0.75rem", lineHeight: 1.45, maxWidth: "18rem" }}>{incident.aiSummary}</span> : <span title="No AI summary; showing the built-in description" style={{ color: "#9A8A88", display: "block", fontSize: "0.74rem", lineHeight: 1.45, maxWidth: "18rem" }}>{incident.description}</span>,
                   confidence: <span style={{ color: incident.confidence === "—" ? "#AAA09D" : "#665956", fontSize: "0.74rem", fontWeight: 600 }}>{incident.confidence}</span>,
                   severity: <StatusBadge status={incident.severity} />,

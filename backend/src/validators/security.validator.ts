@@ -53,6 +53,24 @@ export const createIncidentSchema = z.object({
   assignedToId: z.coerce.number().int().positive().optional().nullable(),
   assignedToName: z.string().max(150).trim().optional().nullable(),
   occurredAt: z.coerce.date().optional(),
+  // Factory CCTV: which camera and which perception PC (never a stream URL)
+  cameraId: z
+    .string()
+    .regex(/^[A-Za-z0-9._-]{1,64}$/)
+    .optional()
+    .nullable(),
+  cameraName: z.string().max(100).trim().optional().nullable(),
+  cameraZone: z.string().max(100).trim().optional().nullable(),
+  cameraChannel: z.coerce.number().int().min(1).max(64).optional().nullable(),
+  instanceId: z
+    .string()
+    .regex(/^[A-Za-z0-9._-]{1,64}$/)
+    .optional()
+    .nullable(),
+  source: z
+    .enum(['live', 'dev', 'LIVE', 'DEV'])
+    .optional()
+    .transform((s) => (s ? (s.toUpperCase() as 'LIVE' | 'DEV') : undefined)),
 });
 
 export const updateIncidentSchema = z
@@ -123,6 +141,15 @@ export const incidentQuerySchema = z.object({
   severity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL', 'all']).optional().default('all'),
   status: z.enum(['OPEN', 'INVESTIGATING', 'RESOLVED', 'CLOSED', 'all']).optional().default('all'),
   departmentId: z.coerce.number().int().positive().optional(),
+  cameraId: z
+    .string()
+    .regex(/^[A-Za-z0-9._-]{1,64}$/)
+    .optional(),
+  // Developer test detections are hidden unless asked for
+  includeTest: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
   fromDate: z.coerce.date().optional(),
   toDate: z.coerce.date().optional(),
   sortBy: z

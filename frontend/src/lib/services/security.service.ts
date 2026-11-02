@@ -29,6 +29,10 @@ export interface SecurityIncidentDto {
   /** Checked and found to be nothing (with the reason). */
   falseAlarm?:      boolean;
   falseAlarmReason?: string | null;
+  /** Factory camera that saw it (null for manual reports and older records) */
+  cameraId?:        string | null;
+  /** DEV = a developer's test detection, hidden unless asked for */
+  source?:          'LIVE' | 'DEV';
   createdAt:        string;
   _count:           { updates: number; alerts: number };
 }
@@ -77,6 +81,9 @@ export interface IncidentQuery {
   search?: string; type?: IncidentType | 'all';
   severity?: IncidentSeverity | 'all'; status?: IncidentStatus | 'all';
   departmentId?: number; fromDate?: string; toDate?: string;
+  cameraId?: string;
+  /** Include developer test detections */
+  includeTest?: boolean;
   sortBy?: string; sortOrder?: 'asc' | 'desc';
 }
 
