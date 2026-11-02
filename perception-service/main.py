@@ -112,6 +112,8 @@ def resolve_camera_runtime(
         or source_override
         or camera_config["source"]
     )
+    if not source:
+        raise SystemExit("DVR_HOST is not set in perception-service/.env (see docs/CCTV_SETUP.md)")
     location = os.getenv("CAMERA_LOCATION", "").strip() or camera_config["location"]
     source_kind = "RTSP" if source.lower().startswith("rtsp://") else "local"
     reader_options = {
@@ -159,8 +161,12 @@ def run(
     output_dir: str = "output",
     stats_json: str | None = None,
     throttle: bool = True,
+    zones: bool = True,
+    cooldown: bool = True,
 ):
     cameras_cfg, thresholds_cfg = load_config()
+    if not cooldown:  # evaluation baseline: no 10-minute cooldown
+        thresholds_cfg["incident_dedup"] = {**thresholds_cfg.get("incident_dedup", {}), "cooldown_seconds": 0}
     cam_cfg = find_camera_config(cameras_cfg, camera_id)
     camera_id, source, camera_location, reader_options = resolve_camera_runtime(
         camera_id,
@@ -168,6 +174,8 @@ def run(
         cam_cfg,
     )
     cam_cfg = {**cam_cfg, "id": camera_id, "location": camera_location}
+    if not zones:  # evaluation baseline: no area of interest / ignore zones
+        cam_cfg = {k: v for k, v in cam_cfg.items() if k not in ("roi", "ignore_zones")}
     perception_cfg = thresholds_cfg["perception"]
 
     videos = []
@@ -375,6 +383,8 @@ if __name__ == "__main__":
                              "wall-clock time, so incident timing is not realistic)")
     parser.add_argument("--no-display", action="store_true", help="disable cv2.imshow (needed on headless machines)")
     parser.add_argument("--max-seconds", type=float, default=None, help="stop after N seconds (useful for testing)")
+    parser.add_argument("--no-zones", action="store_true", help="ignore roi / ignore_zones (evaluation baseline)")
+    parser.add_argument("--no-cooldown", action="store_true", help="no 10-minute cooldown (evaluation baseline)")
     parser.add_argument(
         "--only-events",
         nargs="+",
@@ -408,4 +418,6 @@ if __name__ == "__main__":
         output_dir=args.output_dir,
         stats_json=args.stats_json,
         throttle=not args.no_throttle,
+        zones=not args.no_zones,
+        cooldown=not args.no_cooldown,
     )

@@ -42,6 +42,16 @@ live on every open dashboard.
   | Unusual activity | Optical flow → denoising autoencoder (unsupervised, per-camera calibration) |
   | Crowd | Geometric rule on ByteTrack tracks (whole frame) |
 
+- **Factory CCTV:** 8 analog cameras through the plant's Hikvision
+  DS-7208HGHI-SH DVR (RTSP sub streams for detection, main stream for
+  incident pictures). One PC in the factory runs all channels and only sends
+  *out* to the website: camera status and a picture per camera every
+  2 minutes (AI Security → Cameras), incidents with before / at / after
+  pictures, a 10-minute cooldown per camera and event, ignore zones (e.g.
+  welding), and black-and-white (infrared) night handling. Live video stays
+  in the EZVIZ app. Remote maintenance goes through Tailscale only. The
+  false-alarm rate on the real cameras will be measured from recorded
+  footage (`evaluation/false_alarms_cctv.py`); it is not measured yet.
 - **One event = one incident:** N-of-M confirmation (PROBABLE → CONFIRMED),
   rule-based severity with hard caps, and de-duplication.
 - **Live alerts:** Server-Sent Events push incidents to every page, with a
@@ -209,7 +219,9 @@ and protocols: [docs/RESULTS.md](docs/RESULTS.md)):
 | [perception-service/README.md](perception-service/README.md) | Perception service: run options, demo mode, tests |
 | [docs/REALTIME_SECURITY_ALERTS.md](docs/REALTIME_SECURITY_ALERTS.md) | Live alert stream, pop-up rules, latency measurements |
 | [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md) | Architecture, data storage, workflows, setup details |
-| [docs/INCIDENT_EVIDENCE_STORAGE.md](docs/INCIDENT_EVIDENCE_STORAGE.md) | Design note: keeping camera evidence once the real CCTV is installed |
+| [docs/CCTV_SETUP.md](docs/CCTV_SETUP.md) | Connecting the factory DVR: limited user, checks, camera names and zones, auto-start, PC sizing |
+| [docs/REMOTE_ACCESS.md](docs/REMOTE_ACCESS.md) | Tailscale remote access to the DVR and the factory PC, policy, owner checklist |
+| [docs/INCIDENT_EVIDENCE_STORAGE.md](docs/INCIDENT_EVIDENCE_STORAGE.md) | How incident pictures are stored (database or S3/R2) and deleted |
 
 ### Maintenance scripts (run from `backend/`)
 

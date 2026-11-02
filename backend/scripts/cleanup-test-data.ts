@@ -15,7 +15,8 @@
  *     or PERCEPTION_SERVICE; real portal logins on @dvsindustry.local are kept)
  *   - suppliers SUP-TEST-*, clients CLT-TEST-*, POs PO-TEST-*, client orders ORD-TEST-*
  *   - with --incidents: security incidents at the given location (default
- *     "Test Room"), their updates, and alerts linked to them
+ *     "Test Room"), their updates, uploaded pictures (IncidentEvidence, deleted
+ *     with the incident) and alerts linked to them
  *
  * Foreign keys: work orders pointing at a removed client order are unlinked,
  * portal messages of removed partners/users are removed, and a user that is
@@ -98,8 +99,15 @@ async function main(): Promise<void> {
   list('Test client orders', clientOrders.map((o) => `${o.orderNumber} (${o.status})`));
   list('Work orders to unlink from those client orders (kept)', linkedWorkOrders.map((w) => w.workOrderNumber));
   if (options.incidents) {
+    const byType = new Map<string, number>();
+    for (const i of incidents) byType.set(`${i.type} ${i.status}`, (byType.get(`${i.type} ${i.status}`) ?? 0) + 1);
+    console.log(
+      `
+Incidents at "${options.incidentLocation}" by type and status: ` +
+        ([...byType].map(([k, n]) => `${k} ${n}`).join(', ') || 'none'),
+    );
     list(
-      `Incidents at "${options.incidentLocation}"`,
+      `Incidents at "${options.incidentLocation}" (their updates and pictures go with them)`,
       incidents.map((i) => `${i.incidentNumber} ${i.type} (${i.status})`),
     );
   } else {

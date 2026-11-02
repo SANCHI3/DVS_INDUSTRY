@@ -99,7 +99,9 @@ class CameraSpec:
         """The dict shape RuleEngine and main.run() have always used."""
         return {**self.extra, "id": self.id, "name": self.name, "zone": self.zone,
                 "location": self.location, "channel": self.channel,
-                "source": self.detect_source(dvr), "rules": self.rules,
+                # None when the DVR is not configured (a --source file can still be played)
+                "source": self.detect_source(dvr) if (dvr is not None or not self.is_dvr) else None,
+                "rules": self.rules,
                 "zones": self.extra.get("zones", [])}
 
 

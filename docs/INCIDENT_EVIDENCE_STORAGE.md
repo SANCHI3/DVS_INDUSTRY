@@ -1,7 +1,20 @@
 # Design note: storing incident evidence
 
-Status: **proposal, not built.** It waits for the real CCTV details: number of
-cameras, where the perception PC sits, and how long footage may be kept.
+Status: **built (Nov 2026)**, as below with these choices:
+
+- Pictures go to the database by default (`IncidentEvidence`), or to an
+  S3-compatible bucket when the four `EVIDENCE_S3_*` settings are set on
+  Render.
+- The perception PC uploads them through
+  `POST /security/incidents/:ref/evidence` and queues them on its disk while
+  the website is unreachable.
+- Retention: `EVIDENCE_RETENTION_DAYS` (default 30) and 7 days for false
+  alarms, applied by a daily job.
+- Pictures are viewed only through the signed-in API; there are no public URLs.
+- Video clips stay on the factory PC. Only JPEG keyframes and Grad-CAM images
+  are uploaded.
+
+The original proposal follows.
 
 ## Today
 
