@@ -11,8 +11,9 @@ export const COMPANY = {
   shortLocation: "MIDC Malegaon, Sinnar",
   region: "Nashik, Maharashtra",
   gst: "27AADFD0230G1Z2",
-  // The plant's Google business listing (share link from the owner).
-  mapsUrl: "https://share.google/8HFWQjUofFOQssNpa",
+  // The plant's Google Maps listing "DVS INDUSTERIES" (place 0x3bddb9be29a7fde5:0xf3836ab96add1210;
+  // cid is the second half in decimal). Opens the Maps app on phones, unlike a share.google link.
+  mapsUrl: "https://maps.google.com/?cid=17546985917759951376",
 } as const;
 
 /** Whole years since the company was founded, e.g. 26 in 2026. */
