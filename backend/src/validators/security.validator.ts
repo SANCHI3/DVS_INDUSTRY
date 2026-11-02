@@ -114,6 +114,13 @@ export const incidentEscalationSchema = z.object({
   reason: z.string().min(1, 'reason is required').max(1000).trim(),
 });
 
+/** The perception service saw the same event on the same camera again. */
+export const incidentRepeatSchema = z.object({
+  incident_id: z.string().min(1).max(100).trim(),
+  seenAt: z.coerce.date().optional(),
+});
+export type IncidentRepeatInput = z.infer<typeof incidentRepeatSchema>;
+
 export const incidentQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional().default(1),
   pageSize: z.coerce.number().int().positive().max(100).optional().default(20),

@@ -562,3 +562,43 @@ describe('bulk incident actions', () => {
     );
   });
 });
+
+describe('repeat of the same event within the cooldown', () => {
+  it('counts it on the open incident', async () => {
+    (prisma.securityIncident.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeIncident('OPEN'),
+    );
+    (prisma.securityIncident.update as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeIncident('OPEN', { repeatCount: 1 }),
+    );
+    const svc = new SecurityService();
+    const result = await svc.recordRepeat('INC-0001');
+    expect(result.repeatCount).toBe(1);
+    const update = (prisma.securityIncident.update as ReturnType<typeof vi.fn>).mock.calls.at(
+      -1,
+    )![0];
+    expect(update.data).toMatchObject({ repeatCount: { increment: 1 } });
+    expect(update.data.status).toBeUndefined();
+    expect(
+      (prisma.incidentUpdate.create as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0].data.comment,
+    ).toBe('Seen again on the same camera (2 times in all)');
+  });
+
+  it('reopens an incident someone had already resolved', async () => {
+    (prisma.securityIncident.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeIncident('RESOLVED'),
+    );
+    (prisma.securityIncident.update as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeIncident('OPEN', { repeatCount: 2 }),
+    );
+    await new SecurityService().recordRepeat('INC-0001');
+    const update = (prisma.securityIncident.update as ReturnType<typeof vi.fn>).mock.calls.at(
+      -1,
+    )![0];
+    expect(update.data).toMatchObject({ status: 'OPEN', resolvedAt: null, closedAt: null });
+    const note = (prisma.incidentUpdate.create as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0]
+      .data;
+    expect(note).toMatchObject({ statusChange: 'OPEN' });
+    expect(note.comment).toContain('reopened');
+  });
+});

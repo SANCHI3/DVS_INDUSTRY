@@ -712,6 +712,10 @@ model SecurityIncident {
   // a developer test (DEV, hidden from counts and lists by default)
   instanceId   String?
   source       IncidentSource     @default(LIVE)
+  // The same event on the same camera again within the cooldown (10 min):
+  // counted here instead of a new incident
+  repeatCount  Int                @default(0)
+  lastSeenAt   DateTime?
   // Detector details sent with the evidence: the "why the AI raised it" list
   evidenceMeta Json?
   evidence     IncidentEvidence[]

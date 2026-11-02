@@ -174,6 +174,35 @@ export class SecurityService {
    * -- a request that raises neither is a no-op -- and every raise is recorded
    * as an incident update so the change is auditable.
    */
+  /**
+   * The same event was seen again on the same camera within the cooldown:
+   * one incident with a count instead of a new one. A resolved or closed
+   * incident is reopened, so a returning fire or fight is never swallowed.
+   */
+  async recordRepeat(
+    incidentNumber: string,
+    seenAt: Date = new Date(),
+    updatedById: number | null = null,
+    updatedByName: string | null = null,
+  ): Promise<SecurityIncidentDto> {
+    const existing = await this.repo.findIncidentByNumber(incidentNumber);
+    if (!existing) throw new NotFoundError(`Security incident ${incidentNumber} not found`);
+    const reopen = existing.status === 'RESOLVED' || existing.status === 'CLOSED';
+    const incident = await this.repo.recordRepeat(existing.id, seenAt, reopen);
+    const times = incident.repeatCount + 1;
+    await this.repo.addIncidentUpdate({
+      incidentId: existing.id,
+      comment: reopen
+        ? `Seen again after it was marked ${existing.status.toLowerCase()} (${times} times in all); reopened`
+        : `Seen again on the same camera (${times} times in all)`,
+      updatedById,
+      updatedByName,
+      ...(reopen && { statusChange: 'OPEN' as IncidentStatus }),
+    });
+    publishSecurityEvent({ type: 'incident.updated', incident });
+    return incident;
+  }
+
   async escalateIncidentSeverity(
     incidentNumber: string,
     severity: IncidentSeverity,

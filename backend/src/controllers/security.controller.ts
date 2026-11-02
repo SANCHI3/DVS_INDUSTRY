@@ -20,6 +20,7 @@ import type {
   SecurityKpiQueryInput,
   IncidentAiSummaryInput,
   IncidentEscalationInput,
+  IncidentRepeatInput,
 } from '../validators/security.validator';
 import type {
   IncidentFilters,
@@ -247,6 +248,20 @@ export function streamSecurityEvents(req: Request, res: Response): void {
     clearInterval(heartbeat);
     unsubscribe();
   });
+}
+
+export async function recordIncidentRepeat(
+  req: AuthenticatedRequest,
+  res: Response,
+): Promise<void> {
+  const body = req.body as IncidentRepeatInput;
+  const actor = actorOf(req);
+  sendSuccess(
+    res,
+    await svc.recordRepeat(body.incident_id, body.seenAt ?? new Date(), actor.id, actor.name),
+    200,
+    'Repeat recorded',
+  );
 }
 
 export async function escalateIncidentSeverity(

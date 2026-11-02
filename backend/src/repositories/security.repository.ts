@@ -54,6 +54,8 @@ const incidentSelect = {
   cameraId: true,
   instanceId: true,
   source: true,
+  repeatCount: true,
+  lastSeenAt: true,
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
@@ -165,6 +167,20 @@ export class SecurityRepository {
       return toIncidentDto(raw);
     };
     return externalNumber ? create() : withUniqueNumberRetry(create);
+  }
+
+  /** Seen again: count it, and reopen it if someone had already resolved it. */
+  async recordRepeat(id: number, seenAt: Date, reopen: boolean): Promise<SecurityIncidentDto> {
+    const raw = await prisma.securityIncident.update({
+      where: { id },
+      data: {
+        repeatCount: { increment: 1 },
+        lastSeenAt: seenAt,
+        ...(reopen && { status: 'OPEN', resolvedAt: null, closedAt: null }),
+      },
+      select: incidentSelect,
+    });
+    return toIncidentDto(raw);
   }
 
   async updateIncident(id: number, data: UpdateIncidentData): Promise<SecurityIncidentDto> {

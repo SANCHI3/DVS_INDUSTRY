@@ -213,3 +213,22 @@ class IncidentReporterTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RepeatTests(unittest.TestCase):
+    def test_repeat_is_sent_only_for_incidents_on_the_dashboard(self):
+        import tempfile
+        from reporting.incident_report import IncidentReporter
+        with tempfile.TemporaryDirectory() as tmp:
+            reporter = IncidentReporter(os.path.join(tmp, "incidents.jsonl"), {"CAM-01": "Gate"})
+            sent = []
+            reporter.dashboard_client = type("C", (), {"request": lambda self, *a, **k: sent.append(a)})()
+            reporter._reports["INC-1"] = {"incident_id": "INC-1", "confidence_tier": "CONFIRMED",
+                                         "event_type": "fire_smoke", "detail": {}}
+            reporter._reports["INC-2"] = {"incident_id": "INC-2", "confidence_tier": "PROBABLE",
+                                         "event_type": "crowd", "detail": {}}
+            reporter.repeat_incident("INC-1")
+            reporter.repeat_incident("INC-2")
+            self.assertEqual(sent, [("/api/v1/security/incidents/repeat", {"incident_id": "INC-1"}, "PATCH")])
+            with open(os.path.join(tmp, "incident_updates.jsonl"), encoding="utf-8") as f:
+                self.assertEqual(sum(1 for line in f if '"repeat": true' in line), 2)

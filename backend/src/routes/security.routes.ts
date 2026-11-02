@@ -25,6 +25,7 @@ import {
   evidenceFileQuerySchema,
   bulkIncidentSchema,
   evidenceRefParamSchema,
+  incidentRepeatSchema,
 } from '../validators/security.validator';
 import { ROLES } from '../constants';
 import { evidenceUpload } from '../utils/evidenceUpload';
@@ -102,6 +103,19 @@ router.patch(
  * Access: ADMIN, MANAGER, PRODUCTION
  */
 router.get('/stream', authorize(...SEC_READ), SecurityController.streamSecurityEvents);
+
+/**
+ * PATCH /api/v1/security/incidents/repeat
+ * Body: { incident_id, seenAt? }. The same event on the same camera within
+ * the cooldown: counted on the incident (reopened if it was resolved).
+ * Access: ADMIN, MANAGER, PERCEPTION_SERVICE
+ */
+router.patch(
+  '/incidents/repeat',
+  authorize(...AI_SUMMARY_WRITERS),
+  validateRequest({ body: incidentRepeatSchema }),
+  asyncHandler(SecurityController.recordIncidentRepeat),
+);
 
 /**
  * PATCH /api/v1/security/incidents/escalate

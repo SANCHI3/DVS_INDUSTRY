@@ -59,6 +59,8 @@ export interface SecurityIncidentDto {
   cameraId: string | null;
   instanceId: string | null;
   source: 'LIVE' | 'DEV';
+  repeatCount: number;
+  lastSeenAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   deletedAt: Date | null;

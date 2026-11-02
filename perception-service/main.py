@@ -205,7 +205,7 @@ def run(
     uploader = (EvidenceUploader(os.path.join(output_dir, "upload_queue"))
                 if os.getenv("DASHBOARD_BACKEND_URL", "").strip() else None)
 
-    def send_evidence(incident_id, _event, *, report=None, keyframes=None, detail=None):
+    def send_evidence(incident_id, _event, *, report=None, keyframes=None, detail=None, repeat=False):
         if uploader is not None:
             detail = detail or {}
             uploader.enqueue(incident_id,

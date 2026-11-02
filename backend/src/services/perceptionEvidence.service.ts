@@ -95,6 +95,8 @@ export function explain(eventType: string, detail: Json): { label: string; value
     }
   }
   if (eventType === 'fire_smoke') {
+    if (detail['night_picture'])
+      add('Picture', 'Black-and-white (night / infrared): fire detection is less certain');
     const classes = detail['detected_classes'];
     add('Detected', Array.isArray(classes) ? classes.join(' and ') : null);
     add('Fire score (mean)', pct(detail['fire_score']));

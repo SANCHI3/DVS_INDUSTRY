@@ -33,6 +33,9 @@ export interface SecurityIncidentDto {
   cameraId?:        string | null;
   /** DEV = a developer's test detection, hidden unless asked for */
   source?:          'LIVE' | 'DEV';
+  /** Seen again on the same camera within 10 minutes (counted, not new incidents) */
+  repeatCount?:     number;
+  lastSeenAt?:      string | null;
   createdAt:        string;
   _count:           { updates: number; alerts: number };
 }

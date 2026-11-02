@@ -99,7 +99,7 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
         evidence_url = cam.evidence_source(setup.dvr)
 
         def on_incident(incident_id: str, _event: str, cam_id=cam.id, url=evidence_url, *, report=None,
-                        keyframes=None, detail=None) -> None:
+                        keyframes=None, detail=None, repeat=False) -> None:
             detail = detail or {}
             waiting[incident_id] = (list(keyframes or []), list(detail.get("gradcam_heatmaps") or []),
                                     evidence_meta(report or {}, detail))

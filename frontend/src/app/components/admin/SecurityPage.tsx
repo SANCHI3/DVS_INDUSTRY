@@ -63,6 +63,7 @@ type DisplayIncident = {
   occurredAt: string;
   cameraId: string | null;
   isTest: boolean;
+  repeatCount: number;
   severity: string;
   assigned: string;
   numericId: number;
@@ -292,6 +293,7 @@ export function SecurityPage() {
     occurredAt: incident.occurredAt,
     cameraId: incident.cameraId ?? null,
     isTest: incident.source === "DEV",
+    repeatCount: incident.repeatCount ?? 0,
     severity: incident.severity.toLowerCase(),
     assigned: incident.assignedToName ?? "Unassigned",
     numericId: incident.id,
@@ -588,7 +590,7 @@ export function SecurityPage() {
                   id: <button onClick={() => setSelectedIncidentId(incident.numericId)} title="View evidence" aria-label="View evidence" style={{ color: "#A52A2A", fontFamily: "JetBrains Mono, monospace", fontSize: "0.75rem", fontWeight: 700, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline", textUnderlineOffset: "2px" }}>{incident.id}</button>,
                   datetime: <div><p style={{ color: "#302725", fontSize: "0.78rem", fontWeight: 600 }}>{incident.dateTime.date}</p><p style={{ color: "#9A8A88", fontSize: "0.7rem" }}>{incident.dateTime.time}</p></div>,
                   location: <span style={{ fontSize: "0.78rem" }}>{incident.location}{incident.cameraId && cameraName(incident.cameraId) && !incident.location.includes(cameraName(incident.cameraId)!) ? <span style={{ display: "block", color: "#9A8A88", fontSize: "0.7rem" }}>{cameraName(incident.cameraId)}</span> : null}</span>,
-                  type: <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>{incident.type}{incident.isTest && <span className="ml-1.5 rounded px-1.5 py-0.5" style={{ background: "#EEF2FF", color: "#3949AB", fontSize: "0.65rem", fontWeight: 700 }}>Test</span>}</span>,
+                  type: <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>{incident.type}{incident.isTest && <span className="ml-1.5 rounded px-1.5 py-0.5" style={{ background: "#EEF2FF", color: "#3949AB", fontSize: "0.65rem", fontWeight: 700 }}>Test</span>}{incident.repeatCount > 0 && <span className="block" style={{ color: "#9A6700", fontSize: "0.68rem", fontWeight: 600 }}>Seen {incident.repeatCount + 1} times</span>}</span>,
                   aiSummary: incident.aiSummary ? <span style={{ color: "#665956", display: "block", fontSize: "0.75rem", lineHeight: 1.45, maxWidth: "18rem" }}>{incident.aiSummary}</span> : <span title="No AI summary; showing the built-in description" style={{ color: "#9A8A88", display: "block", fontSize: "0.74rem", lineHeight: 1.45, maxWidth: "18rem" }}>{incident.description}</span>,
                   confidence: <span style={{ color: incident.confidence === "—" ? "#AAA09D" : "#665956", fontSize: "0.74rem", fontWeight: 600 }}>{incident.confidence}</span>,
                   severity: <StatusBadge status={incident.severity} />,

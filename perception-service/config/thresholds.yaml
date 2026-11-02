@@ -16,7 +16,7 @@ temporal_buffer:
 
 rules:
   crowd:
-    person_count_threshold: 15         # people in one group before it counts as a crowd (site asks for 15-20)
+    person_count_threshold: 8          # people in one group before it counts as a crowd; per camera: crowd_min_people in cameras.yaml
     sustained_seconds: 5
   fall:
     aspect_ratio_flip_seconds: 1.5     # standing->fallen transition must happen within this
@@ -275,6 +275,9 @@ incident_dedup:
   # incident instead of creating new ones. A new incident is raised only after
   # the event has been quiet for this many seconds.
   window_seconds: 60
+  # The same event on the same camera again within this time (after the
+  # window above) is counted on the last incident instead of opening a new one.
+  cooldown_seconds: 600
   per_event_seconds:
     fight: 60
     crowd: 90

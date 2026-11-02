@@ -19,6 +19,7 @@ import cv2
 from confirmation.event_confirmation import EventConfirmation
 from confirmation.incident_dedup import IncidentDeduper
 from evidence.clip_extractor import EvidenceBuffer
+from ingestion.zones import PERSON_EVENTS, ZoneMask, is_grayscale
 from reporting.description_generator import is_review_fight
 from severity.severity_rules import compute_severity
 from temporal.fire_smoke_recognition import FireSmokeDetector
@@ -97,6 +98,22 @@ class StageTimer:
         }
 
 
+def deep_merge(base: dict, override: dict) -> dict:
+    """thresholds.yaml with a camera's overrides on top (nested keys merged)."""
+    out = dict(base)
+    for key, value in (override or {}).items():
+        out[key] = deep_merge(out[key], value) if isinstance(value, dict) and isinstance(out.get(key), dict) else value
+    return out
+
+
+def camera_thresholds(thresholds_cfg: dict, cam_cfg: dict) -> dict:
+    """Per-camera `thresholds:` from cameras.yaml, plus the crowd_min_people shorthand."""
+    merged = deep_merge(thresholds_cfg, cam_cfg.get("thresholds") or {})
+    if cam_cfg.get("crowd_min_people") is not None:
+        merged = deep_merge(merged, {"rules": {"crowd": {"person_count_threshold": int(cam_cfg["crowd_min_people"])}}})
+    return merged
+
+
 def section_configs(thresholds_cfg: dict, output_dir: str, demo: bool) -> dict:
     """The thresholds.yaml sections with output paths moved under output_dir."""
 
@@ -143,6 +160,8 @@ class CameraPipeline:
     ):
         self.camera_id = camera_id
         self.cam_cfg = cam_cfg
+        # This camera's thresholds: thresholds.yaml + its overrides in cameras.yaml
+        thresholds_cfg = camera_thresholds(thresholds_cfg, cam_cfg)
         self.thresholds_cfg = thresholds_cfg
         self.detector = detector
         self.reporter = reporter
@@ -150,6 +169,9 @@ class CameraPipeline:
         perception_cfg = thresholds_cfg["perception"]
         self.fps = float(fps or perception_cfg["detection_fps"])
         self.proc_w, self.proc_h = perception_cfg["process_width"], perception_cfg["process_height"]
+        # Areas to look at / ignore, and what fire/smoke does at night
+        self.zones = ZoneMask(cam_cfg, self.proc_w, self.proc_h)
+        self.night = False
         self.tracking_cfg = thresholds_cfg["tracking"]
 
         # Events this camera runs: --only-events on top of the camera's rules
@@ -256,10 +278,16 @@ class CameraPipeline:
 
         cycle_start = time.perf_counter()
         camera_id, timer, detector = self.camera_id, self.timer, self.detector
-        frame = cv2.resize(sample.frame, (self.proc_w, self.proc_h))
+        full = cv2.resize(sample.frame, (self.proc_w, self.proc_h))
         # feed the evidence buffer with the *original* full-resolution frame,
         # not the downscaled one used for inference (design doc section 8)
         self.evidence_buffer.add_frame(sample.frame, timestamp=sample.timestamp)
+        night = is_grayscale(full)
+        if night != self.night:
+            self.night = night
+            print(f"[{camera_id}] picture is {'black-and-white (night / infrared)' if night else 'in colour again'}")
+        # outside the camera's area / inside ignore zones is greyed out for the models
+        frame = self.zones.apply(full)
 
         with timer.stage("yolo_detect"):
             detections = detector.detect(frame)
@@ -289,7 +317,8 @@ class CameraPipeline:
         if self.fire_smoke_detector is not None:
             with timer.stage("fire_smoke"):
                 people_now = [t.states[-1].bbox for t in self.buffer.active_tracks_by_class("person", 0.5)]
-                candidates += self.fire_smoke_detector.evaluate(frame, person_boxes=people_now)
+                fire_frame = self.zones.apply(full, "fire_smoke") if self.zones.active else frame
+                candidates += self.fire_smoke_detector.evaluate(fire_frame, person_boxes=people_now)
         if self.fall_detector is not None:
             # the learned pose model supersedes the bbox aspect-ratio fall rule
             candidates = [c for c in candidates if c.event_type != "fall"]
@@ -297,7 +326,9 @@ class CameraPipeline:
                 candidates += self.fall_detector.evaluate(self.buffer, frame)
         if self.anomaly_detector is not None:
             with timer.stage("anomaly"):
-                candidates += self.anomaly_detector.evaluate(frame)
+                candidates += self.anomaly_detector.evaluate(
+                    self.zones.apply(full, "anomaly") if self.zones.active else frame)
+        candidates = self._zone_filter(self.zones.night_filter(candidates, self.night))
         self.deduper.touch(candidates)
         confirmed_events = self.confirmation.update(candidates)
 
@@ -313,6 +344,22 @@ class CameraPipeline:
         self.frames_processed += 1
         timer.add("cycle_total", (time.perf_counter() - cycle_start) * 1000.0)
         return frame, tracked
+
+    def _zone_filter(self, candidates: list) -> list:
+        """Drop crowd / fall / fight where the person stands in a zone ignored for that check."""
+        if not self.zones.ignore:
+            return candidates
+        kept = []
+        for c in candidates:
+            if c.event_type in PERSON_EVENTS and c.track_ids:
+                track = self.buffer.get(c.track_ids[0])
+                if track is not None and track.states:
+                    x1, y1, x2, y2 = track.states[-1].bbox
+                    foot = ((x1 + x2) / 2 / self.proc_w, y2 / self.proc_h)
+                    if self.zones.ignored_at(c.event_type, *foot):
+                        continue
+            kept.append(c)
+        return kept
 
     def _handle_event(self, event) -> None:
         camera_id, reporter, deduper = self.camera_id, self.reporter, self.deduper
@@ -357,6 +404,16 @@ class CameraPipeline:
                 f"severity={severity} conf={event.confidence:.2f} "
                 f"-> {existing_id} (updated existing incident)"
             )
+            return
+        if action == "repeat":
+            # Same event on this camera within the cooldown: one incident with a count
+            reporter.repeat_incident(existing_id)
+            keyframes = self.evidence_buffer.save_keyframes(existing_id, event.camera_id)
+            self.last_detection = {"incident_id": existing_id, "event_type": event.event_type, "at": time.time()}
+            if self.on_incident is not None:
+                self.on_incident(existing_id, event.event_type, report=reporter.remembered(existing_id) or {},
+                                 keyframes=keyframes, detail=dict(event.candidate.detail or {}), repeat=True)
+            print(f"[{camera_id}] {event.event_type} seen again -> {existing_id} (counted, no new incident)")
             return
         if action == "suppress":
             print(

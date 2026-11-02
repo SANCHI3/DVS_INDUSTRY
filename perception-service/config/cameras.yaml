@@ -12,6 +12,17 @@
 #   detect_stream    sub (low resolution, used for detection)
 #   evidence_stream  main (full resolution, opened only for incident pictures)
 #   zones            optional crowd areas (pixel polygons at the processing size)
+#   roi              optional area to check, fractions of the picture (0-1):
+#                      roi: [[0.05, 0.2], [0.95, 0.2], [0.95, 1.0], [0.05, 1.0]]
+#   ignore_zones     optional areas to ignore (welding = fire look-alike, sunny window):
+#                      - name: Welding bay
+#                        polygon: [[0.6, 0.1], [0.9, 0.1], [0.9, 0.5], [0.6, 0.5]]
+#                        events: [fire_smoke]          # leave out to ignore every check
+#                    draw both on the camera's picture: python scripts/draw_roi.py <channel>
+#   crowd_min_people people for a crowd here (default 8, thresholds.yaml)
+#   thresholds       any thresholds.yaml values for this camera only
+#   night_mode       normal (default) | strict | off: fire/smoke on black-and-white
+#                    infrared pictures (see evaluation/night_ir_check.py)
 #
 # Run all enabled cameras:   python main.py --all --no-display
 # One camera:                python main.py --camera dvr-ch1 --no-display

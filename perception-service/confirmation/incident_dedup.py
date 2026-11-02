@@ -10,6 +10,10 @@ This layer keys an ongoing incident by event type for the camera and
 keeps it open while raw candidates for that key keep arriving. Repeats inside
 the window update the existing incident (escalation) or are suppressed; a new
 incident is only created once the key has been quiet for the whole window.
+
+Cooldown: the same event type on the same camera again within
+`cooldown_seconds` (default 10 minutes) of the last activity is a "repeat":
+it is counted on the existing incident instead of opening a new one.
 """
 from __future__ import annotations
 
@@ -31,6 +35,7 @@ class ActiveIncident:
     severity: str
     confidence: float
     last_activity_at: float
+    repeats: int = 0
 
 
 class IncidentDeduper:
@@ -44,7 +49,10 @@ class IncidentDeduper:
         self.windows: Dict[str, float] = {
             k: float(v) for k, v in (cfg.get("per_event_seconds") or {}).items()
         }
+        self.cooldown = float(cfg.get("cooldown_seconds", 600.0))
         self._active: Dict[Key, ActiveIncident] = {}
+        # incidents whose window ended, kept for the cooldown
+        self._recent: Dict[Key, ActiveIncident] = {}
 
     @staticmethod
     def _key(event_type: str) -> Key:
@@ -58,7 +66,7 @@ class IncidentDeduper:
         if active is None:
             return None
         if now - active.last_activity_at > self._window(key):
-            del self._active[key]
+            self._recent[key] = self._active.pop(key)
             return None
         return active
 
@@ -71,15 +79,32 @@ class IncidentDeduper:
                 active.last_activity_at = now
 
     def check(self, event, severity: str) -> Tuple[str, Optional[str]]:
-        """Return ("new", None), ("escalate", incident_id) or ("suppress", incident_id).
+        """Return ("new" | "escalate" | "suppress" | "repeat", incident_id or None).
 
         A repeat escalates the open incident when it raises the confidence
         tier, the severity (e.g. a fall where the person stays down), or the
-        confidence score by at least `confidence_step`."""
+        confidence score by at least `confidence_step`. After the window, the
+        same event within the cooldown is a "repeat" of the last incident."""
         key = self._key(event.event_type)
-        active = self._live(key, time.time())
+        now = time.time()
+        active = self._live(key, now)
         if active is None:
-            return "new", None
+            recent = self._recent.get(key)
+            if recent is None or self.cooldown <= 0 or now - recent.last_activity_at > self.cooldown:
+                self._recent.pop(key, None)
+                return "new", None
+            # back within the cooldown: reopen the same incident
+            del self._recent[key]
+            self._active[key] = recent
+            recent.last_activity_at = now
+            if TIER_RANK[event.tier] > TIER_RANK[recent.tier] or (
+                    SEVERITY_ORDER.index(severity) > SEVERITY_ORDER.index(recent.severity)):
+                recent.tier = max(recent.tier, event.tier, key=TIER_RANK.__getitem__)
+                recent.severity = max(recent.severity, severity, key=SEVERITY_ORDER.index)
+                recent.confidence = max(recent.confidence, event.confidence)
+                return "escalate", recent.incident_id
+            recent.repeats += 1
+            return "repeat", recent.incident_id
         higher_tier = TIER_RANK[event.tier] > TIER_RANK[active.tier]
         higher_severity = SEVERITY_ORDER.index(severity) > SEVERITY_ORDER.index(active.severity)
         higher_confidence = event.confidence >= active.confidence + self.confidence_step

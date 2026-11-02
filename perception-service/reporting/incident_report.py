@@ -597,6 +597,30 @@ class IncidentReporter:
         while len(self._reports) > self.MAX_REMEMBERED_REPORTS:
             self._reports.pop(next(iter(self._reports)))
 
+    def remembered(self, incident_id: str) -> Optional[dict]:
+        return self._reports.get(incident_id)
+
+    def repeat_incident(self, incident_id: str) -> None:
+        """Same event on the same camera within the cooldown: count it on the
+        existing incident (the website reopens it if it was resolved)."""
+        update_path = os.path.join(os.path.dirname(self.output_path) or ".", "incident_updates.jsonl")
+        with open(update_path, "a", encoding="utf-8") as file:
+            file.write(json.dumps({"incident_id": incident_id, "repeat": True,
+                                   "updated_at": datetime.now(timezone.utc).isoformat()}) + "\n")
+        report = self._reports.get(incident_id)
+        on_dashboard = report is not None and (
+            str(report.get("confidence_tier")).upper() == "CONFIRMED" or is_dashboard_review(report))
+        if not on_dashboard:
+            return
+
+        def send() -> None:
+            try:
+                self.dashboard_client.request("/api/v1/security/incidents/repeat",
+                                              {"incident_id": incident_id}, "PATCH")
+            except DashboardClientError as exc:
+                print(f"[reporter] repeat of {incident_id} not recorded on the dashboard: {exc}")
+        self._dispatch(send)
+
     def update_incident(
         self,
         incident_id: str,

@@ -1,4 +1,4 @@
-﻿"""Tests for camera-level incident de-duplication (no camera, GPU or YOLO needed).
+"""Tests for camera-level incident de-duplication (no camera, GPU or YOLO needed).
 
 Run:  python test_incident_dedup.py      (or: pytest test_incident_dedup.py)
 """
@@ -60,7 +60,7 @@ def test_escalation_updates_existing_incident():
 
 def test_new_incident_after_quiet_window():
     def body(clock):
-        d = IncidentDeduper({"window_seconds": 60})
+        d = IncidentDeduper({"window_seconds": 60, "cooldown_seconds": 0})
         ev = _event("fight")
         d.register(ev, "MEDIUM", "INC-1")
         clock.t += 61
@@ -92,7 +92,7 @@ def test_one_incident_per_camera_and_type_and_types_are_independent():
 
 def test_per_event_window_override():
     def body(clock):
-        d = IncidentDeduper({"window_seconds": 60, "per_event_seconds": {"fall": 30}})
+        d = IncidentDeduper({"window_seconds": 60, "per_event_seconds": {"fall": 30}, "cooldown_seconds": 0})
         d.register(_event("fall", tracks=(1,)), "MEDIUM", "INC-1")
         clock.t += 31
         assert d.check(_event("fall", tracks=(1,)), "MEDIUM") == ("new", None)
@@ -131,3 +131,47 @@ if __name__ == "__main__":
         if name.startswith("test_"):
             fn()
             print(f"PASS {name}")
+
+
+def test_same_event_within_cooldown_is_counted_not_new():
+    def body(clock):
+        d = IncidentDeduper({"window_seconds": 60, "cooldown_seconds": 600})
+        d.register(_event("fire_smoke"), "HIGH", "INC-1")
+        clock.t += 300  # quiet for 5 minutes, then seen again
+        assert d.check(_event("fire_smoke"), "HIGH") == ("repeat", "INC-1")
+        clock.t += 5   # still going: the reopened incident is active again
+        assert d.check(_event("fire_smoke"), "HIGH") == ("suppress", "INC-1")
+    _run(body)
+
+
+def test_after_the_cooldown_a_new_incident_opens():
+    def body(clock):
+        d = IncidentDeduper({"window_seconds": 60, "cooldown_seconds": 600})
+        d.register(_event("fight"), "MEDIUM", "INC-1")
+        clock.t += 61 + 600
+        assert d.check(_event("fight"), "MEDIUM") == ("new", None)
+    _run(body)
+
+
+def test_a_more_certain_repeat_escalates_instead():
+    def body(clock):
+        d = IncidentDeduper({"window_seconds": 60, "cooldown_seconds": 600})
+        d.register(_event("fight", tier="PROBABLE"), "MEDIUM", "INC-1")
+        clock.t += 120
+        assert d.check(_event("fight", tier="CONFIRMED"), "MEDIUM") == ("escalate", "INC-1")
+    _run(body)
+
+
+def test_136_open_incidents_problem_one_incident_per_10_minutes():
+    """A flickering detection every 2 minutes for an hour used to open 30 incidents."""
+    def body(clock):
+        d = IncidentDeduper({"window_seconds": 60, "cooldown_seconds": 600})
+        opened = 0
+        for _ in range(30):
+            action, _ = d.check(_event("crowd"), "LOW")
+            if action == "new":
+                opened += 1
+                d.register(_event("crowd"), "LOW", f"INC-{opened}")
+            clock.t += 120
+        assert opened == 1
+    _run(body)
