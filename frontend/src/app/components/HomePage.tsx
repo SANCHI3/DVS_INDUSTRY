@@ -626,10 +626,14 @@ export function HomePage({ onNavigateToLogin }: HomePageProps) {
                     <MapPin size={18} color="#A52A2A" className="flex-shrink-0 mt-0.5" />
                     <p style={{ fontSize: "0.875rem", color: "var(--color-ink-soft)", lineHeight: 1.6 }}>{COMPANY.addressLines[0]}<br />{COMPANY.addressLines[1]}</p>
                   </div>
-                  {COMPANY.phone && (
+                  {COMPANY.phones.length > 0 && (
                     <div className="flex gap-3">
-                      <Phone size={18} color="#A52A2A" className="flex-shrink-0" />
-                      <a href={telHref(COMPANY.phone)} style={{ fontSize: "0.875rem", color: "var(--color-ink-soft)", textDecoration: "none" }}>{COMPANY.phone}</a>
+                      <Phone size={18} color="#A52A2A" className="flex-shrink-0 mt-0.5" />
+                      <div className="flex flex-col gap-1">
+                        {COMPANY.phones.map((phone) => (
+                          <a key={phone} href={telHref(phone)} style={{ fontSize: "0.875rem", color: "var(--color-ink-soft)", textDecoration: "none" }}>{phone}</a>
+                        ))}
+                      </div>
                     </div>
                   )}
                   <div className="flex gap-3">
@@ -729,7 +733,7 @@ export function HomePage({ onNavigateToLogin }: HomePageProps) {
                 {[
                   { Icon: MapPin, href: COMPANY.mapsUrl, label: "Find us on Google Maps", external: true },
                   { Icon: Mail, href: `mailto:${COMPANY.email}`, label: `Email ${COMPANY.email}`, external: false },
-                  ...(COMPANY.phone ? [{ Icon: Phone, href: telHref(COMPANY.phone), label: `Call ${COMPANY.phone}`, external: false }] : []),
+                  ...(COMPANY.phones.length > 0 ? [{ Icon: Phone, href: telHref(COMPANY.phones[0]), label: `Call ${COMPANY.phones[0]}`, external: false }] : []),
                 ].map(({ Icon, href, label, external }) => (
                   <a key={label} href={href} aria-label={label} title={label}
                     {...(external && { target: "_blank", rel: "noopener noreferrer" })}

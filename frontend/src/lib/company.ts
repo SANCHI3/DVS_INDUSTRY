@@ -4,18 +4,15 @@
 export const COMPANY = {
   name: "DVS Industries",
   foundedYear: 2000,
-  // TODO(owner): main phone number, e.g. "+91 98765 43210". While empty, the phone row and icon are hidden.
-  phone: "",
-  // TODO(owner): confirm this inbox exists (staff logins use @dvsindustry.com).
-  email: "info@dvsindustries.com",
+  // The first number is the main one (footer call button).
+  phones: ["+91 93263 51530", "+91 98501 90210"],
+  email: "dvsindustries13@gmail.com",
   addressLines: ["Plot No B-166, MIDC Malegaon,", "Sinnar, Nashik, Maharashtra, India"],
   shortLocation: "MIDC Malegaon, Sinnar",
   region: "Nashik, Maharashtra",
   gst: "27AADFD0230G1Z2",
-  // TODO(owner): replace with the plant's own Google Maps share link. This searches for the address meanwhile.
-  mapsUrl:
-    "https://www.google.com/maps/search/?api=1&query=" +
-    encodeURIComponent("Plot B-166, MIDC Malegaon, Sinnar, Nashik, Maharashtra, India"),
+  // The plant's Google business listing (share link from the owner).
+  mapsUrl: "https://share.google/8HFWQjUofFOQssNpa",
 } as const;
 
 /** Whole years since the company was founded, e.g. 26 in 2026. */
