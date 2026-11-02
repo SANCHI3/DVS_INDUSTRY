@@ -176,6 +176,8 @@ export async function deleteAlert(id: number): Promise<void> {
 export interface EvidenceFile {
   file: string;
   kind: 'keyframe' | 'gradcam' | 'clip_before' | 'clip_after';
+  /** Keyframes from the factory PC: "before" | "at" | "after" */
+  label?: string;
 }
 
 export type IncidentEvidence =

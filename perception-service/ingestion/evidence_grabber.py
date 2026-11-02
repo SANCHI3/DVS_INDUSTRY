@@ -91,7 +91,11 @@ class MainStreamGrabber:
                     paths.append(path.replace("\\", "/"))
                 if not paths:
                     print(f"[{camera_id}] no main-stream picture for {incident_id}")
-                elif self.on_saved:
-                    self.on_saved(incident_id, paths)
             except Exception as exc:  # noqa: BLE001 - never let evidence break detection
+                paths = []
                 print(f"[{camera_id}] main-stream picture failed: {mask_text(exc, self.password)}")
+            if self.on_saved:
+                try:
+                    self.on_saved(incident_id, paths)
+                except Exception as exc:  # noqa: BLE001 - keep the grabber thread alive
+                    print(f"[{camera_id}] evidence hand-off failed: {mask_text(exc, self.password)}")

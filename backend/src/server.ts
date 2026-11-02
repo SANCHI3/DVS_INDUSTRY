@@ -17,6 +17,7 @@ import { prisma } from './lib/prismaClient';
 import { logger } from './logger';
 import { Client } from 'pg';
 import { sharedBusWanted, startSecurityEventBus } from './lib/securityEvents';
+import { IncidentEvidenceService } from './services/incidentEvidence.service';
 
 const server = app.listen(env.PORT, () => {
   logger.info(`🚀  Server running`, {
@@ -55,6 +56,21 @@ if (sharedBusWanted()) {
     stopEventBus = stop;
     logger.info('Security events relayed through Postgres LISTEN/NOTIFY');
   });
+}
+
+// ── Incident picture retention ─────────────────────────────────────────────
+// Once a day (first run a minute after start): pictures older than
+// EVIDENCE_RETENTION_DAYS, and false alarms' after 7 days. One PM2 worker only.
+if ((process.env['NODE_APP_INSTANCE'] ?? '0') === '0') {
+  const evidence = new IncidentEvidenceService();
+  const runRetention = () =>
+    void evidence.applyRetention().catch((err: unknown) =>
+      logger.warn('Evidence retention failed', {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+  setTimeout(runRetention, 60_000).unref();
+  setInterval(runRetention, 24 * 60 * 60_000).unref();
 }
 
 // ── Graceful shutdown ──────────────────────────────────────────────────────

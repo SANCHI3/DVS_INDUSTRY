@@ -55,6 +55,7 @@ from ingestion.stream_reader import StreamReader
 from pipeline import (  # noqa: F401 - re-exported for tests and tools
     CameraPipeline, StageTimer, checkpoint_problem, redirect_output, start_optional,
 )
+from reporting.evidence_uploader import EvidenceUploader, evidence_meta, pick_pictures
 from reporting.incident_report import IncidentReporter
 
 TIER_COLOR = {
@@ -200,9 +201,21 @@ def run(
         # Dashboard posts and LLM enrichment must never stall frame processing
         background=True,
     )
+    # Incident pictures to the website (queued on disk while it is unreachable)
+    uploader = (EvidenceUploader(os.path.join(output_dir, "upload_queue"))
+                if os.getenv("DASHBOARD_BACKEND_URL", "").strip() else None)
+
+    def send_evidence(incident_id, _event, *, report=None, keyframes=None, detail=None):
+        if uploader is not None:
+            detail = detail or {}
+            uploader.enqueue(incident_id,
+                             pick_pictures(list(keyframes or []), [], list(detail.get("gradcam_heatmaps") or [])),
+                             evidence_meta(report or {}, detail))
+
     pipe = CameraPipeline(
         camera_id, cam_cfg, thresholds_cfg, detector, reporter,
         output_dir=output_dir, only_events=only_events, demo=demo_dir is not None,
+        on_incident=send_evidence,
     )
 
     box_annotator = sv.BoxAnnotator()
@@ -297,6 +310,8 @@ def run(
     finally:
         reader.stop()
         reporter.close()
+        if uploader is not None:
+            uploader.close()
         if display:
             try:
                 cv2.destroyAllWindows()

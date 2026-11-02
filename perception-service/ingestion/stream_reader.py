@@ -198,6 +198,7 @@ class StreamReader:
             if not ok:
                 self._end_of_stream = True
                 self._running = False
+                self.connected = False
                 self._cap.release()
                 self._cap = None
                 if selected_frame is None:
@@ -209,6 +210,9 @@ class StreamReader:
         timestamp = self._file_start_timestamp + self._frame_index / self._source_fps
         sample = FrameSample(selected_frame, timestamp, self._frame_index)
         self._latest = sample
+        # a video file plays like a camera: online while frames come
+        self.connected = True
+        self.last_frame_at = time.time()
         return sample
 
     def status(self, now: Optional[float] = None) -> dict:

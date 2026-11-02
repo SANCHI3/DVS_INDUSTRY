@@ -26,6 +26,7 @@ from ingestion.stream_reader import StreamReader
 from main import build_detector, camera_info, inference_device, _env_float
 from pipeline import CameraPipeline, section_configs
 from reporting.camera_heartbeat import CameraHeartbeat
+from reporting.evidence_uploader import EvidenceUploader, evidence_meta, pick_pictures
 from reporting.incident_report import IncidentReporter
 from scheduler import FrameScheduler
 
@@ -78,18 +79,34 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
         background=True,
     )
     evidence_dir = section_configs(thresholds_cfg, output_dir, demo=False)["evidence"]["output_dir"]
-    grabber = MainStreamGrabber(
-        os.path.join(evidence_dir, "main"), password=password,
-        on_saved=lambda incident_id, paths: reporter.update_evidence(incident_id, {"main_frames": paths}),
-    )
+    website = bool(os.getenv("DASHBOARD_BACKEND_URL", "").strip())
+    uploader = EvidenceUploader(os.path.join(output_dir, "upload_queue")) if website else None
+    # incident id -> (keyframes, Grad-CAM, details) waiting for the main-stream grab
+    waiting: dict[str, tuple[list, list, dict]] = {}
+
+    def send_evidence(incident_id: str, main_frames: list) -> None:
+        keyframes, gradcam, meta = waiting.pop(incident_id, ([], [], {}))
+        if main_frames:
+            reporter.update_evidence(incident_id, {"main_frames": main_frames})
+        if uploader is not None:
+            uploader.enqueue(incident_id, pick_pictures(keyframes, main_frames, gradcam), meta)
+
+    grabber = MainStreamGrabber(os.path.join(evidence_dir, "main"), password=password, on_saved=send_evidence)
 
     readers: dict[str, StreamReader] = {}
     pipelines: dict[str, CameraPipeline] = {}
     for cam in cameras:
         evidence_url = cam.evidence_source(setup.dvr)
 
-        def on_incident(incident_id: str, _event: str, cam_id=cam.id, url=evidence_url) -> None:
-            grabber.request(incident_id, cam_id, url)
+        def on_incident(incident_id: str, _event: str, cam_id=cam.id, url=evidence_url, *, report=None,
+                        keyframes=None, detail=None) -> None:
+            detail = detail or {}
+            waiting[incident_id] = (list(keyframes or []), list(detail.get("gradcam_heatmaps") or []),
+                                    evidence_meta(report or {}, detail))
+            if url:
+                grabber.request(incident_id, cam_id, url)
+            else:
+                send_evidence(incident_id, [])
 
         pipelines[cam.id] = CameraPipeline(
             cam.id, cam.to_runtime_dict(setup.dvr), thresholds_cfg, detector, reporter,
@@ -110,6 +127,8 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
             "device": inference_device(),
             "remoteMode": setup.remote_mode,
             "maxInferFps": limit,
+            "evidenceQueueMb": round(uploader.size_bytes() / 1e6, 1) if uploader else None,
+            "evidenceQueueItems": uploader.pending() if uploader else None,
         })
         print(f"[multi] camera status to the website as '{heartbeat.instance_id}' ({heartbeat.source})")
     scheduler = FrameScheduler({c.id: c.fps for c in cameras}, max_total_fps=limit)
@@ -167,6 +186,8 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
             r.stop()
         grabber.close()
         reporter.close()
+        if uploader is not None:
+            uploader.close()
         for cam_id, pipe in pipelines.items():
             print(f"[{cam_id}] processed {pipe.frames_processed} frames, "
                   f"incidents {dict(pipe.incident_counts) or 'none'}")

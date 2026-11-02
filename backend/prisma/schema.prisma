@@ -706,12 +706,15 @@ model SecurityIncident {
   falseAlarmReason String?
 
   // Which DVR camera saw it (null for manual reports and older records)
-  cameraId   String?
-  camera     Camera?        @relation(fields: [cameraId], references: [id], onDelete: SetNull)
+  cameraId     String?
+  camera       Camera?            @relation(fields: [cameraId], references: [id], onDelete: SetNull)
   // Which perception PC sent it, and whether it is a real (LIVE) detection or
   // a developer test (DEV, hidden from counts and lists by default)
-  instanceId String?
-  source     IncidentSource @default(LIVE)
+  instanceId   String?
+  source       IncidentSource     @default(LIVE)
+  // Detector details sent with the evidence: the "why the AI raised it" list
+  evidenceMeta Json?
+  evidence     IncidentEvidence[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -937,6 +940,35 @@ enum IncidentSeverity {
   MEDIUM
   HIGH
   CRITICAL
+}
+
+enum EvidenceKind {
+  KEYFRAME
+  GRADCAM
+}
+
+/// Pictures of an incident uploaded by the perception PC. Stored in the
+/// database (storage = "db", default) or an S3-compatible bucket ("s3");
+/// deleted after EVIDENCE_RETENTION_DAYS, or 7 days for false alarms.
+model IncidentEvidence {
+  id          Int              @id @default(autoincrement())
+  incidentId  Int
+  incident    SecurityIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  kind        EvidenceKind
+  position    Int // 0 before, 1 at, 2 after (keyframes); 0.. for Grad-CAM
+  label       String? // "before" | "at" | "after"
+  contentType String
+  sizeBytes   Int
+  width       Int
+  height      Int
+  sha256      String
+  storage     String // "db" | "s3"
+  storageKey  String?
+  data        Bytes?
+  createdAt   DateTime         @default(now())
+
+  @@unique([incidentId, kind, position])
+  @@index([createdAt])
 }
 
 enum IncidentSource {

@@ -4,6 +4,7 @@ import { ROLES } from '../constants';
 import type { AuthenticatedRequest } from '../types';
 import { SecurityService } from '../services/security.service';
 import { getIncidentEvidence, resolveEvidenceFile } from '../services/perceptionEvidence.service';
+import { IncidentEvidenceService } from '../services/incidentEvidence.service';
 import { subscribeSecurityEvents } from '../lib/securityEvents';
 import { sendSuccess, sendCreated, sendNoContent } from '../utils/response';
 import type {
@@ -35,6 +36,7 @@ import type {
 import type { BulkIncidentInput } from '../validators/security.validator';
 
 const svc = new SecurityService();
+const evidenceService = new IncidentEvidenceService();
 
 function parseId(raw: string | string[] | undefined): number {
   return parseInt(String(raw ?? '0'), 10);
@@ -139,12 +141,38 @@ export async function getIncidentEvidenceSummary(
 ): Promise<void> {
   const incident = await svc.getIncidentById(parseId(req.params['id']));
   const includeTechnical = req.user?.role === ROLES.ADMIN;
+  // Pictures uploaded by the factory PC; else the PC's own files (same machine)
+  const stored = await evidenceService.summary(incident, includeTechnical);
+  if (stored) {
+    sendSuccess(res, { ...stored, confidenceScore: incident.confidenceScore });
+    return;
+  }
   sendSuccess(res, await getIncidentEvidence(incident.incidentNumber, includeTechnical));
+}
+
+/** POST multipart: keyframe_before/at/after, gradcam_0..2 (JPEG) and meta (JSON). */
+export async function uploadIncidentEvidence(req: Request, res: Response): Promise<void> {
+  const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+  const body = req.body as Record<string, unknown> | undefined;
+  const result = await evidenceService.upload(
+    String(req.params['ref']),
+    files.map((f) => ({ fieldname: f.fieldname, buffer: f.buffer })),
+    body?.['meta'],
+  );
+  sendCreated(res, result, 'Evidence stored');
 }
 
 export async function getIncidentEvidenceFile(req: Request, res: Response): Promise<void> {
   const incident = await svc.getIncidentById(parseId(req.params['id']));
   const file = typeof req.query['file'] === 'string' ? req.query['file'] : '';
+  const stored = /^db:(\d+)$/.exec(file);
+  if (stored) {
+    const data = await evidenceService.file(incident.id, Number(stored[1]));
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(data);
+    return;
+  }
   const absolute = await resolveEvidenceFile(incident.incidentNumber, file);
   if (!absolute) throw new NotFoundError('Evidence file not found for this incident');
   res.setHeader('Cache-Control', 'private, max-age=300');

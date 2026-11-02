@@ -20,6 +20,8 @@ type Json = Record<string, unknown>;
 export interface EvidenceFile {
   file: string; // path relative to the perception output dir, forward slashes
   kind: 'keyframe' | 'gradcam' | 'clip_before' | 'clip_after';
+  /** For keyframes uploaded by the factory PC: "before" | "at" | "after" */
+  label?: string;
 }
 
 export interface IncidentEvidence {
@@ -78,7 +80,7 @@ const str = (v: unknown): string | null =>
 const pct = (v: unknown) => (typeof v === 'number' ? `${Math.round(v * 100)}%` : null);
 
 /** Plain-language explanation from the stored detector evidence (no new numbers). */
-function explain(eventType: string, detail: Json): { label: string; value: string }[] {
+export function explain(eventType: string, detail: Json): { label: string; value: string }[] {
   const out: { label: string; value: string }[] = [];
   const add = (label: string, value: string | null | undefined) => {
     if (value) out.push({ label, value });

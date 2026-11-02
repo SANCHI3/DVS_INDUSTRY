@@ -294,6 +294,11 @@ export type AcknowledgeAlertInput = z.infer<typeof acknowledgeAlertSchema>;
 export type ResolveAlertInput = z.infer<typeof resolveAlertSchema>;
 export type SecurityKpiQueryInput = z.infer<typeof securityKpiQuerySchema>;
 
+/** An incident by id or by its number (the perception service knows INC-...). */
+export const evidenceRefParamSchema = z.object({
+  ref: z.string().regex(/^(\d{1,10}|[A-Za-z0-9-]{3,100})$/, 'Invalid incident reference'),
+});
+
 export const evidenceFileQuerySchema = z.object({
   file: z.string().min(1).max(300),
 });

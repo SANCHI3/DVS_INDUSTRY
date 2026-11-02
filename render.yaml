@@ -52,6 +52,18 @@ services:
         sync: false
       - key: INQUIRY_NOTIFY_EMAIL
         sync: false
+      # Incident pictures from the factory PC: kept in the database unless all
+      # four EVIDENCE_S3_* are set (e.g. Cloudflare R2). Retention default 30 days.
+      - key: EVIDENCE_S3_ENDPOINT
+        sync: false
+      - key: EVIDENCE_S3_BUCKET
+        sync: false
+      - key: EVIDENCE_S3_ACCESS_KEY_ID
+        sync: false
+      - key: EVIDENCE_S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: EVIDENCE_RETENTION_DAYS
+        value: "30"
       # At least 16 characters; required in production.
       - key: SEED_ADMIN_PASSWORD
         sync: false

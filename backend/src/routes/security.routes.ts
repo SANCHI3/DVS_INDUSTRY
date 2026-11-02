@@ -24,8 +24,10 @@ import {
   incidentEscalationSchema,
   evidenceFileQuerySchema,
   bulkIncidentSchema,
+  evidenceRefParamSchema,
 } from '../validators/security.validator';
 import { ROLES } from '../constants';
+import { evidenceUpload } from '../utils/evidenceUpload';
 
 const router = Router();
 router.use(authenticate);
@@ -175,6 +177,20 @@ router.get(
   authorize(...SEC_READ),
   validateRequest({ params: incidentIdParamSchema }),
   asyncHandler(SecurityController.getIncidentEvidenceSummary),
+);
+
+/**
+ * POST /api/v1/security/incidents/:ref/evidence   (multipart/form-data)
+ * :ref is the incident id or its number (INC-...). Fields: keyframe_before,
+ * keyframe_at, keyframe_after, gradcam_0..2 (JPEG, <= 250 KB, <= 1280 px wide)
+ * and meta (JSON detector details). Re-sending replaces. Access: PERCEPTION_SERVICE
+ */
+router.post(
+  '/incidents/:ref/evidence',
+  authorize(ROLES.PERCEPTION_SERVICE),
+  validateRequest({ params: evidenceRefParamSchema }),
+  evidenceUpload,
+  asyncHandler(SecurityController.uploadIncidentEvidence),
 );
 
 /**

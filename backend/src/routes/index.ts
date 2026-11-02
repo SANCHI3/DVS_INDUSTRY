@@ -21,6 +21,7 @@ import { env } from '../config/env';
 import { authenticate } from '../middleware/authenticate';
 import { authorize } from '../middleware/authorize';
 import { ROLES } from '../constants';
+import { IncidentEvidenceService } from '../services/incidentEvidence.service';
 
 const router = Router();
 
@@ -83,9 +84,12 @@ router.get(`${API_PREFIX}/health`, async (_req, res) => {
 });
 
 // Process internals are operational data — admins only.
-router.get(`${API_PREFIX}/metrics`, authenticate, authorize(ROLES.ADMIN), (_req, res) => {
+router.get(`${API_PREFIX}/metrics`, authenticate, authorize(ROLES.ADMIN), async (_req, res) => {
   const memory = process.memoryUsage();
+  // Incident pictures: storage driver and how much of the database they use
+  const evidence = await new IncidentEvidenceService().usage().catch(() => null);
   res.status(200).json({
+    evidence,
     uptimeSeconds: Math.round(process.uptime()),
     memory: {
       rssBytes: memory.rss,

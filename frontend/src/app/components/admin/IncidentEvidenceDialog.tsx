@@ -19,7 +19,9 @@ const TIER_LABEL: Record<string, string> = {
 const sectionTitle = { color: "#302725", fontSize: "0.8rem", fontWeight: 700, marginBottom: "0.5rem" } as const;
 const muted = { color: "#837572", fontSize: "0.76rem", lineHeight: 1.55 } as const;
 
-function EvidenceImage({ incidentId, file, alt }: { incidentId: number; file: string; alt: string }) {
+const KEYFRAME_CAPTION: Record<string, string> = { before: "Before", at: "At the alert", after: "After" };
+
+function EvidenceImage({ incidentId, file, alt, caption }: { incidentId: number; file: string; alt: string; caption?: string }) {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -38,9 +40,12 @@ function EvidenceImage({ incidentId, file, alt }: { incidentId: number; file: st
     };
   }, [incidentId, file]);
   return (
-    <div className="flex aspect-video items-center justify-center overflow-hidden rounded-lg" style={{ background: "#F3EFEE", border: "1px solid #EEE4E0" }}>
-      {url ? <img src={url} alt={alt} className="h-full w-full object-cover" /> : <span style={muted}>{failed ? "Image could not be loaded" : "Loading…"}</span>}
-    </div>
+    <figure className="m-0">
+      <div className="flex aspect-video items-center justify-center overflow-hidden rounded-lg" style={{ background: "#F3EFEE", border: "1px solid #EEE4E0" }}>
+        {url ? <img src={url} alt={alt} className="h-full w-full object-cover" /> : <span style={muted}>{failed ? "Image could not be loaded" : "Loading…"}</span>}
+      </div>
+      {caption && <figcaption className="mt-1" style={muted}>{caption}</figcaption>}
+    </figure>
   );
 }
 
@@ -150,7 +155,7 @@ export function IncidentEvidenceDialog({ incident, onClose }: { incident: Securi
                 <p style={sectionTitle}>Camera snapshots</p>
                 {keyframes.length === 0 ? <p style={muted}>No snapshots were saved for this incident.</p> : (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    {keyframes.map((f, i) => <EvidenceImage key={f.file} incidentId={incident.id} file={f.file} alt={`Snapshot ${i + 1}`} />)}
+                    {keyframes.map((f, i) => <EvidenceImage key={f.file} incidentId={incident.id} file={f.file} alt={`Snapshot ${i + 1}${f.label ? `, ${KEYFRAME_CAPTION[f.label] ?? f.label}` : ""}`} {...(f.label && { caption: KEYFRAME_CAPTION[f.label] ?? f.label })} />)}
                   </div>
                 )}
               </section>

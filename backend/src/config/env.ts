@@ -61,6 +61,17 @@ const envSchema = z.object({
   // incident evidence and explanations.
   PERCEPTION_OUTPUT_DIR: z.string().default('../perception-service/output'),
 
+  // Incident pictures uploaded by the factory PC. Stored in the database
+  // unless all four EVIDENCE_S3_* are set (any S3-compatible bucket, e.g.
+  // Cloudflare R2). TODO(owner): R2/S3 bucket and keys, or keep the database.
+  EVIDENCE_S3_ENDPOINT: z.string().url().optional(),
+  EVIDENCE_S3_BUCKET: z.string().min(1).optional(),
+  EVIDENCE_S3_REGION: z.string().min(1).default('auto'),
+  EVIDENCE_S3_ACCESS_KEY_ID: z.string().min(1).optional(),
+  EVIDENCE_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+  // Pictures are deleted after this many days (false alarms after 7)
+  EVIDENCE_RETENTION_DAYS: z.coerce.number().int().min(1).max(3650).default(30),
+
   // "Ask DVS" assistant: any OpenAI-compatible chat-completions API with tool
   // calling. Without an API key the assistant reports "not configured".
   ASSISTANT_LLM_BASE_URL: z.string().url().default('https://api.groq.com/openai/v1'),

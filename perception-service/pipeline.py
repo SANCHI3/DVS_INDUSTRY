@@ -139,7 +139,7 @@ class CameraPipeline:
         only_events: set[str] | None = None,
         demo: bool = False,
         fps: Optional[float] = None,
-        on_incident: Optional[Callable[[str, str], None]] = None,
+        on_incident: Optional[Callable[..., None]] = None,
     ):
         self.camera_id = camera_id
         self.cam_cfg = cam_cfg
@@ -382,7 +382,8 @@ class CameraPipeline:
         if clip_before or keyframes:
             reporter.update_evidence(incident_id, {"clip_before": clip_before, "keyframes": keyframes})
         if self.on_incident is not None:
-            self.on_incident(incident_id, event.event_type)
+            self.on_incident(incident_id, event.event_type, report=report, keyframes=keyframes,
+                             detail=dict(event.candidate.detail or {}))
 
         print(
             f"[{camera_id}] {event.tier} {event.event_type} "
