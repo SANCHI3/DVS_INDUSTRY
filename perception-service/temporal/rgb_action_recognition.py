@@ -8,6 +8,7 @@ from collections import deque
 import cv2
 
 from rgb_fight_model.infer import RgbFightClassifier
+from shared_models import shared_model
 from temporal.interaction import InteractionValidator
 
 INTERACTION_MODES = ("veto", "review", "off")
@@ -33,7 +34,8 @@ class RgbFightDetector:
         self.camera_id = camera_id
         self.enabled = bool(cfg.get("enabled", True))
         rgb_cfg = cfg["rgb"]
-        self.classifier = RgbFightClassifier(rgb_cfg["checkpoint"])
+        self.classifier = shared_model(("rgb_fight", rgb_cfg["checkpoint"], RgbFightClassifier),
+                                       lambda: RgbFightClassifier(rgb_cfg["checkpoint"]))
         self.clip_frames = int(rgb_cfg.get("clip_frames", self.classifier.clip_frames))
         self.evaluation_stride = int(rgb_cfg.get("evaluation_stride_frames", 4))
         self.probable_threshold = float(rgb_cfg.get("probable_threshold", 0.88))

@@ -82,7 +82,8 @@ class PoseFallDetector:
         if self.mode == "model":
             if checkpoint and os.path.exists(checkpoint):
                 from fall_rf.infer import FallClassifier
-                self._model = FallClassifier(checkpoint)
+                from shared_models import shared_model
+                self._model = shared_model(("fall_rf", checkpoint, FallClassifier), lambda: FallClassifier(checkpoint))
                 if cfg.get("use_checkpoint_threshold", True):
                     self.threshold = self._model.threshold
                 else:
@@ -104,7 +105,9 @@ class PoseFallDetector:
     def _get_pose_estimator(self):
         if self._pose_estimator is None:
             from detection.pose_estimator import PoseEstimator
-            self._pose_estimator = PoseEstimator(self._pose_model_path)
+            from shared_models import shared_model
+            path = self._pose_model_path
+            self._pose_estimator = shared_model(("pose", path, PoseEstimator), lambda: PoseEstimator(path))
         return self._pose_estimator
 
     # ----------------------------------------------------------------- gate

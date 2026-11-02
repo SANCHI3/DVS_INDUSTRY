@@ -24,6 +24,7 @@ import numpy as np
 from detection.pose_estimator import PoseEstimator, match_pose_to_bbox
 from fall_gru.features import build_sequence, frame_features
 from fall_gru.model import FallClassifier
+from shared_models import shared_model
 from temporal.rule_engine import EventCandidate
 from temporal.temporal_buffer import TemporalBuffer
 
@@ -100,7 +101,7 @@ def fall_plausibility(rows: list, bottom_edge: float, max_truncated_share: float
 class GruFallDetector:
     def __init__(self, camera_id: str, cfg: dict, pose_estimator: Optional[PoseEstimator] = None):
         self.camera_id = camera_id
-        self.classifier = FallClassifier(cfg["checkpoint"])
+        self.classifier = shared_model(("fall_gru", cfg["checkpoint"], FallClassifier), lambda: FallClassifier(cfg["checkpoint"]))
         self.threshold = float(cfg.get("threshold", self.classifier.threshold))
         self.window = self.classifier.window
         self.pose_stride = int(cfg.get("pose_stride_frames", 1))
@@ -109,7 +110,8 @@ class GruFallDetector:
         self.required_hits = int(cfg.get("required_hits", 2))
         self.cooldown_seconds = float(cfg.get("cooldown_seconds", 30.0))
         self.max_people = int(cfg.get("max_people_for_pose", 12))
-        self.pose = pose_estimator or PoseEstimator(cfg.get("pose_model_path", "yolov8n-pose.pt"))
+        pose_path = cfg.get("pose_model_path", "yolov8n-pose.pt")
+        self.pose = pose_estimator or shared_model(("pose", pose_path, PoseEstimator), lambda: PoseEstimator(pose_path))
         serious_cfg = cfg.get("serious") or {}
         self.serious_after = float(serious_cfg.get("after_seconds", 20.0))
         self.recovered_after = float(serious_cfg.get("recovered_after_seconds", 2.0))

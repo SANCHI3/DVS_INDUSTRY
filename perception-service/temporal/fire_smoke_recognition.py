@@ -53,7 +53,9 @@ class FireSmokeDetector:
         self.cfg = cfg
         if model is None:
             from ultralytics import YOLO  # imported lazily so tests can inject a model
-            model = YOLO(cfg["checkpoint"])
+
+            from shared_models import shared_model
+            model = shared_model(("yolo", cfg["checkpoint"], YOLO), lambda: YOLO(cfg["checkpoint"]))
         self.model = model
         self.device = _resolve_device(cfg.get("device", 0))
         self.imgsz = int(cfg.get("imgsz", 640))

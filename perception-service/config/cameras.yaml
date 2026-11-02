@@ -1,20 +1,75 @@
-# Camera configuration.
-# `source` can be:
-#   - an integer string like "0" for a local webcam
-#   - an RTSP URL like "rtsp://user:pass@ip:554/stream"
-#   - a path to a video file (useful for testing without a real camera)
+# Factory CCTV: Hikvision DS-7208HGHI-SH, 8 analog channels (A1-A8).
 #
-# `zones` is optional and only used by the crowd rule. Without zones, crowding
-# is checked on the whole frame. To check one area only, add a polygon in
-# pixel coordinates of the *processing* resolution (thresholds.yaml ->
-# perception.process_width/height):
-#   - zone_id: canteen
-#     type: crowd
-#     polygon: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
+# Stream addresses are built at runtime from the dvr: section and
+# DVR_USERNAME / DVR_PASSWORD in perception-service/.env: the password never
+# goes in this file, the logs, the database or the website.
+#
+# Per camera:
+#   name / zone      what the website shows ("Camera 01 (Press shop)")
+#   rules            which checks run here: fire (or fire_smoke), fall, crowd,
+#                    fight, anomaly. E.g. leave crowd out at the gate.
+#   fps              frames per second sent to the models (sub stream)
+#   detect_stream    sub (low resolution, used for detection)
+#   evidence_stream  main (full resolution, opened only for incident pictures)
+#   zones            optional crowd areas (pixel polygons at the processing size)
+#
+# Run all enabled cameras:   python main.py --all --no-display
+# One camera:                python main.py --camera dvr-ch1 --no-display
+
+dvr:
+  host: ${DVR_HOST}
+  rtsp_port: ${DVR_RTSP_PORT:-554}
+  url_format: ${DVR_URL_FORMAT:-hik_streaming}   # or hik_h264 (scripts/probe_dvr.py says which)
+  transport: tcp
+
+defaults:
+  enabled: true
+  detect_stream: sub
+  evidence_stream: main
+  fps: 3
+  rules: [fire, fall, crowd, fight, anomaly]
 
 cameras:
+  # TODO(owner): for each channel, the real area (name) and zone (Press shop /
+  # Store / Gate / Dispatch / Office ...) and which rules apply there, from the
+  # pictures saved by scripts/grab_snapshots.py.
+  - id: dvr-ch1
+    channel: 1
+    name: "Camera 01"
+    zone: ""
+  - id: dvr-ch2
+    channel: 2
+    name: "Camera 02"
+    zone: ""
+  - id: dvr-ch3
+    channel: 3
+    name: "Camera 03"
+    zone: ""
+  - id: dvr-ch4
+    channel: 4
+    name: "Camera 04"
+    zone: ""
+  - id: dvr-ch5
+    channel: 5
+    name: "Camera 05"
+    zone: ""
+  - id: dvr-ch6
+    channel: 6
+    name: "Camera 06"
+    zone: ""
+  - id: dvr-ch7
+    channel: 7
+    name: "Camera 07"
+    zone: ""
+  - id: dvr-ch8
+    channel: 8
+    name: "Camera 08"
+    zone: ""
+
+  # Webcam / video file for demos and tests (python main.py --demo, or
+  # --camera CAM-01 --source clip.mp4). Never part of --all.
   - id: CAM-01
-    name: Demo Camera
-    location: "Test Room"
-    source: "0"               # webcam by default; swap for an RTSP URL or file path
-    zones: []
+    name: "Demo camera"
+    zone: "Demo"
+    source: "0"
+    enabled: false

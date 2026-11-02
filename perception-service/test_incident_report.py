@@ -80,6 +80,7 @@ class IncidentReporterTests(unittest.TestCase):
                 "location": "Loading Bay",
                 "occurredAt": report["detected_at"],
                 "reportedByName": "Perception Service",
+                "cameraId": "CAM-01",
             },
         )
 

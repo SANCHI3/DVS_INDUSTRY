@@ -53,6 +53,19 @@ DEFAULT_CONFIDENCE_BASIS = {
 }
 
 
+def camera_fields(report: dict) -> dict:
+    """Camera id/name/zone/channel for the dashboard, from the saved report."""
+    camera = report.get("camera") or {}
+    fields = {"cameraId": camera.get("id") or report.get("camera_id")}
+    if camera.get("name"):
+        fields["cameraName"] = camera["name"]
+    if camera.get("zone"):
+        fields["cameraZone"] = camera["zone"]
+    if camera.get("channel") is not None:
+        fields["cameraChannel"] = camera["channel"]
+    return {k: v for k, v in fields.items() if v is not None}
+
+
 class IncidentReporter:
     """Builds, validates, persists, and enriches incident reports."""
 
@@ -89,6 +102,7 @@ class IncidentReporter:
         camera_locations: dict,
         backend_url: Optional[str] = None,
         background: bool = False,
+        camera_info: Optional[dict] = None,
     ):
         """
         background=True moves every network call (legacy POST, dashboard
@@ -97,6 +111,8 @@ class IncidentReporter:
         """
         self.output_path = output_path
         self.camera_locations = camera_locations
+        # camera id -> {id, name, zone, channel} from cameras.yaml (never a URL)
+        self.camera_info = camera_info or {}
         self.backend_url = backend_url.rstrip("/") if backend_url else None
         self.dashboard_backend_url = os.getenv("DASHBOARD_BACKEND_URL")
         self.dashboard_backend_url = (
@@ -197,6 +213,7 @@ class IncidentReporter:
                 f"{uuid.uuid4().hex[:6].upper()}"
             ),
             "camera_id": confirmed_event.camera_id,
+            "camera": self.camera_info.get(confirmed_event.camera_id),
             "location": location,
             "event_type": confirmed_event.event_type,
             "confidence_tier": confirmed_event.tier,
@@ -283,6 +300,7 @@ class IncidentReporter:
             "location": report["location"],
             "occurredAt": report["detected_at"],
             "reportedByName": "Perception Service",
+            **camera_fields(report),
         }
         self._flush_outbox()
         try:
