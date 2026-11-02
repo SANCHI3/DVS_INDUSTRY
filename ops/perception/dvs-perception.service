@@ -1,0 +1,30 @@
+# DVS CCTV monitoring on a Linux factory PC (systemd).
+#
+#   sudo cp ops/perception/dvs-perception.service /etc/systemd/system/
+#   sudo nano /etc/systemd/system/dvs-perception.service   # fix User= and the paths below
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now dvs-perception
+#   journalctl -u dvs-perception -f            # follow the output
+#   python service.py doctor                   # self-check
+#
+# service.py writes logs/perception.log (new file daily, 14 kept) and restarts
+# the cameras after a crash; systemd restarts service.py itself.
+
+[Unit]
+Description=DVS Industries factory CCTV monitoring
+Wants=network-online.target
+After=network-online.target tailscaled.service
+
+[Service]
+Type=simple
+User=dvs
+WorkingDirectory=/opt/dvs/perception-service
+ExecStart=/opt/dvs/perception-service/.venv/bin/python service.py run
+Restart=always
+RestartSec=10
+# The DVR password stays in .env (read by the service), not in this file
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

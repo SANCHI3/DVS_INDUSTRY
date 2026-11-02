@@ -161,3 +161,105 @@ Each sub stream (used for detection) needs about 0.3–0.5 Mbit/s. Each main
 stream needs about 2–4 Mbit/s, and is opened only for a moment to take
 incident pictures. Inside the factory network this is no problem; over
 Tailscale it matters (see `docs/REMOTE_ACCESS.md`).
+
+---
+
+## 9. Name the cameras and set what each one checks
+
+In `perception-service/config/cameras.yaml`, for each channel:
+
+| Setting | What to set |
+|---|---|
+| `name` | The area, e.g. `Press shop bay 2` |
+| `zone` | Press shop / Store / Gate / Dispatch / Office… |
+| `rules` | Leave out checks that make no sense there, e.g. no `crowd` at the gate |
+| `crowd_min_people` | Optional, if a crowd should mean more than 8 people here |
+
+To limit a camera to one area, or to ignore a spot that fools it (welding
+sparks, a sunny window, a furnace), run:
+
+```
+python scripts/draw_roi.py 3
+python scripts/draw_roi.py 3 --ignore --name "Welding bay" --events fire_smoke
+```
+
+Click the corners on the picture and press `s`. Then paste the printed lines
+under that camera in `cameras.yaml`.
+
+## 10. Start it automatically and keep it running
+
+1. Check everything first:
+   ```
+   python service.py doctor
+   ```
+   Every line should say `OK`. The doctor also shows whether the DVR is
+   reached directly or through Tailscale.
+2. Install the start-up task. **Windows**, in PowerShell run as Administrator
+   inside `perception-service`:
+   ```
+   powershell -ExecutionPolicy Bypass -File scripts\install_windows_service.ps1
+   ```
+   **Linux**: follow the steps at the top of `ops/perception/dvs-perception.service`.
+
+What this sets up:
+- The monitoring starts when the PC boots, even if no one logs in.
+- It restarts by itself after a crash.
+- It writes `perception-service/logs/perception.log`. A new file starts every
+  day, the last 14 days are kept, and passwords are hidden.
+
+Commands for later:
+
+| To | Run |
+|---|---|
+| Stop it | `Stop-ScheduledTask -TaskName "DVS CCTV Monitoring"` (Linux: `sudo systemctl stop dvs-perception`) |
+| Start it | `Start-ScheduledTask -TaskName "DVS CCTV Monitoring"` |
+| Read the log | open `logs\perception.log`. Every minute it prints each camera's fps and processing time (`[perf]`) |
+| Remove it | the same install command with `-Remove` |
+
+The website then shows each camera on **AI Security → Cameras**. If the PC
+stops reporting, one red line appears there: "CCTV monitoring PC is offline
+since …".
+
+## 11. How fast the PC must be
+
+Measured on 2 Nov 2026 on the developer's laptop (12-thread CPU, NVIDIA RTX
+3050 laptop GPU, 16 GB RAM), using 704×576 video like the DVR's sub stream.
+Repeat it on the factory PC with
+`python -m evaluation.benchmark_cameras --config-dir <folder> --seconds 130`.
+
+| One camera, one frame | GPU (RTX 3050 laptop) | CPU only |
+|---|---|---|
+| Every check (people, fall, fight, fire, unusual activity) | 190 ms → about 5 frames/s in total | 940 ms → about 1 frame/s in total |
+| Fire / smoke only | 35 ms → about 29 frames/s | about 200 ms → about 5 frames/s |
+
+With 8 cameras and every check on, the GPU laptop reached **0.7 frames/s per
+camera**. It used about one CPU core (9 % of the total) and 2.2 GB of RAM.
+
+The budget is shared by all cameras. Choose per camera:
+
+| What the PC has | Recommended setting |
+|---|---|
+| Desktop NVIDIA GPU (RTX 3060 or better) | All checks on all 8 cameras; `fps: 1`–`2` each, `MAX_INFER_FPS_TOTAL=12` |
+| Laptop GPU like the one above | All checks on 2–3 important cameras (`fps: 2`); `rules: [fire]` on the rest (`fps: 1`); `MAX_INFER_FPS_TOTAL=6` |
+| CPU only | `rules: [fire]` on every camera, `fps: 0.5`. Fights and falls need a GPU |
+
+Fight and fall models were trained on about 10 frames per second. Below 8
+frames/s they still work but are less accurate, and the log says so at start-up.
+Fire and smoke last long enough that 0.5–1 frame/s is enough.
+
+## 12. Power and network
+
+- The PC must be on **24/7**. In Windows power settings set **Sleep: Never**
+  and turn hibernate off (`powercfg /hibernate off` as Administrator).
+  Turn off "Allow the computer to turn off this device to save power" for the
+  network adapter.
+- Use **wired Ethernet**, on the same switch as the DVR. Wi-Fi drops cause
+  camera reconnects.
+- Connect the PC and the DVR to the UPS if there is one. After a power cut
+  the task starts by itself.
+- Windows Update can restart the PC. The task starts again afterwards. To
+  control when this happens, set active hours under *Windows Update → Advanced
+  options*.
+- Upload is small: a heartbeat every 30 s, a picture per camera every 2 min
+  (under 100 KB), and the incident pictures. If the internet is down,
+  pictures wait on the PC's disk (up to 500 MB) and go up later.

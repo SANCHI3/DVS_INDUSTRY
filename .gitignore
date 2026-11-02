@@ -92,3 +92,4 @@ docs/paper/
 # CCTV: camera pictures and recorded footage stay on the factory PC
 perception-service/calibration/snapshots/
 perception-service/recordings/
+perception-service/logs/

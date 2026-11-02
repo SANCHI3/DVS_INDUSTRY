@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from typing import Callable, Optional
 
 import cv2
+import supervision as sv
 
 from confirmation.event_confirmation import EventConfirmation
 from confirmation.incident_dedup import IncidentDeduper
@@ -177,6 +178,8 @@ class CameraPipeline:
         # Events this camera runs: --only-events on top of the camera's rules
         rules = set(cam_cfg.get("rules") or ["crowd", "fall", "fight", "fire_smoke", "anomaly"])
         self.events = rules if only_events is None else rules & set(only_events)
+        # People detection + tracking (the costliest step) only where a check uses it
+        self.needs_people = bool(self.events & {"crowd", "fall", "fight"})
         cfgs = section_configs(thresholds_cfg, output_dir, demo)
         fight_cfg, fire_smoke_cfg, fall_cfg, anomaly_cfg = cfgs["fight"], cfgs["fire_smoke"], cfgs["fall"], cfgs["anomaly"]
 
@@ -289,10 +292,14 @@ class CameraPipeline:
         # outside the camera's area / inside ignore zones is greyed out for the models
         frame = self.zones.apply(full)
 
-        with timer.stage("yolo_detect"):
-            detections = detector.detect(frame)
-        with timer.stage("bytetrack"):
-            tracked = self.tracker.update(detections)
+        if self.needs_people:
+            with timer.stage("yolo_detect"):
+                detections = detector.detect(frame)
+            with timer.stage("bytetrack"):
+                tracked = self.tracker.update(detections)
+        else:
+            # fire / unusual-activity only camera: no people detection needed
+            tracked = sv.Detections.empty()
 
         for i in range(len(tracked)):
             bbox = tracked.xyxy[i]
