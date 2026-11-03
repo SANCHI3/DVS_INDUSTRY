@@ -80,10 +80,12 @@ function clearUser(): void {
 export async function login(
   email:    string,
   password: string,
+  /** The login portal chosen on the page; the server refuses other accounts. */
+  portal?:  Exclude<FrontendRole, 'unauthorized'>,
 ): Promise<{ user: AuthUser; frontendRole: FrontendRole }> {
   const res = await api.post<{ success: true; data: LoginResponse }>(
     '/auth/login',
-    { email, password },
+    portal === undefined ? { email, password } : { email, password, portal },
   );
   const { accessToken, user } = unwrap(res);
   setAccessToken(accessToken);

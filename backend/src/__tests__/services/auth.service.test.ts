@@ -249,6 +249,43 @@ describe('AuthService', () => {
       await expect(svc.login('admin@test.com', 'wrong')).rejects.toThrow(UnauthorizedError);
     });
 
+    it('rejects the right password on the wrong portal exactly like a wrong password', async () => {
+      (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser); // ADMIN
+      (bcrypt.compare as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+
+      await expect(svc.login('admin@test.com', 'Secret@1234', 'production')).rejects.toThrow(
+        new UnauthorizedError('Invalid email or password'),
+      );
+      expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('signs an account in on its own portal (and without a portal, for older clients)', async () => {
+      (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        ...mockUser,
+        role: { ...mockUser.role, name: 'PRODUCTION' },
+      });
+      (bcrypt.compare as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+      (prisma.refreshToken.create as ReturnType<typeof vi.fn>).mockResolvedValue({});
+      (prisma.user.update as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
+
+      await expect(svc.login('p@test.com', 'Secret@1234', 'production')).resolves.toBeDefined();
+      await expect(svc.login('p@test.com', 'Secret@1234')).resolves.toBeDefined();
+      await expect(svc.login('p@test.com', 'Secret@1234', 'admin')).rejects.toThrow(UnauthorizedError);
+    });
+
+    it('lets managers and HR use the administrator portal, sales the store portal', async () => {
+      (bcrypt.compare as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+      (prisma.refreshToken.create as ReturnType<typeof vi.fn>).mockResolvedValue({});
+      (prisma.user.update as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
+      for (const [role, portal] of [['MANAGER', 'admin'], ['HR', 'admin'], ['SALES', 'store']] as const) {
+        (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+          ...mockUser,
+          role: { ...mockUser.role, name: role },
+        });
+        await expect(svc.login('x@test.com', 'Secret@1234', portal)).resolves.toBeDefined();
+      }
+    });
+
     it('throws ForbiddenError for inactive account', async () => {
       (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
         ...mockUser,

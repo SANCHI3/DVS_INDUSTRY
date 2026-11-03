@@ -33,6 +33,16 @@ import { sendPasswordResetEmail } from '../utils/mailer';
 import { logger } from '../logger';
 import { REFRESH_ROTATION_GRACE_MS, ROLES } from '../constants';
 import { prisma } from '../lib/prismaClient';
+import type { LoginPortal } from '../validators/auth.validator';
+
+/** Roles each website login portal accepts (matches the frontend's getFrontendRole). */
+const PORTAL_ROLES: Record<LoginPortal, readonly string[]> = {
+  admin: ['ADMIN', 'MANAGER', 'HR'],
+  production: ['PRODUCTION'],
+  store: ['STORE', 'SALES'],
+  supplier: ['SUPPLIER'],
+  client: ['CLIENT'],
+};
 
 const PASSWORD_RESET_TTL_MS = 15 * 60 * 1_000;
 
@@ -165,7 +175,11 @@ export class AuthService {
 
   // ── Login ─────────────────────────────────────────────────────────────────
 
-  async login(email: string, password: string): Promise<{ user: UserDto; tokens: TokenPair }> {
+  async login(
+    email: string,
+    password: string,
+    portal?: LoginPortal,
+  ): Promise<{ user: UserDto; tokens: TokenPair }> {
     const userWithPassword = await this.userRepo.findByEmail(email);
 
     if (userWithPassword === null) {
@@ -177,6 +191,17 @@ export class AuthService {
     const isPasswordValid = await bcrypt.compare(password, userWithPassword.password);
 
     if (!isPasswordValid) {
+      throw new UnauthorizedError('Invalid email or password');
+    }
+
+    // Wrong portal fails exactly like a wrong password: same status and
+    // message, counted by the failed-login limiter and audited as
+    // LOGIN_FAILED, so it reveals neither that the password was right nor
+    // what kind of account it is.
+    if (
+      portal !== undefined &&
+      !PORTAL_ROLES[portal].includes(userWithPassword.role.name.toUpperCase())
+    ) {
       throw new UnauthorizedError('Invalid email or password');
     }
 

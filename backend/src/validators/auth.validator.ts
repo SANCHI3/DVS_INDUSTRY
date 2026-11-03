@@ -47,9 +47,15 @@ export const registerSchema = z.object({
   clientId: z.number().int().positive().optional(),
 });
 
+/** Login portals on the website; each accepts only its own roles. */
+export const LOGIN_PORTALS = ['admin', 'production', 'store', 'supplier', 'client'] as const;
+export type LoginPortal = (typeof LOGIN_PORTALS)[number];
+
 export const loginSchema = z.object({
   email: emailField,
   password: z.string().min(1, 'Password is required'),
+  // Optional so older clients keep working; the website always sends it.
+  portal: z.enum(LOGIN_PORTALS).optional(),
 });
 
 export const changePasswordSchema = z

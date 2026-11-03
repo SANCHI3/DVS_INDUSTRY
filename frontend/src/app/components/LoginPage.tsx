@@ -111,7 +111,7 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
     try {
       let result;
       try {
-        result = await apiLogin(email, password);
+        result = await apiLogin(email, password, selectedRole);
       } catch (err: unknown) {
         if (!isServerStarting(err)) throw err;
         // The API was asleep (free hosting): wait for it, then try once more
@@ -119,15 +119,14 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
         const up = await waitForServer();
         setWaking(false);
         if (!up) throw new Error("The server is not responding. Please try again in a minute.", { cause: err });
-        result = await apiLogin(email, password);
+        result = await apiLogin(email, password, selectedRole);
       }
       const { user, frontendRole } = result;
-      // The portal must match the account: an administrator signing in on the
-      // Production portal would otherwise land on the admin dashboard.
-      const accountPortal = roles.find((r) => r.id === frontendRole);
-      if (accountPortal && accountPortal.id !== selectedRole) {
+      // The server already refuses an account on the wrong portal with the
+      // same message as a wrong password; this only guards an older server.
+      if (frontendRole !== selectedRole) {
         await apiLogout();
-        setError(`This is a${/^[AEIOU]/.test(accountPortal.label) ? "n" : ""} ${accountPortal.label} account. Choose "${accountPortal.label}" above to sign in.`);
+        setError("Invalid email or password");
         return;
       }
       setSuccess(`Authenticated. Loading ${user.fullName.split(" ")[0]}'s dashboard…`);

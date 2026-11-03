@@ -68,8 +68,8 @@ export async function updateUser(req: AuthenticatedRequest, res: Response): Prom
 // ── Login ─────────────────────────────────────────────────────────────────────
 
 export async function login(req: Request, res: Response): Promise<void> {
-  const { email, password } = req.body as LoginInput;
-  const { user, tokens } = await authService.login(email, password);
+  const { email, password, portal } = req.body as LoginInput;
+  const { user, tokens } = await authService.login(email, password, portal);
 
   // Lets the audit middleware attribute this LOGIN to the user
   res.locals['auditActor'] = { id: user.id, email: user.email, role: user.role.name };

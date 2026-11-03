@@ -105,30 +105,35 @@ describe("Forgot password", () => {
 });
 
 describe("Portal must match the account", () => {
-  it("refuses an administrator account on the Production portal and signs it out", async () => {
-    apiLogin.mockResolvedValue({ user, frontendRole: "admin" });
-    const onLoginSuccess = vi.fn();
-
-    signIn("production", onLoginSuccess);
-
-    expect(await screen.findByText('This is an Administrator account. Choose "Administrator" above to sign in.')).toBeTruthy();
-    expect(vi.mocked(logout)).toHaveBeenCalled();
-    expect(onLoginSuccess).not.toHaveBeenCalled();
-  });
-
-  it("names the Production portal when a production account uses the Store portal", async () => {
-    apiLogin.mockResolvedValue({ user: { ...user, role: "PRODUCTION" }, frontendRole: "production" });
-
-    signIn("store");
-
-    expect(await screen.findByText('This is a Production account. Choose "Production" above to sign in.')).toBeTruthy();
-  });
-
-  it("signs a production account in on the Production portal", async () => {
+  it("sends the chosen portal to the server", async () => {
     apiLogin.mockResolvedValue({ user: { ...user, role: "PRODUCTION" }, frontendRole: "production" });
 
     signIn("production");
 
     expect(await screen.findByText(/Authenticated\. Loading Asha's dashboard/)).toBeTruthy();
+    expect(apiLogin).toHaveBeenCalledWith("asha@test.com", "secret-password", "production");
+  });
+
+  it("shows only the generic message, never the account type, when the portal is wrong", async () => {
+    // What the server answers for an account on the wrong portal
+    apiLogin.mockRejectedValue({ status: 401, code: "UNAUTHORIZED", message: "Invalid email or password" });
+    const onLoginSuccess = vi.fn();
+
+    signIn("production", onLoginSuccess);
+
+    expect(await screen.findByText("Invalid email or password")).toBeTruthy();
+    expect(screen.queryByText(/Administrator account/)).toBeNull();
+    expect(onLoginSuccess).not.toHaveBeenCalled();
+  });
+
+  it("still refuses with the generic message if an older server lets a mismatched account through", async () => {
+    apiLogin.mockResolvedValue({ user, frontendRole: "admin" });
+    const onLoginSuccess = vi.fn();
+
+    signIn("production", onLoginSuccess);
+
+    expect(await screen.findByText("Invalid email or password")).toBeTruthy();
+    expect(vi.mocked(logout)).toHaveBeenCalled();
+    expect(onLoginSuccess).not.toHaveBeenCalled();
   });
 });
