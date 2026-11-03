@@ -3,14 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type * as ApiModule from "../../../lib/api";
 
-vi.mock("../../../lib/auth", () => ({ login: vi.fn() }));
+vi.mock("../../../lib/auth", () => ({ login: vi.fn(), logout: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("../../../lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof ApiModule>()),
   waitForServer: vi.fn(),
   isMailConfigured: vi.fn().mockResolvedValue(true),
 }));
 
-import { login } from "../../../lib/auth";
+import { login, logout } from "../../../lib/auth";
 import { isMailConfigured, waitForServer } from "../../../lib/api";
 import { LoginPage } from "../LoginPage";
 
@@ -18,8 +18,8 @@ const apiLogin = vi.mocked(login);
 const wait = vi.mocked(waitForServer);
 const user = { id: 1, fullName: "Asha Rao", email: "asha@test.com", role: "ADMIN", isActive: true };
 
-function signIn() {
-  render(<LoginPage initialRole="admin" onNavigateHome={vi.fn()} onLoginSuccess={vi.fn()} />);
+function signIn(portal: "admin" | "production" | "store" = "admin", onLoginSuccess = vi.fn()) {
+  render(<LoginPage initialRole={portal} onNavigateHome={vi.fn()} onLoginSuccess={onLoginSuccess} />);
   fireEvent.change(screen.getByLabelText(/Email Address/), { target: { value: "asha@test.com" } });
   fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "secret-password" } });
   // Pressing Enter in the form submits it
@@ -101,5 +101,34 @@ describe("Forgot password", () => {
     render(<LoginPage initialRole="admin" onNavigateHome={vi.fn()} onLoginSuccess={vi.fn()} />);
     expect(await screen.findByText("Forgot your password? Ask your administrator to reset it.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Forgot password?" })).toBeNull();
+  });
+});
+
+describe("Portal must match the account", () => {
+  it("refuses an administrator account on the Production portal and signs it out", async () => {
+    apiLogin.mockResolvedValue({ user, frontendRole: "admin" });
+    const onLoginSuccess = vi.fn();
+
+    signIn("production", onLoginSuccess);
+
+    expect(await screen.findByText('This is an Administrator account. Choose "Administrator" above to sign in.')).toBeTruthy();
+    expect(vi.mocked(logout)).toHaveBeenCalled();
+    expect(onLoginSuccess).not.toHaveBeenCalled();
+  });
+
+  it("names the Production portal when a production account uses the Store portal", async () => {
+    apiLogin.mockResolvedValue({ user: { ...user, role: "PRODUCTION" }, frontendRole: "production" });
+
+    signIn("store");
+
+    expect(await screen.findByText('This is a Production account. Choose "Production" above to sign in.')).toBeTruthy();
+  });
+
+  it("signs a production account in on the Production portal", async () => {
+    apiLogin.mockResolvedValue({ user: { ...user, role: "PRODUCTION" }, frontendRole: "production" });
+
+    signIn("production");
+
+    expect(await screen.findByText(/Authenticated\. Loading Asha's dashboard/)).toBeTruthy();
   });
 });

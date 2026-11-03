@@ -3,7 +3,7 @@ import {
   Shield, Package, Building2, Eye, EyeOff, ArrowLeft, Lock, Mail, ChevronRight,
   AlertCircle, CheckCircle2, Factory, ShoppingCart,
 } from "lucide-react";
-import { login as apiLogin, type FrontendRole } from "../../lib/auth";
+import { login as apiLogin, logout as apiLogout, type FrontendRole } from "../../lib/auth";
 import api, { isMailConfigured, isServerStarting, waitForServer } from "../../lib/api";
 
 type Role = "admin" | "supplier" | "client" | "production" | "store";
@@ -122,6 +122,14 @@ export function LoginPage({ initialRole, onNavigateHome, onLoginSuccess }: Login
         result = await apiLogin(email, password);
       }
       const { user, frontendRole } = result;
+      // The portal must match the account: an administrator signing in on the
+      // Production portal would otherwise land on the admin dashboard.
+      const accountPortal = roles.find((r) => r.id === frontendRole);
+      if (accountPortal && accountPortal.id !== selectedRole) {
+        await apiLogout();
+        setError(`This is a${/^[AEIOU]/.test(accountPortal.label) ? "n" : ""} ${accountPortal.label} account. Choose "${accountPortal.label}" above to sign in.`);
+        return;
+      }
       setSuccess(`Authenticated. Loading ${user.fullName.split(" ")[0]}'s dashboard…`);
       setTimeout(() => onLoginSuccess(frontendRole), 800);
     } catch (err: unknown) {
