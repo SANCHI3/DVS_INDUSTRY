@@ -270,14 +270,20 @@ describe('AuthService', () => {
 
       await expect(svc.login('p@test.com', 'Secret@1234', 'production')).resolves.toBeDefined();
       await expect(svc.login('p@test.com', 'Secret@1234')).resolves.toBeDefined();
-      await expect(svc.login('p@test.com', 'Secret@1234', 'admin')).rejects.toThrow(UnauthorizedError);
+      await expect(svc.login('p@test.com', 'Secret@1234', 'admin')).rejects.toThrow(
+        UnauthorizedError,
+      );
     });
 
     it('lets managers and HR use the administrator portal, sales the store portal', async () => {
       (bcrypt.compare as ReturnType<typeof vi.fn>).mockResolvedValue(true);
       (prisma.refreshToken.create as ReturnType<typeof vi.fn>).mockResolvedValue({});
       (prisma.user.update as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
-      for (const [role, portal] of [['MANAGER', 'admin'], ['HR', 'admin'], ['SALES', 'store']] as const) {
+      for (const [role, portal] of [
+        ['MANAGER', 'admin'],
+        ['HR', 'admin'],
+        ['SALES', 'store'],
+      ] as const) {
         (prisma.user.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
           ...mockUser,
           role: { ...mockUser.role, name: role },
