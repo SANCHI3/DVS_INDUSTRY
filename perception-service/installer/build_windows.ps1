@@ -19,9 +19,9 @@ tar -xzf "$work\python.tar.gz" -C $stage
 $py = "$stage\python\python.exe"
 
 Write-Host "== Python packages"
-& $py -m pip install --no-warn-script-location --quiet torch torchvision --index-url https://download.pytorch.org/whl/cpu
+& $py -m pip install --no-warn-script-location --quiet torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu
 if ($LASTEXITCODE) { throw "pip torch failed" }
-& $py -m pip install --no-warn-script-location --quiet -r perception-service\requirements.txt pillow
+& $py -m pip install --no-warn-script-location --quiet -r perception-service\requirements.txt -c perception-service\installer\constraints.txt pillow
 if ($LASTEXITCODE) { throw "pip requirements failed" }
 Remove-Item -Recurse -Force "$stage\python\Lib\site-packages\torch\include", "$stage\python\Lib\site-packages\torch\test" -ErrorAction SilentlyContinue
 Get-ChildItem "$stage\python\Lib\site-packages\torch\lib\*.lib" | Remove-Item -Force

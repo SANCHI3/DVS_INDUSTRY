@@ -271,3 +271,10 @@ def test_monitoring_output_reaches_the_log_masked(capsys):
 
 def test_child_process_exit_code_comes_back():
     assert service.launch_monitoring([sys.executable, "-c", "raise SystemExit(75)"]) == 75
+
+
+def test_the_installed_tracker_library_still_has_what_detection_uses():
+    """supervision 0.31 removed ByteTrack; the monitoring then crashed at every start."""
+    import supervision
+
+    assert hasattr(supervision, "ByteTrack")
