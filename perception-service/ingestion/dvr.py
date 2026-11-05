@@ -1,13 +1,15 @@
-"""Hikvision DVR connection settings, RTSP URL building and password masking.
+"""DVR connection settings, RTSP URL building and password masking.
 
 Everything about where the DVR is comes from the environment (perception-service/.env):
 
-    DVR_HOST         192.168.0.139 on the factory LAN; a Tailscale name/relay elsewhere
+    DVR_HOST         192.168.0.105 on the factory LAN (DHCP, so it can change: see
+                     ingestion/dvr_finder.py); a Tailscale name/relay elsewhere
+    DVR_MAC          c0:56:e3:1e:10:04, how the DVR is found again after a change
     DVR_RTSP_PORT    554 (8554 through scripts/dvr_relay.py)
     DVR_HTTP_PORT    80
-    DVR_USERNAME     the limited Live View user created for this software (not admin)
+    DVR_USERNAME
     DVR_PASSWORD
-    DVR_URL_FORMAT   hik_streaming (default) or hik_h264 for old firmware
+    DVR_URL_FORMAT   hik_streaming (default), hik_h264 for old firmware, or dahua (CP PLUS)
 
 Full URLs contain the password, so they are built only at the moment a stream
 is opened and must never be logged, printed, stored or sent anywhere: use
@@ -21,7 +23,9 @@ import re
 from dataclasses import dataclass
 from urllib.parse import quote, urlsplit, urlunsplit
 
-URL_FORMATS = ("hik_streaming", "hik_h264")
+URL_FORMATS = ("hik_streaming", "hik_h264", "dahua")
+# Tried when the configured format has no such stream (same maker's other form)
+FORMAT_FALLBACKS = {"hik_streaming": ("hik_h264",), "hik_h264": ("hik_streaming",), "dahua": ()}
 STREAMS = ("main", "sub")
 
 # rtsp://user:pass@host -> rtsp://user:***@host (any scheme, anywhere in a text)
@@ -66,6 +70,8 @@ class DvrConfig:
             return f"/Streaming/Channels/{int(channel)}{'01' if stream == 'main' else '02'}"
         if fmt == "hik_h264":
             return f"/h264/ch{int(channel)}/{stream}/av_stream"
+        if fmt == "dahua":
+            return f"/cam/realmonitor?channel={int(channel)}&subtype={0 if stream == 'main' else 1}"
         raise ValueError(f"unknown url_format {fmt}")
 
     def rtsp_url(self, channel: int, stream: str, url_format: str | None = None,

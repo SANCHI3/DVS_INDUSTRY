@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
-import { Camera, CameraOff, Copy } from "lucide-react";
+import { Camera, CameraOff, Copy, Info, Video } from "lucide-react";
 import { getCameraSnapshot, type CameraDto, type CamerasOverview } from "../../../../lib/services/cameras.service";
 import { CAMERA_STATUS, cameraLine, shortAgo } from "../../../../lib/cameraStatus";
 import { eventTypeLabel } from "../../../../lib/incidentLabels";
+import { LivePlayer } from "./LivePlayer";
+
+export const MAX_LIVE_TILES = 4;
 
 /** The latest picture of one camera, fetched with the sign-in token. */
 function Snapshot({ camera }: { camera: CameraDto }) {
@@ -47,17 +50,25 @@ function Snapshot({ camera }: { camera: CameraDto }) {
   );
 }
 
-export function CameraTile({ camera, onSelect }: { camera: CameraDto; onSelect: (camera: CameraDto) => void }) {
+export function CameraTile({ camera, onSelect, live = false, onLive, onStopLive }: {
+  camera: CameraDto;
+  onSelect: (camera: CameraDto) => void;
+  live?: boolean;
+  onLive?: () => void;
+  onStopLive?: () => void;
+}) {
   const status = CAMERA_STATUS[camera.status];
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(camera)}
-      aria-label={`${camera.name}: ${status.label}. Show its incidents`}
-      className="hover-card flex flex-col rounded-lg border text-left"
-      style={{ borderColor: "#EEE4E0", background: "#FFFFFF", cursor: "pointer", opacity: camera.enabled ? 1 : 0.6 }}
-    >
-      <Snapshot camera={camera} />
+    <div className="hover-card relative flex flex-col rounded-lg border text-left" style={{ borderColor: "#EEE4E0", background: "#FFFFFF", opacity: camera.enabled ? 1 : 0.6 }}>
+      {live && <LivePlayer camera={camera} onClose={() => onStopLive?.()} />}
+      <button
+        type="button"
+        onClick={() => onSelect(camera)}
+        aria-label={`${camera.name}: ${status.label}. Show its incidents`}
+        className="flex flex-1 flex-col text-left"
+        style={{ cursor: "pointer" }}
+      >
+      {!live && <Snapshot camera={camera} />}
       <div className="flex flex-col gap-1 p-3">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate" style={{ color: "#302725", fontSize: "0.85rem", fontWeight: 700 }}>{camera.name}</span>
@@ -84,7 +95,19 @@ export function CameraTile({ camera, onSelect }: { camera: CameraDto; onSelect: 
           </span>
         )}
       </div>
-    </button>
+      </button>
+      {!live && onLive && (
+        <button
+          type="button"
+          onClick={onLive}
+          aria-label={`Watch ${camera.name} live`}
+          className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded px-2 py-1"
+          style={{ background: "#A52A2A", color: "#fff", fontSize: "0.68rem", fontWeight: 700, cursor: "pointer" }}
+        >
+          <Video size={12} aria-hidden="true" /> Live
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -94,6 +117,17 @@ export function CamerasPanel({ overview, loading, error, onSelect }: {
   error: string | null;
   onSelect: (camera: CameraDto) => void;
 }) {
+  const [liveIds, setLiveIds] = useState<string[]>([]);
+  const [limitHit, setLimitHit] = useState(false);
+  const startLive = (id: string) => {
+    if (liveIds.length >= MAX_LIVE_TILES) { setLimitHit(true); return; }
+    setLiveIds([...liveIds, id]);
+  };
+  const stopLive = (id: string) => {
+    setLimitHit(false);
+    setLiveIds(liveIds.filter((other) => other !== id));
+  };
+
   if (!overview) {
     if (loading) return <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading cameras…</p>;
     return <p role="alert" style={{ color: "#C0392B", fontSize: "0.82rem" }}>{error ?? "Cameras could not be loaded."}</p>;
@@ -104,8 +138,8 @@ export function CamerasPanel({ overview, loading, error, onSelect }: {
         <CameraOff size={28} color="#A52A2A" aria-hidden="true" />
         <p className="mt-3" style={{ color: "#302725", fontSize: "0.95rem", fontWeight: 700 }}>No cameras connected yet</p>
         <p className="mt-1 max-w-md" style={{ color: "#837572", fontSize: "0.78rem", lineHeight: 1.6 }}>
-          The factory cameras appear here once the CCTV monitoring PC is running. Live video stays in the EZVIZ app and on the recorder's monitor;
-          this page shows a picture from each camera every couple of minutes.
+          The factory cameras appear here once the CCTV monitoring PC is running. This page then shows a picture from each camera
+          every couple of minutes, and live video on request.
         </p>
       </div>
     );
@@ -114,11 +148,30 @@ export function CamerasPanel({ overview, loading, error, onSelect }: {
   return (
     <div className="space-y-3">
       <p style={{ color: "#837572", fontSize: "0.76rem" }}>
-        {online} of {overview.cameras.length} cameras online. Pictures refresh every couple of minutes; live video stays in the EZVIZ app.
-        Click a camera to see its incidents.
+        {online} of {overview.cameras.length} cameras online. Pictures refresh every couple of minutes.
+        Press Live to watch a camera, or click a camera to see its incidents.
       </p>
+      {overview.monitoring.notice && (
+        <p role="status" className="flex items-center gap-1.5 rounded-md px-3 py-2" style={{ background: "#FFF8E1", color: "#7A5B00", fontSize: "0.76rem" }}>
+          <Info size={13} aria-hidden="true" /> {overview.monitoring.notice}
+        </p>
+      )}
+      {limitHit && (
+        <p role="alert" style={{ color: "#B42318", fontSize: "0.76rem" }}>
+          You can watch up to {MAX_LIVE_TILES} cameras at once. Stop one first.
+        </p>
+      )}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {overview.cameras.map((camera) => <CameraTile key={camera.id} camera={camera} onSelect={onSelect} />)}
+        {overview.cameras.map((camera) => (
+          <CameraTile
+            key={camera.id}
+            camera={camera}
+            onSelect={onSelect}
+            live={liveIds.includes(camera.id)}
+            onLive={() => startLive(camera.id)}
+            onStopLive={() => stopLive(camera.id)}
+          />
+        ))}
       </div>
     </div>
   );

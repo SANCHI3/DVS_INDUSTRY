@@ -3,6 +3,7 @@ import type { AuthenticatedRequest } from '../types';
 import { verifyAccessToken } from '../utils/token';
 import { UnauthorizedError } from '../errors';
 import { prisma } from '../lib/prismaClient';
+import { serviceActor, serviceKeyMatches } from '../utils/serviceKey';
 
 /**
  * authenticate()
@@ -23,6 +24,15 @@ export async function authenticate(
   _res: Response,
   next: NextFunction,
 ): Promise<void> {
+  // The CCTV PC: a shared key instead of a login, with no database lookup
+  const serviceKey = req.headers['x-service-key'];
+  if (serviceKey !== undefined) {
+    if (!serviceKeyMatches(serviceKey)) throw new UnauthorizedError('Service key not accepted');
+    req.user = serviceActor();
+    next();
+    return;
+  }
+
   const authHeader = req.headers['authorization'];
 
   if (authHeader === undefined || !authHeader.startsWith('Bearer ')) {

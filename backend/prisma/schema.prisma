@@ -902,6 +902,7 @@ enum AuditAction {
   EXPORT
   STATUS_CHANGE
   BULK_ACTION
+  LIVE_VIEW
 }
 
 enum WorkOrderStatus {

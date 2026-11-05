@@ -30,7 +30,7 @@ def test_config_rejects_missing_host_and_bad_values():
     with pytest.raises(ValueError, match="DVR_RTSP_PORT"):
         DvrConfig.from_env({**ENV, "DVR_RTSP_PORT": "abc"})
     with pytest.raises(ValueError, match="DVR_URL_FORMAT"):
-        DvrConfig.from_env({**ENV, "DVR_URL_FORMAT": "dahua"})
+        DvrConfig.from_env({**ENV, "DVR_URL_FORMAT": "foscam"})
 
 
 def test_hikvision_paths_for_both_formats():

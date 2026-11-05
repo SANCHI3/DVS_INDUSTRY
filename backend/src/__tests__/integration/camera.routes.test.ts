@@ -2,7 +2,7 @@
  * /api/v1/cameras: only the perception service reports; Security readers see
  * status and pictures through the API (no public image URLs).
  */
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
 import { fakeJpeg } from '../helpers/jpeg';
@@ -65,6 +65,8 @@ vi.mock('../../logger', () => ({
 }));
 
 import { prisma } from '../../lib/prismaClient';
+import { env } from '../../config/env';
+import { signLiveToken } from '../../utils/liveToken';
 
 const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
 let app: Express;
@@ -176,11 +178,74 @@ describe('GET /api/v1/cameras', () => {
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({
       cameras: [],
-      monitoring: { state: 'never', since: null, instances: [] },
+      monitoring: { state: 'never', since: null, notice: null, liveEnabled: false, instances: [] },
     });
   });
 
   it('is closed to Store', async () => {
     expect((await request(app).get('/api/v1/cameras').set(auth('store'))).status).toBe(403);
+  });
+});
+
+describe('the CCTV PC signing in with the service key', () => {
+  const key = 'test-camera-service-key-0123456789abcdef';
+  beforeAll(() => {
+    env.CAMERA_SERVICE_KEY = key;
+  });
+  afterAll(() => {
+    delete env.CAMERA_SERVICE_KEY;
+  });
+
+  it('works without any user lookup', async () => {
+    const res = await request(app).get('/api/v1/cameras/ping').set('X-Service-Key', key);
+    expect(res.status).toBe(200);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('refuses a wrong key', async () => {
+    const res = await request(app).get('/api/v1/cameras/ping').set('X-Service-Key', 'wrong');
+    expect(res.status).toBe(401);
+  });
+
+  it('gives no access to website data', async () => {
+    const res = await request(app).get('/api/v1/cameras').set('X-Service-Key', key);
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('live view', () => {
+  const send = (body: object) => request(app).post('/api/v1/cameras/stream-auth').send(body);
+  const read = { action: 'read', path: 'dvr-ch1-sd', protocol: 'webrtc' };
+
+  it('lets the video server admit a valid pass for that stream only', async () => {
+    const token = signLiveToken('dvr-ch1-sd', 1);
+    expect((await send({ ...read, token })).status).toBe(200);
+    expect((await send({ ...read, protocol: 'hls', query: `token=${token}` })).status).toBe(200);
+    expect((await send({ ...read, path: 'dvr-ch2-sd', token })).status).toBe(401);
+    expect((await send({ ...read, path: 'dvr-ch1-hd', token })).status).toBe(401);
+  });
+
+  it('never allows publishing, other protocols or no pass', async () => {
+    const token = signLiveToken('dvr-ch1-sd', 1);
+    expect((await send({ ...read, action: 'publish', token })).status).toBe(401);
+    expect((await send({ ...read, protocol: 'rtsp', token })).status).toBe(401);
+    expect((await send(read)).status).toBe(401);
+    expect((await send({ ...read, token: 'admin' })).status).toBe(401);
+  });
+
+  it('gives passes to Security readers only, and logs the viewing once', async () => {
+    const hb = { ...heartbeat, info: { liveUrl: 'https://plant.tail1234.ts.net' } };
+    await request(app).post('/api/v1/cameras/heartbeat').set(auth('service')).send(hb);
+    const url = '/api/v1/cameras/dvr-ch1/live-token?quality=sd';
+    const ok = await request(app).get(url).set(auth('production'));
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.available).toBe(true);
+    await request(app).get(url).set(auth('production'));
+    const logged = fn(prisma.auditLog.create).mock.calls.filter(
+      (c) => (c[0] as { data: { action: string } }).data.action === 'LIVE_VIEW',
+    );
+    expect(logged).toHaveLength(1);
+    expect((await request(app).get(url).set(auth('store'))).status).toBe(403);
+    expect((await request(app).get(url)).status).toBe(401);
   });
 });

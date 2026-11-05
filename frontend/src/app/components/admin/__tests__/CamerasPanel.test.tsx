@@ -26,7 +26,7 @@ describe("Cameras tab", () => {
   it("explains that live video stays in the EZVIZ app before any camera reports", () => {
     render(<CamerasPanel overview={overview([])} loading={false} error={null} onSelect={() => {}} />);
     expect(screen.getByText("No cameras connected yet")).toBeTruthy();
-    expect(screen.getByText(/EZVIZ app/)).toBeTruthy();
+    expect(screen.getByText(/live video on request/)).toBeTruthy();
   });
 
   it("shows each camera's status and opens its incidents on click", () => {

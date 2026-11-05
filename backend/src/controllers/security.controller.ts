@@ -45,7 +45,8 @@ function parseId(raw: string | string[] | undefined): number {
 
 /** Actor fields always come from the authenticated account, never the body. */
 function actorOf(req: AuthenticatedRequest): { id: number | null; name: string | null } {
-  return { id: req.user?.id ?? null, name: req.user?.fullName ?? null };
+  // id 0 is the CCTV PC's key, not a user account
+  return { id: req.user?.id || null, name: req.user?.fullName ?? null };
 }
 
 // Roles allowed to create incidents with a caller-chosen external number. The

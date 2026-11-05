@@ -39,6 +39,9 @@ class DashboardClient:
         self.base_url = (os.getenv("DASHBOARD_BACKEND_URL") or "").rstrip("/")
         self.service_email = os.getenv("DASHBOARD_SERVICE_EMAIL")
         self.service_password = os.getenv("DASHBOARD_SERVICE_PASSWORD")
+        # Preferred on the factory PC: no user account, and the website need
+        # not touch its database for every heartbeat
+        self.service_key = (os.getenv("DASHBOARD_SERVICE_KEY") or "").strip() or None
         override = os.getenv("DASHBOARD_API_TOKEN")
         self._access_token = override.strip() if override and override.strip() else None
         self._refresh_token: Optional[str] = None
@@ -60,6 +63,14 @@ class DashboardClient:
         """
 
         self._validate_configuration()
+        if self.service_key:
+            try:
+                return self._send_api_request(path, payload, method, data, content_type)
+            except _DashboardHttpError as exc:
+                if exc.status_code == 401:
+                    raise DashboardClientError("The website did not accept the service key.",
+                                               status_code=401) from None
+                raise
         if self._access_token is None:
             self._login()
 
@@ -82,13 +93,15 @@ class DashboardClient:
     def _validate_configuration(self) -> None:
         if not self.base_url:
             raise DashboardClientError("DASHBOARD_BACKEND_URL is not configured.")
+        if self.service_key:
+            return
         if self._access_token is None and (
             not self.service_email or not self.service_email.strip()
             or not self.service_password or not self.service_password.strip()
         ):
             raise DashboardClientError(
-                "DASHBOARD_SERVICE_EMAIL and DASHBOARD_SERVICE_PASSWORD "
-                "are required when DASHBOARD_API_TOKEN is not set."
+                "DASHBOARD_SERVICE_KEY (or DASHBOARD_SERVICE_EMAIL and "
+                "DASHBOARD_SERVICE_PASSWORD, or DASHBOARD_API_TOKEN) is required."
             )
 
     def _login(self) -> None:
@@ -153,10 +166,11 @@ class DashboardClient:
             if payload is not None
             else None
         )
-        headers = {
-            "Accept": "application/json",
-            "Authorization": f"Bearer {self._access_token}",
-        }
+        headers = {"Accept": "application/json"}
+        if self.service_key:
+            headers["X-Service-Key"] = self.service_key
+        else:
+            headers["Authorization"] = f"Bearer {self._access_token}"
         if body is not None:
             headers["Content-Type"] = content_type or "application/json"
         request = urllib.request.Request(

@@ -61,6 +61,11 @@ const envSchema = z.object({
   // incident evidence and explanations.
   PERCEPTION_OUTPUT_DIR: z.string().default('../perception-service/output'),
 
+  // Shared key the CCTV PC sends instead of signing in: no user account and no
+  // database lookup, so its heartbeats let an idle Neon database suspend.
+  // Shorter than 32 characters counts as not set (utils/serviceKey.ts).
+  CAMERA_SERVICE_KEY: z.string().optional(),
+
   // Incident pictures uploaded by the factory PC. Stored in the database
   // unless all four EVIDENCE_S3_* are set (any S3-compatible bucket, e.g.
   // Cloudflare R2). TODO(owner): R2/S3 bucket and keys, or keep the database.

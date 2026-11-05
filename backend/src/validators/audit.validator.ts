@@ -15,6 +15,7 @@ export const auditQuerySchema = z.object({
       'EXPORT',
       'STATUS_CHANGE',
       'BULK_ACTION',
+      'LIVE_VIEW',
       'all',
     ])
     .optional()

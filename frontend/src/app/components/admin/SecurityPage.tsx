@@ -449,14 +449,14 @@ export function SecurityPage() {
         {tab === "live" && (
           <div className="space-y-5">
             <Card style={{ borderRadius: "0.75rem" }}>
-              <CardHeader title="Latest AI Detections" subtitle="Newest incidents reported by the CCTV perception service; updates live" actions={
+              <CardHeader title="Latest AI Detections" subtitle="Newest incidents from the CCTV cameras; updates live" actions={
                 <div className="flex items-center gap-2">
                   {newestAi && <span style={{ color: "#837572", fontSize: "0.72rem" }}>Last detection: {timeAgo(newestAi.occurredAt)}</span>}
                   <LiveBadge status={badge} />
                 </div>
               } />
               <div className="p-5">
-                {incidentsLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading detections...</p> : incidentsError ? <p style={{ color: "#C0392B", fontSize: "0.82rem" }}>Unable to load incidents.</p> : latestDetections.length === 0 ? <EmptyState icon={Camera} title="No AI detections yet" detail="When the perception service (camera or demo mode) confirms an event, it appears here within seconds together with a pop-up alert." /> : (
+                {incidentsLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading detections...</p> : incidentsError ? <p style={{ color: "#C0392B", fontSize: "0.82rem" }}>Unable to load incidents.</p> : latestDetections.length === 0 ? <EmptyState icon={Camera} title="No AI detections yet" detail="When the CCTV monitoring confirms an event, it appears here within seconds together with a pop-up alert." /> : (
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {latestDetections.map((incident) => (
                       <button key={incident.id} onClick={() => setSelectedIncidentId(incident.id)} className="rounded-lg border p-4 text-left" style={{ borderColor: "#EEE4E0", background: "#FCFAF9", cursor: "pointer" }}>
@@ -494,7 +494,7 @@ export function SecurityPage() {
               </Card>
 
               <Card style={{ borderRadius: "0.75rem" }}>
-                <CardHeader title="Detection Summary" subtitle="Incident counts from the security KPI API" />
+                <CardHeader title="Detection Summary" subtitle="Incident counts across the plant" />
                 <div className="space-y-4 p-5">
                   {kpisLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading detection summary...</p> : kpisError || !kpis ? <EmptyState icon={FileWarning} title="Summary unavailable" detail="The security KPI data could not be loaded." /> : (
                     <>
@@ -607,13 +607,13 @@ export function SecurityPage() {
           <div className="space-y-5">
             <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <Card style={{ borderRadius: "0.75rem" }}>
-                <CardHeader title="Incidents by Severity" subtitle="Aggregate breakdown returned by the security KPI API" />
+                <CardHeader title="Incidents by Severity" subtitle="How serious recent incidents were" />
                 <div className="p-5">
                   {kpisLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading report data...</p> : kpisError || !kpis ? <EmptyState icon={FileWarning} title="Report data unavailable" detail="The security KPI data could not be loaded." /> : kpis.incidentsBySeverity.length === 0 ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>No data returned.</p> : <div className="space-y-3">{kpis.incidentsBySeverity.map((item) => <div key={item.severity} className="flex items-center gap-3"><span className="w-20" style={{ color: "#665956", fontSize: "0.76rem", textTransform: "capitalize" }}>{item.severity.toLowerCase()}</span><div className="h-2 flex-1 overflow-hidden rounded-full" style={{ background: "#F0E9E6" }}><div className="h-full rounded-full" style={{ background: item.severity === "CRITICAL" ? "#B42318" : item.severity === "HIGH" ? "#C75B18" : "#A52A2A", width: `${kpis.totalIncidents ? Math.min(100, item.count / kpis.totalIncidents * 100) : 0}%` }} /></div><strong style={{ color: "#302725", fontSize: "0.78rem" }}>{item.count}</strong></div>)}</div>}
                 </div>
               </Card>
               <Card style={{ borderRadius: "0.75rem" }}>
-                <CardHeader title="Incidents by Type" subtitle="Aggregate breakdown returned by the security KPI API" />
+                <CardHeader title="Incidents by Type" subtitle="What kind of incidents were reported" />
                 <div className="p-5">
                   {kpisLoading ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>Loading report data...</p> : kpisError || !kpis ? <EmptyState icon={FileWarning} title="Report data unavailable" detail="The security KPI data could not be loaded." /> : kpis.incidentsByType.filter((item) => !isRetiredIncidentType(item.type)).length === 0 ? <p style={{ color: "#837572", fontSize: "0.82rem" }}>No data returned.</p> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{kpis.incidentsByType.filter((item) => !isRetiredIncidentType(item.type)).map((item) => <div key={item.type} className="flex items-center justify-between rounded-lg border px-3 py-2.5" style={{ borderColor: "#EEE4E0", background: "#FCFAF9" }}><span style={{ color: "#665956", fontSize: "0.76rem" }}>{formatEventType(item.type)}</span><strong style={{ color: "#A52A2A", fontSize: "0.85rem" }}>{item.count}</strong></div>)}</div>}
                 </div>

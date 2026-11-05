@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from env_loader import load_env  # noqa: E402
-from ingestion.dvr import URL_FORMATS, DvrConfig, mask_text  # noqa: E402
+from ingestion.dvr import FORMAT_FALLBACKS, DvrConfig, mask_text  # noqa: E402
 from ingestion.rtsp_probe import OPENCV_TCP_OPTIONS, diagnose_unreachable, tcp_reachable  # noqa: E402
 from scripts.probe_dvr import parse_channels  # noqa: E402
 
@@ -69,7 +69,7 @@ def main(argv: list[str] | None = None) -> int:
     import cv2
 
     args.out.mkdir(parents=True, exist_ok=True)
-    formats = [cfg.url_format] + [f for f in URL_FORMATS if f != cfg.url_format]
+    formats = [cfg.url_format, *FORMAT_FALLBACKS[cfg.url_format]]
     saved = 0
     for channel in parse_channels(args.channels):
         frame = None
@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         path = args.out / f"ch{channel}.jpg"
         cv2.imwrite(str(path), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
         saved += 1
-        print(f"  ch{channel}: {frame.shape[1]}x{frame.shape[0]} -> {path.relative_to(ROOT)}")
+        print(f"  ch{channel}: {frame.shape[1]}x{frame.shape[0]} -> {path}", flush=True)
     print(f"\nSaved {saved} picture(s) to {args.out}")
     return 0 if saved else 1
 

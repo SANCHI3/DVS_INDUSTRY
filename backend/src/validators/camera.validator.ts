@@ -37,5 +37,20 @@ export const cameraIdParamSchema = z.object({
   id: z.string().regex(SAFE_ID, 'Invalid camera id'),
 });
 
+export const liveTokenQuerySchema = z.object({
+  quality: z.enum(['sd', 'hd']).optional().default('sd'),
+});
+
+/** What the video server sends for each viewer; extra fields are ignored. */
+export const streamAuthSchema = z.object({
+  action: z.string().max(32),
+  path: z.string().max(128).optional().default(''),
+  protocol: z.string().max(32).optional().default(''),
+  token: z.string().max(2048).optional().nullable(),
+  password: z.string().max(2048).optional().nullable(),
+  query: z.string().max(4096).optional().nullable(),
+});
+
+export type StreamAuthInput = z.infer<typeof streamAuthSchema>;
 export type HeartbeatInput = z.infer<typeof heartbeatSchema>;
 export type CameraHeartbeatItem = z.infer<typeof cameraHeartbeatItem>;

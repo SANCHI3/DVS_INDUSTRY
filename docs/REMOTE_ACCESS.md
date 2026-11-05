@@ -45,11 +45,11 @@ the Tailscale docs for the same words.
      Set-ItemProperty -Path HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters -Name IPEnableRouter -Value 1
      ```
 4. Advertise **only the DVR**, not the whole factory network (least privilege):
-   - Windows, Administrator prompt: `tailscale set --advertise-routes=192.168.0.139/32`
-   - Linux: `sudo tailscale set --advertise-routes=192.168.0.139/32`
+   - Windows, Administrator prompt: `tailscale set --advertise-routes=192.168.0.105/32`
+   - Linux: `sudo tailscale set --advertise-routes=192.168.0.105/32`
 5. In the admin console (<https://login.tailscale.com/admin/machines>):
    1. Find the factory PC (it shows a **Subnets** badge).
-   2. Open *Subnets* and approve `192.168.0.139/32`. Select *Save*.
+   2. Open *Subnets* and approve `192.168.0.105/32`. Select *Save*.
 6. In the same console, open the factory PC's **⋯** menu and choose
    **Disable key expiry**. Otherwise remote access silently stops after
    180 days.
@@ -76,7 +76,7 @@ it with this, under *Access controls* → *Edit file*:
     {
       // The developer's devices: the DVR's video (RTSP) and web page only
       "src": ["developer@example.com"],
-      "dst": ["192.168.0.139"],
+      "dst": ["192.168.0.105"],
       "ip":  ["tcp:554", "tcp:80"],
     },
     {
@@ -104,7 +104,7 @@ the older form:
 
 ```
 "acls": [{ "action": "accept", "src": ["developer@example.com"],
-           "dst": ["192.168.0.139:554,80", "tag:factory:3389,22,8554,8080"] }]
+           "dst": ["192.168.0.105:554,80", "tag:factory:3389,22,8554,8080"] }]
 ```
 
 ## 3. Developer laptop
@@ -115,15 +115,15 @@ the older form:
    - **Linux:** `sudo tailscale set --accept-routes`
 3. Test:
    ```
-   ping 192.168.0.139
+   ping 192.168.0.105
    ```
-   Then open <http://192.168.0.139> in a browser. Then, in `perception-service`:
+   Then open <http://192.168.0.105> in a browser. Then, in `perception-service`:
    ```
    python scripts/probe_dvr.py
    ```
 4. For running the monitoring from the laptop, set in `perception-service/.env`:
    ```
-   DVR_HOST=192.168.0.139
+   DVR_HOST=192.168.0.105
    REMOTE_MODE=true
    PERCEPTION_INSTANCE_ID=dev-laptop
    ```
@@ -144,7 +144,7 @@ different from the factory's 192.168.0.x, so the steps above are enough.
 ## 4. If the laptop's network also uses 192.168.0.x
 
 Many home routers use 192.168.0.x too. The laptop then looks for
-192.168.0.139 at home instead of going through Tailscale, and `probe_dvr.py`
+192.168.0.105 at home instead of going through Tailscale, and `probe_dvr.py`
 says so. There are two fixes.
 
 **A. 4via6 (preferred where the factory PC supports it).** This gives the
@@ -152,14 +152,14 @@ factory network its own address in the tailnet.
 
 1. On the factory PC:
    ```
-   tailscale debug via 7 192.168.0.139/32
+   tailscale debug via 7 192.168.0.105/32
    ```
    This prints an address like `fd7a:115c:a1e0:b1a:0:7:c0a8:8b/128`.
 2. Advertise that address too:
    ```
-   tailscale set --advertise-routes=192.168.0.139/32,<printed address>
+   tailscale set --advertise-routes=192.168.0.105/32,<printed address>
    ```
-3. Approve it in the console, and use it (not 192.168.0.139) in the policy's
+3. Approve it in the console, and use it (not 192.168.0.105) in the policy's
    `dst`.
 4. With MagicDNS on, the laptop reaches the DVR as `192-168-0-139-via-7`:
    `DVR_HOST=192-168-0-139-via-7`.

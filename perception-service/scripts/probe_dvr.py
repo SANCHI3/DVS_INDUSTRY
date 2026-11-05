@@ -15,13 +15,14 @@ at the first "wrong username or password" instead of trying every channel.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from env_loader import load_env  # noqa: E402
-from ingestion.dvr import STREAMS, URL_FORMATS, DvrConfig, mask_text  # noqa: E402
+from ingestion.dvr import FORMAT_FALLBACKS, STREAMS, DvrConfig, mask_text  # noqa: E402
 from ingestion.rtsp_probe import (  # noqa: E402
     StreamResult, diagnose_unreachable, measure_stream, rtsp_describe, tcp_reachable,
 )
@@ -49,7 +50,7 @@ def parse_channels(text: str) -> list[int]:
 def probe_stream(cfg: DvrConfig, channel: int, stream: str, timeout_s: float, decode: bool,
                  describe=rtsp_describe, measure=measure_stream) -> StreamResult:
     result = StreamResult(channel, stream)
-    formats = [cfg.url_format] + [f for f in URL_FORMATS if f != cfg.url_format]
+    formats = [cfg.url_format, *FORMAT_FALLBACKS[cfg.url_format]]
     for fmt in formats:
         result.tried.append(fmt)
         answer = describe(cfg, cfg.path(channel, stream, fmt), timeout_s)
@@ -71,6 +72,20 @@ def probe_stream(cfg: DvrConfig, channel: int, stream: str, timeout_s: float, de
                 result.width, result.height, result.fps = info["width"], info["height"], info["fps"]
         return result
     return result
+
+
+def plain_line(channel: int, results: list[StreamResult]) -> str:
+    """One camera in plain words: "Camera 03: working, 704×576, 12 fps"."""
+    ok = [r for r in results if r.ok]
+    if not ok:
+        reason = next((r.reason for r in results if r.reason), "")
+        if "no picture" in reason:
+            return f"Camera {channel:02d}: no picture (is a camera connected to this channel?)"
+        return f"Camera {channel:02d}: not working ({reason or 'no answer'})"
+    best = max(ok, key=lambda r: r.width * r.height)
+    size = f", {best.width}×{best.height}" if best.width else ""
+    rate = f", {best.fps:g} fps" if best.fps else ""
+    return f"Camera {channel:02d}: working{size}{rate}"
 
 
 def format_table(results: list[StreamResult]) -> str:
@@ -96,12 +111,39 @@ def recommendation(results: list[StreamResult], configured: str) -> str:
     return f"DVR_URL_FORMAT={configured} is correct."
 
 
+def probe_json(cfg: DvrConfig, channels: list[int], timeout_s: float) -> int:
+    def emit(**fields) -> None:
+        print(json.dumps(fields), flush=True)
+
+    if not tcp_reachable(cfg.host, cfg.rtsp_port, min(timeout_s, 5.0)):
+        emit(kind="unreachable", message=f"Nothing answers at {cfg.host}. Press Find DVR, or check the "
+                                         "DVR is switched on and its network cable is in.")
+        return 1
+    working: list[str] = []
+    for channel in channels:
+        results = []
+        for stream in ("sub", "main"):
+            r = probe_stream(cfg, channel, stream, timeout_s, True)
+            results.append(r)
+            if r.reason == REASONS["AUTH_FAILED"]:
+                emit(kind="auth_failed", message="The DVR did not accept this username or password. "
+                                                 "It locks after several wrong tries, so nothing more was tried.")
+                return 1
+        ok = [r for r in results if r.ok]
+        working += [r.url_format for r in ok]
+        emit(kind="camera", channel=channel, ok=bool(ok), line=plain_line(channel, results))
+    if working:
+        emit(kind="done", url_format=max(set(working), key=working.count))
+    return 0 if working else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--channels", default="1-8", help="e.g. 1-8 or 1,3,5 (default 1-8)")
     parser.add_argument("--streams", default="main,sub", help="main,sub (default both)")
     parser.add_argument("--timeout", type=float, default=10.0, help="seconds per attempt (default 10)")
     parser.add_argument("--no-decode", action="store_true", help="only ask the DVR, do not read a frame")
+    parser.add_argument("--json", action="store_true", help="one JSON line per camera, for the setup window")
     args = parser.parse_args(argv)
 
     load_env()
@@ -113,6 +155,9 @@ def main(argv: list[str] | None = None) -> int:
     if not cfg.username or not cfg.password:
         print("Setup problem: DVR_USERNAME and DVR_PASSWORD must be set in perception-service/.env")
         return 2
+
+    if args.json:
+        return probe_json(cfg, parse_channels(args.channels), args.timeout)
 
     print(f"DVR {cfg.host}  RTSP port {cfg.rtsp_port}  user {cfg.username}  format {cfg.url_format}  (TCP)")
     if not tcp_reachable(cfg.host, cfg.rtsp_port, min(args.timeout, 5.0)):

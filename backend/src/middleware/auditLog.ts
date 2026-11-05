@@ -16,7 +16,15 @@ export interface AuditActor {
  * Endpoints that are pure session plumbing and would only add noise, or that
  * write their own, more detailed audit entry (assistant questions).
  */
-const SKIPPED_PATHS = ['/auth/refresh', '/auth/me', '/assistant/ask'];
+const SKIPPED_PATHS = [
+  '/auth/refresh',
+  '/auth/me',
+  '/assistant/ask',
+  // Machine traffic every few seconds: a row for each would keep Neon awake
+  '/cameras/heartbeat',
+  '/cameras/stream-auth',
+];
+const SNAPSHOT_UPLOAD = /\/cameras\/[^/]+\/snapshot$/;
 
 /**
  * Maps HTTP method + path + response status → AuditAction.
@@ -38,7 +46,7 @@ export function resolveAction(
   }
 
   if (statusCode >= 400) return null; // other failed requests changed nothing
-  if (SKIPPED_PATHS.some((p) => path.endsWith(p))) return null;
+  if (SKIPPED_PATHS.some((p) => path.endsWith(p)) || SNAPSHOT_UPLOAD.test(path)) return null;
   if (path.endsWith('/auth/logout')) return 'LOGOUT';
 
   if (m === 'GET') {
@@ -80,6 +88,7 @@ const ENTITY_MAP: Record<string, string> = {
   alerts: 'SecurityAlert',
   shifts: 'Shift',
   attendance: 'Attendance',
+  cameras: 'Camera',
   users: 'User',
 };
 
@@ -131,7 +140,7 @@ export function auditLog(req: AuthenticatedRequest, res: Response, next: NextFun
       action === 'LOGIN_FAILED' && typeof body?.['email'] === 'string' ? body['email'] : null;
 
     const data: CreateAuditLogData = {
-      userId: actor?.id ?? null,
+      userId: actor?.id || null, // 0 is the CCTV PC's key, not a user account
       userEmail: actor?.email ?? attemptedEmail,
       userRole: actor?.role ?? null,
       action,

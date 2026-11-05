@@ -7,20 +7,27 @@ down or shows video loss is skipped and retried; it never stops the others.
 Models are loaded once and shared (shared_models.py).
 
 Environment:
-    MAX_INFER_FPS_TOTAL   frames per second across all cameras (default 10;
+    MAX_INFER_FPS_TOTAL   frames per second across all cameras (default 12;
                           4 with REMOTE_MODE=true)
     REMOTE_MODE           true on a laptop over Tailscale: sub stream, <= 1 fps
+
+The PC is shared, so this runs at BELOW_NORMAL priority and a CPU guard slows
+detection when the computer is busy (system_load.py). If the DVR moves to a new
+address the process exits with RESTART_EXIT and service.py starts it again.
 """
 from __future__ import annotations
 
 import os
+import sys
 import time
+from pathlib import Path
 from typing import Optional
 
 import yaml
 
 from ingestion.camera_config import CameraSetup, load_camera_setup
 from ingestion.dvr import mask_text
+from ingestion.dvr_finder import DvrWatcher, read_notice
 from ingestion.evidence_grabber import MainStreamGrabber
 from ingestion.stream_reader import StreamReader
 from main import build_detector, camera_info, inference_device, _env_float
@@ -29,20 +36,24 @@ from reporting.camera_heartbeat import CameraHeartbeat
 from reporting.evidence_uploader import EvidenceUploader, evidence_meta, pick_pictures
 from reporting.incident_report import IncidentReporter
 from scheduler import FrameScheduler
+from system_load import CpuGuard, limit_model_threads, set_low_priority, write_status
 
 STATS_EVERY_S = 60.0
+STATUS_EVERY_S = 15.0
+RESTART_EXIT = 75  # "start me again now": the DVR has a new address
 
 
 def total_fps_limit(setup: CameraSetup) -> float:
-    return _env_float("MAX_INFER_FPS_TOTAL", 4.0 if setup.remote_mode else 10.0)
+    return _env_float("MAX_INFER_FPS_TOTAL", 4.0 if setup.remote_mode else 12.0)
 
 
-def format_stats(stats: dict, statuses: dict) -> str:
+def format_stats(stats: dict, statuses: dict, cpu: Optional[float] = None, speed: float = 1.0) -> str:
     parts = []
     for cam_id, s in stats.items():
         ms = f"{s['infer_ms']:.0f} ms" if s["infer_ms"] is not None else "-"
         parts.append(f"{cam_id} {statuses.get(cam_id, '?').lower()} {s['fps']:.1f} fps {ms}")
-    return "[perf] " + " | ".join(parts)
+    load = f"cpu {cpu:.0f}% speed {speed:.0%} | " if cpu is not None else ""
+    return "[perf] " + load + " | ".join(parts)
 
 
 def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float] = None,
@@ -65,10 +76,12 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
         raise SystemExit("DVR_HOST is not set in perception-service/.env (see docs/CCTV_SETUP.md)")
     password = setup.dvr.password if setup.dvr else ""
 
+    set_low_priority()
+    threads = limit_model_threads()
     limit = total_fps_limit(setup)
     print(f"[multi] {len(cameras)} camera(s), up to {limit:g} frames/s in total"
           f"{' (REMOTE_MODE: sub stream, low fps)' if setup.remote_mode else ''}")
-    print(f"[multi] inference device: {inference_device()}")
+    print(f"[multi] inference device: {inference_device()}, {threads} model threads")
 
     detector = build_detector(thresholds_cfg)
     reporter = IncidentReporter(
@@ -93,6 +106,7 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
 
     grabber = MainStreamGrabber(os.path.join(evidence_dir, "main"), password=password, on_saved=send_evidence)
 
+    guard = CpuGuard()
     readers: dict[str, StreamReader] = {}
     pipelines: dict[str, CameraPipeline] = {}
     for cam in cameras:
@@ -122,6 +136,14 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
         print(f"[{cam.id}] {cam.location}: channel {cam.channel}, {cam.detect_stream} stream, "
               f"{cam.fps:g} fps, rules {', '.join(pipelines[cam.id].events) or 'none'}")
 
+    notice_path = Path(output_dir) / "dvr_address.json"
+    status_path = Path(output_dir) / "status.json"
+    env_path = Path(__file__).resolve().parent / ".env"
+    watcher = None
+    dvr_mac = os.getenv("DVR_MAC", "").strip()
+    if setup.dvr is not None and dvr_mac and not setup.remote_mode and env_path.is_file():
+        watcher = DvrWatcher(setup.dvr.host, setup.dvr.rtsp_port, dvr_mac, env_path, notice_path).start()
+
     if heartbeat is None and os.getenv("DASHBOARD_BACKEND_URL", "").strip():
         heartbeat = CameraHeartbeat(cameras, info=lambda: {
             "device": inference_device(),
@@ -129,25 +151,53 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
             "maxInferFps": limit,
             "evidenceQueueMb": round(uploader.size_bytes() / 1e6, 1) if uploader else None,
             "evidenceQueueItems": uploader.pending() if uploader else None,
+            "dvrNotice": read_notice(notice_path),
+            "liveUrl": os.getenv("LIVE_VIEW_URL", "").strip().rstrip("/") or None,
+            "cpuPercent": round(guard.cpu),
+            "detectionSpeed": guard.speed,
         })
         print(f"[multi] camera status to the website as '{heartbeat.instance_id}' ({heartbeat.source})")
     scheduler = FrameScheduler({c.id: c.fps for c in cameras}, max_total_fps=limit)
     last_index = {c.id: -1 for c in cameras}
     was_lost = {c.id: False for c in cameras}
-    started = last_stats = time.monotonic()
+    started = last_stats = last_status = time.monotonic()
+    latest_stats: dict = {}
 
     def statuses() -> dict:
         return {cam_id: r.status()["status"] for cam_id, r in readers.items()}
 
+    def save_status() -> None:
+        now_status = statuses()
+        write_status(
+            status_path,
+            cpuPercent=round(guard.cpu),
+            detectionSpeed=guard.speed,
+            cameras={c.id: {"name": c.name, "status": now_status.get(c.id, "OFFLINE"),
+                            "fps": (latest_stats.get(c.id) or {}).get("fps")} for c in cameras},
+            websiteOkAt=getattr(heartbeat, "last_ok_at", None),
+            websiteError=getattr(heartbeat, "last_error", None),
+        )
+
+    restart = False
+    save_status()
     try:
         while True:
             now = time.monotonic()
             if max_seconds and now - started > max_seconds:
                 print("[multi] max_seconds reached, stopping")
                 break
+            if watcher is not None and watcher.moved_to:
+                print("[multi] restarting to connect to the DVR's new address")
+                restart = True
+                break
+            scheduler.speed = guard.tick()
             if now - last_stats >= STATS_EVERY_S:
                 last_stats = now
-                print(format_stats(scheduler.take_stats(), statuses()), flush=True)
+                latest_stats = scheduler.take_stats()
+                print(format_stats(latest_stats, statuses(), guard.cpu, guard.speed), flush=True)
+            if now - last_status >= STATUS_EVERY_S:
+                last_status = now
+                save_status()
             if heartbeat is not None:
                 heartbeat.tick(readers, pipelines)
 
@@ -182,6 +232,8 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
     except KeyboardInterrupt:
         print("[multi] stopping")
     finally:
+        if watcher is not None:
+            watcher.stop()
         for r in readers.values():
             r.stop()
         grabber.close()
@@ -191,3 +243,5 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
         for cam_id, pipe in pipelines.items():
             print(f"[{cam_id}] processed {pipe.frames_processed} frames, "
                   f"incidents {dict(pipe.incident_counts) or 'none'}")
+    if restart:
+        sys.exit(RESTART_EXIT)

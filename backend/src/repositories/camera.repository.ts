@@ -48,14 +48,7 @@ export class CameraRepository {
     });
   }
 
-  async findStatus(ids: string[]): Promise<Array<{ id: string; status: CameraStatus }>> {
-    return prisma.camera.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, status: true },
-    });
-  }
-
-  async upsertFromHeartbeat(cam: CameraUpsert, now: Date, statusChanged: boolean): Promise<void> {
+  async upsertFromHeartbeat(cam: CameraUpsert, now: Date, statusSince: Date): Promise<void> {
     const fields = {
       channel: cam.channel,
       name: cam.name,
@@ -67,11 +60,12 @@ export class CameraRepository {
       lastFrameAt: cam.lastFrameAt,
       achievedFps: cam.achievedFps,
       inferMs: cam.inferMs,
+      statusSince,
     };
     await prisma.camera.upsert({
       where: { id: cam.id },
-      create: { id: cam.id, ...fields, statusSince: now },
-      update: { ...fields, ...(statusChanged && { statusSince: now }) },
+      create: { id: cam.id, ...fields },
+      update: fields,
     });
   }
 

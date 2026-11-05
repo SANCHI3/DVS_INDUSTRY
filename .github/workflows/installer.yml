@@ -1,0 +1,56 @@
+name: CCTV installer
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - perception-service/**
+      - .github/workflows/installer.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cctv-installer
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: true
+      - name: NSIS
+        run: choco install nsis -y --no-progress
+      - name: Build
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $env:PATH = "C:\Program Files (x86)\NSIS;$env:PATH"
+          ./perception-service/installer/build_windows.ps1
+      - name: Install it the way the plant PC will
+        shell: pwsh
+        run: |
+          Start-Process -Wait -FilePath .\dvs-cctv-setup.exe -ArgumentList "/S"
+          if (-not (Test-Path C:\dvs-cctv\python\pythonw.exe)) { throw "not installed" }
+          if (-not (Test-Path C:\dvs-cctv\app\config\cameras.yaml)) { throw "no camera settings" }
+      - name: End-to-end test with a fake DVR
+        shell: pwsh
+        run: |
+          C:\dvs-cctv\python\python.exe C:\dvs-cctv\app\installer\ci_smoke_test.py
+          if ($LASTEXITCODE) { throw "smoke test failed" }
+      - name: Show the log after a failure
+        if: failure()
+        shell: pwsh
+        run: Get-Content C:\dvs-cctv\app\logs\perception.log -Tail 60 -ErrorAction SilentlyContinue
+      - name: Publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "cctv-setup-${{ github.run_number }}"
+          gh release create $tag dvs-cctv-setup.exe --title "CCTV installer ${{ github.run_number }}" --notes "Windows installer for the plant CCTV PC." --latest

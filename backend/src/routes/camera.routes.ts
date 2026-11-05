@@ -4,7 +4,12 @@ import { validateRequest } from '../middleware/validateRequest';
 import { authenticate } from '../middleware/authenticate';
 import { authorize } from '../middleware/authorize';
 import * as CameraController from '../controllers/camera.controller';
-import { cameraIdParamSchema, heartbeatSchema } from '../validators/camera.validator';
+import {
+  cameraIdParamSchema,
+  heartbeatSchema,
+  liveTokenQuerySchema,
+  streamAuthSchema,
+} from '../validators/camera.validator';
 import { ROLES } from '../constants';
 
 /**
@@ -12,11 +17,27 @@ import { ROLES } from '../constants';
  * and snapshots out to here; nothing here ever connects to the cameras.
  */
 const router = Router();
+
+/**
+ * POST /api/v1/cameras/stream-auth
+ * Asked by the video server on the CCTV PC before it shows anyone a stream.
+ * It cannot sign in, so this route is open: the answer depends only on the
+ * signed 2-minute pass from /live-token. 200 = allow, 401 = refuse.
+ */
+router.post(
+  '/stream-auth',
+  validateRequest({ body: streamAuthSchema }),
+  CameraController.streamAuth,
+);
+
 router.use(authenticate);
 
 // Same readers as the Security page
 const SEC_READ = [ROLES.ADMIN, ROLES.MANAGER, ROLES.PRODUCTION] as const;
 const SERVICE = [ROLES.PERCEPTION_SERVICE] as const;
+
+/** GET /api/v1/cameras/ping: lets the installer check the service key. Access: PERCEPTION_SERVICE */
+router.get('/ping', authorize(...SERVICE), CameraController.ping);
 
 /**
  * POST /api/v1/cameras/heartbeat
@@ -51,6 +72,18 @@ router.get(
   authorize(...SEC_READ),
   validateRequest({ params: cameraIdParamSchema }),
   asyncHandler(CameraController.getSnapshot),
+);
+
+/**
+ * GET /api/v1/cameras/:id/live-token?quality=sd|hd
+ * A 2-minute pass for one camera's live video, or why there is none.
+ * Each viewing is written to the audit log. Access: ADMIN, MANAGER, PRODUCTION
+ */
+router.get(
+  '/:id/live-token',
+  authorize(...SEC_READ),
+  validateRequest({ params: cameraIdParamSchema, query: liveTokenQuerySchema }),
+  CameraController.liveToken,
 );
 
 export default router;

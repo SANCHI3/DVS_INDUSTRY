@@ -28,16 +28,17 @@
 # One camera:                python main.py --camera dvr-ch1 --no-display
 
 dvr:
-  host: ${DVR_HOST}
+  host: ${DVR_HOST:-192.168.0.105}    # DHCP: DVR_MAC finds it again if it moves
   rtsp_port: ${DVR_RTSP_PORT:-554}
-  url_format: ${DVR_URL_FORMAT:-hik_streaming}   # or hik_h264 (scripts/probe_dvr.py says which)
+  # hik_streaming, hik_h264 (scripts/probe_dvr.py says which) or dahua for CP PLUS
+  url_format: ${DVR_URL_FORMAT:-hik_streaming}
   transport: tcp
 
 defaults:
   enabled: true
   detect_stream: sub
   evidence_stream: main
-  fps: 3
+  fps: 2    # shared server: see MAX_INFER_FPS_TOTAL and the CPU guard
   rules: [fire, fall, crowd, fight, anomaly]
 
 cameras:

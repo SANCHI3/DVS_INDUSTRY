@@ -29,9 +29,13 @@ os.chdir(ROOT)  # config/, models/ and output/ are relative to here
 
 from env_loader import load_env  # noqa: E402
 from ingestion.dvr import DvrConfig, mask_text  # noqa: E402
+from ingestion.dvr_finder import read_env_value  # noqa: E402
+from system_load import read_status, set_low_priority  # noqa: E402
 
 LOG_DIR = ROOT / "logs"
 RESTART_DELAYS = (5, 15, 30, 60, 120, 300)
+RESTART_EXIT = 75  # multi_camera.RESTART_EXIT: the DVR moved, start again now
+INSTALL_DIR = ROOT.parent  # C:\\dvs-cctv when installed
 
 
 # ── logging: daily files, 14 kept ───────────────────────────────────────────
@@ -44,16 +48,17 @@ class _LogStream(io.TextIOBase):
         self._buf = ""
 
     def write(self, text: str) -> int:
-        if self.console is not None:
-            try:
-                self.console.write(text)
-            except Exception:  # noqa: BLE001 - a closed console must not stop logging
-                pass
         self._buf += text
         while "\n" in self._buf:
             line, self._buf = self._buf.split("\n", 1)
+            masked = mask_text(line, self.secret)
+            if self.console is not None:
+                try:
+                    self.console.write(masked + "\n")
+                except Exception:  # noqa: BLE001 - a closed console must not stop logging
+                    pass
             if line.strip():
-                self.logger.log(self.level, mask_text(line, self.secret))
+                self.logger.log(self.level, masked)
         return len(text)
 
     def flush(self) -> None:
@@ -81,6 +86,40 @@ def setup_logging(log_dir: Path = LOG_DIR, keep_days: int = 14) -> logging.Logge
 
 # ── run with restarts ───────────────────────────────────────────────────────
 
+def launch_monitoring(cmd: list[str]) -> int:
+    """Run the monitoring; its output goes through the masked log, line by line."""
+    process = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               text=True, encoding="utf-8", errors="replace", bufsize=1)
+    try:
+        for line in process.stdout:
+            sys.stdout.write(line)
+        return process.wait()
+    except BaseException:
+        process.terminate()
+        raise
+
+
+def add_bundled_tools_to_path() -> None:
+    ffmpeg = INSTALL_DIR / "ffmpeg" / "bin"
+    if ffmpeg.is_dir():
+        os.environ["PATH"] = f"{ffmpeg}{os.pathsep}{os.environ.get('PATH', '')}"
+
+
+def start_live_view(server) -> None:
+    """(Re)start the video server when live view is switched on."""
+    import live_view
+    from ingestion.camera_config import load_camera_setup
+
+    if not live_view.enabled():
+        return
+    try:
+        setup = load_camera_setup(str(ROOT / "config" / "cameras.yaml"))
+        public_host = os.environ["LIVE_VIEW_URL"].split("//")[-1].strip("/")
+        server.start(setup, os.environ.get("DASHBOARD_BACKEND_URL", ""), public_host)
+    except Exception as exc:  # noqa: BLE001 - detection matters more than live view
+        print(f"[live] {mask_text(exc, os.environ.get('DVR_PASSWORD', ''))}")
+
+
 def run(extra_args: list[str], restart_delays=RESTART_DELAYS, launch=None) -> int:
     """Run `main.py --all --no-display` and start it again whenever it stops.
 
@@ -88,8 +127,18 @@ def run(extra_args: list[str], restart_delays=RESTART_DELAYS, launch=None) -> in
     """
     load_env()
     setup_logging()
+    set_low_priority()
+    add_bundled_tools_to_path()
+    os.environ.setdefault("OMP_NUM_THREADS", os.environ.get("MODEL_THREADS") or "2")
     cmd = [sys.executable, "-u", str(ROOT / "main.py"), "--all", "--no-display", *extra_args]
-    launch = launch or (lambda: subprocess.run(cmd, cwd=ROOT, stdout=sys.stdout, stderr=sys.stderr).returncode)
+    live = None
+    if launch is None:
+        from live_view import LiveServer
+
+        launch = lambda: launch_monitoring(cmd)  # noqa: E731
+        live = LiveServer(INSTALL_DIR / "mediamtx" / "mediamtx.exe", INSTALL_DIR / "mediamtx" / "mediamtx.yml",
+                          LOG_DIR / "live-video.log")
+        start_live_view(live)
     failures = 0
     while True:
         started = time.monotonic()
@@ -98,9 +147,20 @@ def run(extra_args: list[str], restart_delays=RESTART_DELAYS, launch=None) -> in
             code = launch()
         except KeyboardInterrupt:
             print("[service] stopped")
+            if live is not None:
+                live.stop()
             return 0
         if code == 0 and extra_args and "--max-seconds" in extra_args:
+            if live is not None:
+                live.stop()
             return 0  # a timed test run
+        if code == RESTART_EXIT:
+            # The child saved the new address in .env; the old one is in our environment
+            os.environ["DVR_HOST"] = read_env_value(ROOT / ".env", "DVR_HOST") or os.environ.get("DVR_HOST", "")
+            print(f"[service] DVR is now at {os.environ['DVR_HOST']}; reconnecting")
+            if live is not None:
+                start_live_view(live)
+            continue
         if time.monotonic() - started > 3600:
             failures = 0
         delay = restart_delays[min(failures, len(restart_delays) - 1)]
@@ -205,11 +265,15 @@ def doctor(channels: int = 8, out=print) -> int:
 
             client = DashboardClient(timeout=70)
             client._validate_configuration()
-            if client._access_token is None:
-                client._login()
-            line(OK, "website login", "perception service account accepted")
+            if client.service_key:
+                client.request("/api/v1/cameras/ping")
+                line(OK, "website login", "service key accepted")
+            else:
+                if client._access_token is None:
+                    client._login()
+                line(OK, "website login", "perception service account accepted")
         except Exception as exc:  # noqa: BLE001
-            line(FAIL, "website login", f"{exc} (check DASHBOARD_SERVICE_EMAIL / PASSWORD)")
+            line(FAIL, "website login", f"{exc} (check DASHBOARD_SERVICE_KEY)")
 
     # instance, queue, device
     from reporting.camera_heartbeat import instance_identity
@@ -232,6 +296,17 @@ def doctor(channels: int = 8, out=print) -> int:
              f"GPU ({torch.cuda.get_device_name(0)})" if gpu else "CPU only: use a low fps (docs/CCTV_SETUP.md)")
     except Exception:  # noqa: BLE001
         line(WARN, "inference device", "PyTorch not installed")
+    # What the running service reported last (every 15 s; fps every minute)
+    status = read_status(ROOT / "output" / "status.json")
+    if status is None:
+        line(WARN, "monitoring", "not running yet")
+    else:
+        line(OK, "monitoring", f"CPU {status.get('cpuPercent', '?')}%, detection speed "
+             f"{float(status.get('detectionSpeed', 1)):.0%} (at {status.get('updatedAt', '?')})")
+        for cam_id, cam in (status.get("cameras") or {}).items():
+            fps = cam.get("fps")
+            line(OK if cam.get("status") == "ONLINE" else WARN, f"camera {cam_id}",
+                 f"{str(cam.get('status')).lower()}, {fps if fps is not None else '-'} fps")
     from pipeline import checkpoint_problem
 
     for model in ("models/fight_r3d18_v2.pt", "models/fall_gru_v1.pt", "models/fire_smoke_yolov8n_v1.pt"):

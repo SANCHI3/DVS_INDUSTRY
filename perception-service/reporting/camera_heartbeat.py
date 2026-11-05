@@ -84,6 +84,8 @@ class CameraHeartbeat:
         self._jobs: queue.Queue = queue.Queue(maxsize=4)
         self._last_error_log = -1e9
         self.sent = 0
+        self.last_ok_at: Optional[float] = None  # wall clock of the last accepted heartbeat
+        self.last_error: Optional[str] = None
         if start_thread:
             threading.Thread(target=self._run, name="camera-heartbeat", daemon=True).start()
 
@@ -156,6 +158,7 @@ class CameraHeartbeat:
     def send(self, job) -> None:
         if job[0] == "heartbeat":
             self.client.request("/api/v1/cameras/heartbeat", job[1], "POST")
+            self.last_ok_at, self.last_error = time.time(), None
         else:
             _, cam_id, frame = job
             jpeg = encode_snapshot(frame)
@@ -171,6 +174,7 @@ class CameraHeartbeat:
             try:
                 self.send(job)
             except DashboardClientError as exc:
+                self.last_error = str(exc)
                 if time.monotonic() - self._last_error_log > 300:
                     self._last_error_log = time.monotonic()
                     print(f"[heartbeat] could not reach the website ({exc}); will keep trying")

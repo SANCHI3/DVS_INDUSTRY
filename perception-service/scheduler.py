@@ -33,6 +33,8 @@ class FrameScheduler:
     _rates: dict[str, CameraRate] = field(default_factory=dict, init=False)
     _order: deque = field(default_factory=deque, init=False)
     _next_global: float = field(default=0.0, init=False)
+    # 1.0 normally; the CPU guard halves it when the computer is busy
+    speed: float = field(default=1.0, init=False)
 
     def __post_init__(self) -> None:
         if self.max_total_fps <= 0:
@@ -68,8 +70,8 @@ class FrameScheduler:
         now = self.clock()
         rate = self._rates[cam_id]
         # Never schedule in the past: a slow PC lowers the rate instead of piling up
-        rate.next_due = max(rate.next_due + rate.interval, now)
-        self._next_global = max(self._next_global + 1.0 / self.max_total_fps, now)
+        rate.next_due = max(rate.next_due + rate.interval / self.speed, now)
+        self._next_global = max(self._next_global + 1.0 / (self.max_total_fps * self.speed), now)
         rate.frames += 1
         rate.window_frames += 1
         rate.window_ms += infer_ms

@@ -1,5 +1,7 @@
 # Connecting the factory CCTV
 
+> Installing on the plant PC? Use the one-file installer: [PLANT_INSTALL.md](PLANT_INSTALL.md).
+
 This guide connects the DVS monitoring software to the factory's CCTV
 recorder. Do the steps on the **factory PC**: the computer that will run the
 monitoring software and sits on the same network as the recorder.
@@ -7,7 +9,7 @@ monitoring software and sits on the same network as the recorder.
 | | |
 |---|---|
 | Recorder | Hikvision DS-7208HGHI-SH (8-channel Turbo HD DVR), firmware V3.0.4 |
-| Address | 192.168.0.139 (port 554 for video, 80 for its web page) |
+| Address | 192.168.0.105 (port 554 for video, 80 for its web page) |
 | Cameras | 8 analog cameras on channels A1–A8 ("Camera 01" … "Camera 08") |
 
 How it fits together:
@@ -32,16 +34,16 @@ Do **not**:
 On the factory PC, open a Command Prompt:
 
 ```
-ping 192.168.0.139
+ping 192.168.0.105
 ```
 
-You should see replies. Then open http://192.168.0.139 in a browser. The
+You should see replies. Then open http://192.168.0.105 in a browser. The
 Hikvision login page should appear.
 
 The address shown under **Configuration → Network → General** (192.168.1.10)
 is an old setting that isn't used, because the recorder gets its address
 automatically (DHCP). The real address is the one under **System Info →
-Network**: 192.168.0.139. If ping fails, check that address on the DVR
+Network**: 192.168.0.105. If ping fails, check that address on the DVR
 monitor first. It can change after a router restart until step 5 is done.
 
 ## 2. Make a separate login for the software
@@ -86,7 +88,7 @@ give it a new one. To prevent that:
 1. Open the router's admin page, usually http://192.168.0.1.
 2. Find **DHCP reservation**, called "Address reservation" or "Static
    lease" on some routers.
-3. Add one for MAC address `c0:56:e3:1e:10:04` → `192.168.0.139`.
+3. Add one for MAC address `c0:56:e3:1e:10:04` → `192.168.0.105`.
 4. Save.
 
 Don't set a fixed address on the recorder itself.
@@ -104,7 +106,7 @@ Don't set a fixed address on the recorder itself.
    `winget install Gyan.FFmpeg`, then open a new Command Prompt.
 5. Edit `.env` with Notepad and fill in:
    ```
-   DVR_HOST=192.168.0.139
+   DVR_HOST=192.168.0.105
    DVR_RTSP_PORT=554
    DVR_USERNAME=dvs-viewer
    DVR_PASSWORD=<the password from step 2>

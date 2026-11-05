@@ -3,6 +3,7 @@ ultralytics>=8.2.0
 opencv-python>=4.9.0
 supervision>=0.20.0
 pyyaml>=6.0
+psutil>=5.9
 numpy>=1.24,<3
 pydantic>=2.5,<3
 

@@ -101,7 +101,10 @@ app.use(
     // The live incident stream is one long-lived authenticated connection,
     // not request traffic; counting it would let ordinary page use lock a
     // dashboard out of real-time alerts. The client backs off on its own.
-    skip: (req) => req.path === '/api/v1/security/stream',
+    // Video-server checks likewise: HLS asks about every segment, and each
+    // check only verifies a short-lived signature.
+    skip: (req) =>
+      req.path === '/api/v1/security/stream' || req.path === '/api/v1/cameras/stream-auth',
     message: {
       success: false,
       error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests' },

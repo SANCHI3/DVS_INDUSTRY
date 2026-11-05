@@ -10,7 +10,8 @@ export type AuditAction =
   | 'LOGOUT'
   | 'EXPORT'
   | 'STATUS_CHANGE'
-  | 'BULK_ACTION';
+  | 'BULK_ACTION'
+  | 'LIVE_VIEW';
 
 export interface AuditLogDto {
   id: number;

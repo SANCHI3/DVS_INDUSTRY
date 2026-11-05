@@ -8,6 +8,7 @@ vi.mock('../../logger', () => ({ logger: { info: vi.fn(), warn: vi.fn(), error: 
 vi.mock('../../lib/prismaClient', () => ({ prisma: {} }));
 
 import { CameraService, effectiveStatus } from '../../services/camera.service';
+import { CameraState } from '../../services/camera.state';
 import { cameraNotifications } from '../../services/notifications.service';
 import { jpegDimensions } from '../../utils/jpeg';
 import { fakeJpeg } from '../helpers/jpeg';
@@ -27,9 +28,6 @@ function makeRepo(state: {
 }) {
   const repo = {
     findAll: vi.fn().mockResolvedValue(state.cameras ?? []),
-    findStatus: vi
-      .fn()
-      .mockResolvedValue((state.cameras ?? []).map((c) => ({ id: c['id'], status: c['status'] }))),
     findInstances: vi.fn().mockResolvedValue(state.instances ?? []),
     upsertFromHeartbeat: vi.fn().mockResolvedValue(undefined),
     ensure: vi.fn().mockResolvedValue(undefined),
@@ -84,10 +82,11 @@ describe('heartbeat', () => {
 
   it('stores every camera and the instance, marking status changes', async () => {
     const repo = makeRepo({ cameras: [camRow('dvr-ch1'), camRow('dvr-ch2')] });
-    await new CameraService(repo).heartbeat(beat(), NOW);
-    expect(repo.upsertFromHeartbeat).toHaveBeenCalledTimes(2);
-    expect(repo.upsertFromHeartbeat.mock.calls[0]![2]).toBe(false); // ch1 still ONLINE
-    expect(repo.upsertFromHeartbeat.mock.calls[1]![2]).toBe(true); // ch2 ONLINE -> VIDEO_LOSS
+    await new CameraService(repo, new CameraState()).heartbeat(beat(), NOW);
+    // ch1 is still ONLINE, so only ch2 (ONLINE -> VIDEO_LOSS) reaches the database
+    expect(repo.upsertFromHeartbeat).toHaveBeenCalledTimes(1);
+    expect(repo.upsertFromHeartbeat.mock.calls[0]![0].id).toBe('dvr-ch2');
+    expect(repo.upsertFromHeartbeat.mock.calls[0]![2]).toEqual(NOW);
     expect(repo.saveInstance).toHaveBeenCalledWith(
       'factory-pc',
       'LIVE',
@@ -103,7 +102,10 @@ describe('heartbeat', () => {
         { id: 'factory-pc', source: 'LIVE', lastHeartbeatAt: ago(10_000), cameraIds: ['dvr-ch1'] },
       ],
     });
-    await new CameraService(repo).heartbeat(beat({ instanceId: 'dev-laptop', source: 'DEV' }), NOW);
+    await new CameraService(repo, new CameraState()).heartbeat(
+      beat({ instanceId: 'dev-laptop', source: 'DEV' }),
+      NOW,
+    );
     expect(repo.ensure).toHaveBeenCalledWith(expect.objectContaining({ id: 'dvr-ch1' }));
     expect(repo.upsertFromHeartbeat).toHaveBeenCalledTimes(1); // only ch2, which the PC does not watch
     expect(repo.saveInstance).toHaveBeenCalledWith(
@@ -118,7 +120,7 @@ describe('heartbeat', () => {
   it('refuses repeated camera ids', async () => {
     const cams = [beat().cameras[0]!, beat().cameras[0]!];
     await expect(
-      new CameraService(makeRepo({})).heartbeat(beat({ cameras: cams }), NOW),
+      new CameraService(makeRepo({}), new CameraState()).heartbeat(beat({ cameras: cams }), NOW),
     ).rejects.toThrow('unique');
   });
 });
@@ -173,7 +175,9 @@ describe('status and monitoring', () => {
     });
     expect(offline.cameras[0]!.status).toBe('OFFLINE');
 
-    expect((await new CameraService(makeRepo({})).list(NOW)).monitoring.state).toBe('never');
+    expect(
+      (await new CameraService(makeRepo({}), new CameraState()).list(NOW)).monitoring.state,
+    ).toBe('never');
   });
 
   it('flags a camera watched by two services at once', async () => {
@@ -230,7 +234,7 @@ describe('camera notifications', () => {
 });
 
 describe('snapshots', () => {
-  const svc = new CameraService(makeRepo({}));
+  const svc = new CameraService(makeRepo({}), new CameraState());
 
   it('accepts a small JPEG up to 640 px wide', () => {
     expect(() => svc.validateSnapshot(fakeJpeg(640, 480, 5_000))).not.toThrow();

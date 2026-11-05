@@ -11,7 +11,9 @@ services:
     rootDir: backend
     buildCommand: npm ci --include=dev && npx prisma generate && npm run build
     startCommand: npx prisma migrate deploy && node dist/server.js
-    healthCheckPath: /api/v1/health
+    # The root route answers without touching the database. Render calls this
+    # every few seconds, so a database check here would keep Neon awake.
+    healthCheckPath: /
     envVars:
       - key: NODE_ENV
         value: production
@@ -27,6 +29,9 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: REFRESH_TOKEN_SECRET
+        generateValue: true
+      # The CCTV PC's key (entered in the installer). At least 32 characters.
+      - key: CAMERA_SERVICE_KEY
         generateValue: true
       # Vercel proxy + Render's load balancer.
       - key: TRUST_PROXY

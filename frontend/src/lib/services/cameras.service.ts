@@ -25,12 +25,24 @@ export interface CameraDto {
 export interface MonitoringDto {
   state: 'online' | 'offline' | 'never';
   since: string | null;
+  notice?: string | null;
+  liveEnabled?: boolean;
   instances: Array<{ id: string; source: 'LIVE' | 'DEV'; online: boolean; lastHeartbeatAt: string }>;
 }
 
 export interface CamerasOverview {
   cameras: CameraDto[];
   monitoring: MonitoringDto;
+}
+
+export type LiveQuality = 'sd' | 'hd';
+export type LiveAccess =
+  | { available: true; token: string; whepUrl: string; hlsUrl: string; expiresAt: string }
+  | { available: false; reason: 'monitoring-offline' | 'camera-offline' | 'not-enabled' };
+
+/** A 2-minute pass for one camera's live video, or why there is none. */
+export async function getLivePass(id: string, quality: LiveQuality): Promise<LiveAccess> {
+  return unwrap(await api.get(`/cameras/${encodeURIComponent(id)}/live-token`, { params: { quality } }));
 }
 
 export async function getCameras(): Promise<CamerasOverview> {
