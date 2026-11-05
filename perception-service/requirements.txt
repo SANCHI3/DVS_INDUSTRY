@@ -1,7 +1,7 @@
 # Core pipeline (main.py)
 ultralytics>=8.2.0
 opencv-python>=4.9.0
-supervision>=0.20.0
+supervision>=0.20.0,<0.31  # 0.31 removed ByteTrack
 pyyaml>=6.0
 psutil>=5.9
 numpy>=1.24,<3
