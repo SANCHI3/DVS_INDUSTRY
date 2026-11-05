@@ -20,6 +20,7 @@ export default defineConfig({
       JWT_EXPIRES_IN:       '15m',
       JWT_REFRESH_SECRET:   'test-refresh-secret-at-least-32-chars-long!!',
       JWT_REFRESH_EXPIRES_IN: '7d',
+      REFRESH_TOKEN_SECRET: 'test-refresh-secret-at-least-32-chars-long!!',
       CORS_ORIGINS:         'http://localhost:5173',
     },
     coverage: {
