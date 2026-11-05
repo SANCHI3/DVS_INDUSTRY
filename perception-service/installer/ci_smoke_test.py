@@ -61,9 +61,7 @@ paths:
 
 def report(title: str, detail: str = "") -> None:
     """A GitHub annotation, readable on the public run page without signing in."""
-    text = f"{title}
-{detail}"[-3500:].replace("%", "%25").replace("", "").replace("
-", "%0A")
+    text = f"{title}\n{detail}"[-3500:].replace("%", "%25").replace("\r", "").replace("\n", "%0A")
     print(f"::error::{text}", flush=True)
 
 
@@ -81,8 +79,7 @@ def wait_for_camera(tries: int) -> int:
 def log_tail() -> str:
     path = core.APP / "logs" / "perception.log"
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines() if path.is_file() else ["no log file"]
-    return "
-".join(line[:180] for line in lines if "DESCRIBE failed" not in line)[-2500:]
+    return "\n".join(line[:180] for line in lines if "DESCRIBE failed" not in line)[-2500:]
 
 
 def main() -> int:
@@ -116,8 +113,7 @@ def main() -> int:
             # What the setup window does when the task will not start
             query = subprocess.run(["schtasks", "/query", "/tn", core.TASK_NAME, "/v", "/fo", "list"],
                                    capture_output=True, text=True, errors="replace").stdout
-            report("boot task did not start the monitoring", "
-".join(
+            report("boot task did not start the monitoring", "\n".join(
                 line for line in query.splitlines() if "Result" in line or "Status" in line or "Logon" in line))
             core.stop_running_copies()
             core.start_now()
@@ -132,9 +128,7 @@ def main() -> int:
         print(json.dumps({"smoke": "passed", "online": online}))
         return 0
     except BaseException:
-        report("smoke test failed", traceback.format_exc()[-1200:] + "
-LOG:
-" + log_tail())
+        report("smoke test failed", traceback.format_exc()[-1200:] + "\nLOG:\n" + log_tail())
         return 1
     finally:
         for process in processes:
