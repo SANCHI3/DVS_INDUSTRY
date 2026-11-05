@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -58,6 +59,32 @@ paths:
     return processes
 
 
+def report(title: str, detail: str = "") -> None:
+    """A GitHub annotation, readable on the public run page without signing in."""
+    text = f"{title}
+{detail}"[-3500:].replace("%", "%25").replace("", "").replace("
+", "%0A")
+    print(f"::error::{text}", flush=True)
+
+
+def wait_for_camera(tries: int) -> int:
+    online = 0
+    for _ in range(tries):
+        time.sleep(5)
+        online, total = core.cameras_online(read_status(core.STATUS_PATH))
+        print("status:", online, total, flush=True)
+        if online:
+            break
+    return online
+
+
+def log_tail() -> str:
+    path = core.APP / "logs" / "perception.log"
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines() if path.is_file() else ["no log file"]
+    return "
+".join(line[:180] for line in lines if "DESCRIBE failed" not in line)[-2500:]
+
+
 def main() -> int:
     processes = start_fake_dvr()
     try:
@@ -84,13 +111,17 @@ def main() -> int:
         subprocess.run(["schtasks", "/create", "/tn", core.TASK_NAME, "/xml", str(xml), "/f"], check=True)
         subprocess.run(["schtasks", "/run", "/tn", core.TASK_NAME], check=True)
 
-        online = total = 0
-        for _ in range(60):
-            time.sleep(5)
-            online, total = core.cameras_online(read_status(core.STATUS_PATH))
-            print("status:", online, total, flush=True)
-            if online:
-                break
+        online = wait_for_camera(36)
+        if not online:
+            # What the setup window does when the task will not start
+            query = subprocess.run(["schtasks", "/query", "/tn", core.TASK_NAME, "/v", "/fo", "list"],
+                                   capture_output=True, text=True, errors="replace").stdout
+            report("boot task did not start the monitoring", "
+".join(
+                line for line in query.splitlines() if "Result" in line or "Status" in line or "Logon" in line))
+            core.stop_running_copies()
+            core.start_now()
+            online = wait_for_camera(36)
         assert online >= 1, "the monitoring never saw the fake DVR"
         subprocess.run(["schtasks", "/end", "/tn", core.TASK_NAME])
         core.stop_running_copies()
@@ -98,8 +129,13 @@ def main() -> int:
         logs = "".join(p.read_text(encoding="utf-8", errors="replace") for p in (core.APP / "logs").glob("*.log*"))
         assert "[service] starting" in logs, "no log file"
         assert PASSWORD not in logs and "Sm0ke" not in logs, "password in the log"
-        print(json.dumps({"smoke": "passed", "online": online, "total": total}))
+        print(json.dumps({"smoke": "passed", "online": online}))
         return 0
+    except BaseException:
+        report("smoke test failed", traceback.format_exc()[-1200:] + "
+LOG:
+" + log_tail())
+        return 1
     finally:
         for process in processes:
             process.kill()
