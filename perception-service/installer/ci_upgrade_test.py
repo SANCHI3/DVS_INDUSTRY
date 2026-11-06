@@ -22,6 +22,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 from pathlib import Path
 
 INSTALL = Path(r"C:\dvs-cctv")
@@ -116,7 +117,29 @@ def assert_no_leftovers() -> None:
     assert not (INSTALL / "upgrade-new").exists() and not (INSTALL / "upgrade-old").exists(), "folders left behind"
 
 
-def main() -> int:
+def report(detail: str) -> None:
+    """A GitHub annotation, readable on the public run page without signing in."""
+    perception = APP / "logs" / "perception.log"
+    lines = perception.read_text(encoding="utf-8", errors="replace").splitlines() if perception.is_file() else []
+    text = f"upgrade test failed\n{detail}\nINSTALL LOG:\n{tail()}\nMONITORING LOG:\n" + "\n".join(
+        line[:160] for line in lines[-12:])
+    print("::error::" + text[-3800:].replace("%", "%25").replace("\r", "").replace("\n", "%0A"), flush=True)
+
+
+def move_ffmpeg_aside() -> None:
+    for _ in range(20):
+        try:
+            (INSTALL / "ffmpeg").rename(INSTALL / "ffmpegold")
+            return
+        except PermissionError:
+            time.sleep(1)  # the fake DVR's ffmpeg has only just been stopped
+    (INSTALL / "ffmpeg").rename(INSTALL / "ffmpegold")
+
+
+def run_test() -> int:
+    # Windows PowerShell started under pwsh inherits a module path it cannot load from.
+    # The plant has no pwsh, so give this run, and the installer, the plain Windows one.
+    os.environ.pop("PSModulePath", None)
     setup = Path(sys.argv[1]).resolve()
     server = http.server.ThreadingHTTPServer(("127.0.0.1", WEBSITE_PORT), FakeWebsite)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -129,7 +152,7 @@ def main() -> int:
         handle.write("# plant edit\n")
     KEPT[2].parent.mkdir(parents=True, exist_ok=True)
     KEPT[2].write_text("keep", encoding="utf-8")
-    (INSTALL / "ffmpeg").rename(INSTALL / "ffmpegold")
+    move_ffmpeg_aside()
     (APP / "VERSION").write_text(OLD_VERSION + "\n", encoding="utf-8")
     MARKER.write_text("old", encoding="utf-8")
     settings, access = digests(), env_access()
@@ -174,6 +197,14 @@ def main() -> int:
                     "Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like 'C:\\dvs-cctv\\*' } | "
                     "ForEach-Object { Stop-Process -Id $_.ProcessId -Force }"], check=False)
     return 0
+
+
+def main() -> int:
+    try:
+        return run_test()
+    except BaseException:
+        report(traceback.format_exc()[-1500:])
+        return 1
 
 
 if __name__ == "__main__":
