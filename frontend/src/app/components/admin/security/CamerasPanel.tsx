@@ -164,7 +164,7 @@ export function CamerasPanel({ overview, loading, error, onSelect, onRename }: {
   }
   const online = overview.cameras.filter((c) => c.status === "ONLINE").length;
   const offlineBanner = plantOfflineBanner(overview.monitoring);
-  const { lastSeenAt, version } = overview.monitoring;
+  const { lastSeenAt, version, lastUpdateCheck, updateWaiting, updatesOff } = overview.monitoring;
   return (
     <div className="space-y-3">
       {offlineBanner && (
@@ -176,8 +176,15 @@ export function CamerasPanel({ overview, loading, error, onSelect, onRename }: {
         {online} of {overview.cameras.length} cameras online. Pictures refresh every couple of minutes.
         Press Live to watch a camera, or click a camera to see its incidents.
         {lastSeenAt ? ` Last seen ${shortAgo(lastSeenAt)}.` : ""}
-        {version ? ` Plant software ${version}.` : ""}
       </p>
+      {version && (
+        <p style={{ color: "#837572", fontSize: "0.76rem" }}>
+          Plant software: {version}
+          {lastUpdateCheck ? ` · Last update check ${shortAgo(lastUpdateCheck)}` : ""}
+          {updatesOff ? " · Automatic updates are off" : ""}
+          {updateWaiting ? ` · Update waiting: ${updateWaiting} (installs tonight)` : ""}
+        </p>
+      )}
       {overview.monitoring.notice && (
         <p role="status" className="flex items-center gap-1.5 rounded-md px-3 py-2" style={{ background: "#FFF8E1", color: "#7A5B00", fontSize: "0.76rem" }}>
           <Info size={13} aria-hidden="true" /> {overview.monitoring.notice}

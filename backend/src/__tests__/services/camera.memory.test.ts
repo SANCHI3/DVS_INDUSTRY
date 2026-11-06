@@ -402,4 +402,51 @@ describe('plant computer offline', () => {
     expect((await service.list(NOW)).monitoring.version).toBe('cctv-setup-7');
     expect((await silentFor(0)).version).toBeNull();
   });
+
+  it('shows the update fields when the plant sends them, and works without them', async () => {
+    const { service, repo } = setup();
+    repo.findInstances.mockResolvedValue([
+      {
+        id: 'factory-pc',
+        source: 'LIVE',
+        cameraIds: ['dvr-ch1'],
+        info: null,
+        lastHeartbeatAt: NOW,
+      },
+    ]);
+    await service.heartbeat(beat('ONLINE', { version: 'cctv-setup-7' }), NOW);
+    expect((await service.list(NOW)).monitoring).toMatchObject({
+      lastUpdateCheck: null,
+      updateWaiting: null,
+      updatesOff: false,
+    });
+
+    await service.heartbeat(
+      beat('ONLINE', {
+        version: 'cctv-setup-9',
+        lastUpdateCheck: '2026-11-07T08:30:00+00:00',
+        updateWaiting: 'cctv-setup-10',
+      }),
+      later(30_000),
+    );
+    expect((await service.list(later(30_000))).monitoring).toMatchObject({
+      lastUpdateCheck: '2026-11-07T08:30:00+00:00',
+      updateWaiting: 'cctv-setup-10',
+      updatesOff: false,
+    });
+
+    await service.heartbeat(beat('ONLINE', { autoUpdate: 'off' }), later(60_000));
+    expect((await service.list(later(60_000))).monitoring.updatesOff).toBe(true);
+  });
+
+  it('saves a waiting update straight away, so a restart still shows it', async () => {
+    const { service, repo } = setup();
+    await service.heartbeat(beat('ONLINE', { version: 'cctv-setup-9' }), NOW);
+    repo.saveInstance.mockClear();
+    await service.heartbeat(
+      beat('ONLINE', { version: 'cctv-setup-9', updateWaiting: 'cctv-setup-10' }),
+      later(30_000),
+    );
+    expect(repo.saveInstance).toHaveBeenCalledTimes(1);
+  });
 });

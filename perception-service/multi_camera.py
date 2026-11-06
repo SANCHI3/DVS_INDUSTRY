@@ -27,7 +27,7 @@ from typing import Optional
 
 import yaml
 
-from auto_update import current_version
+from auto_update import current_version, update_info
 from ingestion.camera_config import CameraSetup, load_camera_setup
 from ingestion.dvr import mask_text
 from ingestion.dvr_finder import DvrWatcher, read_notice
@@ -171,6 +171,7 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
             "detectionSpeed": guard.speed,
             "version": current_version(),
             "memoryMb": memory_mb(),
+            **update_info(),
         })
         print(f"[multi] camera status to the website as '{heartbeat.instance_id}' ({heartbeat.source})")
     scheduler = FrameScheduler({c.id: c.fps for c in cameras}, max_total_fps=limit)

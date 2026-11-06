@@ -7,6 +7,7 @@ from __future__ import annotations
 import ipaddress
 import sys
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -669,28 +670,213 @@ def test_only_a_heartbeat_from_the_new_version_counts(tmp_path):
     assert swap.heartbeat_accepted(status, "cctv-setup-8", 100.0)
 
 
-def test_a_pc_that_cannot_reach_the_website_does_not_update(tmp_path):
+NIGHT = 1_793_991_600.0  # 2026-11-06 19:00 UTC, 00:30 India time
+AT_0130_INDIA = NIGHT + 3600
+AT_0530_INDIA = NIGHT + 5 * 3600
+AT_1400_INDIA = NIGHT + 13.5 * 3600
+
+
+def _updater(tmp_path, now, status=None):
+    """An installed copy at cctv-setup-7 with cctv-setup-8 on GitHub."""
+    import io
+    import zipfile
+
     from auto_update import Updater
 
+    root = tmp_path / "app"
+    root.mkdir(exist_ok=True)
+    (root / "VERSION").write_text("cctv-setup-7\n", encoding="utf-8")
+    (root / "RUNTIME").write_text("r1\n", encoding="utf-8")
+    package = io.BytesIO()
+    with zipfile.ZipFile(package, "w") as archive:
+        archive.writestr("VERSION", "cctv-setup-8\n")
+    github = _github(sha=_sha(package.getvalue()))
     asked = []
-    updater = Updater(root=tmp_path, updates=tmp_path / "updates", clock=lambda: 1e6, wall_clock=lambda: 1000.0,
-                      fetch=lambda url: asked.append(url), read_status=lambda: {"websiteOkAt": 100.0})
+
+    def fetch(url):
+        asked.append(url)
+        return package.getvalue() if url.endswith(".zip") else github(url)
+
+    updater = Updater(root=root, updates=tmp_path / "updates", clock=lambda: 1e6, wall_clock=lambda: now[0],
+                      fetch=fetch, read_status=lambda: status if status is not None else {"websiteOkAt": now[0]})
+    updater.next_check = 0
+    updater.asked = asked
+    return updater
+
+
+def test_the_install_window_is_india_time_whatever_the_pc_says():
+    from auto_update import in_install_window
+
+    assert not in_install_window(NIGHT, "01:00-05:00")
+    assert in_install_window(AT_0130_INDIA, "01:00-05:00")
+    assert not in_install_window(AT_0530_INDIA, "01:00-05:00")
+    assert not in_install_window(AT_1400_INDIA, "01:00-05:00")
+
+
+def test_the_install_window_can_cross_midnight_and_a_bad_one_gets_the_default():
+    from auto_update import in_install_window
+
+    assert in_install_window(NIGHT, "23:00-02:00")
+    assert not in_install_window(AT_1400_INDIA, "23:00-02:00")
+    assert in_install_window(AT_0130_INDIA, "whenever")
+    assert not in_install_window(AT_1400_INDIA, "25:00-26:00")
+    assert not in_install_window(AT_1400_INDIA, "03:00-03:00")
+
+
+def test_an_update_downloads_by_day_and_installs_only_at_night(tmp_path, monkeypatch):
+    from auto_update import update_info
+
+    monkeypatch.delenv("AUTO_UPDATE", raising=False)
+    monkeypatch.delenv("AUTO_UPDATE_WINDOW", raising=False)
+    now = [AT_1400_INDIA]
+    updater = _updater(tmp_path, now)
+    assert updater.tick() is False
+    assert (tmp_path / "updates" / "staged" / "VERSION").is_file()
+    info = update_info(tmp_path / "updates")
+    assert info["updateWaiting"] == "cctv-setup-8"
+    assert info["lastUpdateCheck"].startswith("2026-11-07T08:30")
+    assert info["autoUpdate"] is None
+
+    now[0] = AT_0130_INDIA + 86400
+    assert updater.tick() is True
+    assert updater.ready == "cctv-setup-8"
+
+
+def test_a_waiting_update_is_not_downloaded_twice(tmp_path, monkeypatch):
+    monkeypatch.delenv("AUTO_UPDATE", raising=False)
+    updater = _updater(tmp_path, [AT_1400_INDIA])
+    updater.tick()
+    updater.next_check = 0
+    updater.tick()
+    assert sum(url.endswith(".zip") for url in updater.asked) == 1
+
+
+def test_a_pc_that_cannot_reach_the_website_downloads_but_does_not_install(tmp_path, monkeypatch):
+    monkeypatch.delenv("AUTO_UPDATE", raising=False)
+    updater = _updater(tmp_path, [AT_0130_INDIA], status={"websiteOkAt": 100.0})
+    assert updater.tick() is False
+    assert updater.waiting == "cctv-setup-8"
+
+
+def test_auto_update_false_checks_nothing_and_says_so(tmp_path, monkeypatch):
+    from auto_update import update_info
+
+    monkeypatch.setenv("AUTO_UPDATE", "false")
+    updater = _updater(tmp_path, [AT_0130_INDIA])
+    assert updater.tick() is False
+    assert updater.asked == []
+    assert update_info(tmp_path / "updates") == {"lastUpdateCheck": None, "updateWaiting": None, "autoUpdate": "off"}
+
+
+def test_switching_updates_off_drops_a_waiting_version(tmp_path, monkeypatch):
+    from auto_update import update_info
+
+    monkeypatch.delenv("AUTO_UPDATE", raising=False)
+    now = [AT_1400_INDIA]
+    updater = _updater(tmp_path, now)
+    updater.tick()
+    monkeypatch.setenv("AUTO_UPDATE", "false")
+    now[0] = AT_0130_INDIA + 86400
+    assert updater.tick() is False
+    assert update_info(tmp_path / "updates")["updateWaiting"] is None
+
+
+def test_a_restart_does_not_keep_saying_an_update_is_waiting(tmp_path, monkeypatch):
+    from auto_update import Updater, update_info
+
+    monkeypatch.delenv("AUTO_UPDATE", raising=False)
+    updater = _updater(tmp_path, [AT_1400_INDIA])
+    updater.tick()
+    Updater(root=updater.root, updates=updater.updates)
+    info = update_info(updater.updates)
+    assert info["updateWaiting"] is None
+    assert info["lastUpdateCheck"] is not None
+
+
+def test_a_failed_check_is_not_shown_as_a_check(tmp_path, monkeypatch):
+    from auto_update import Updater, update_info
+
+    monkeypatch.delenv("AUTO_UPDATE", raising=False)
+    (tmp_path / "VERSION").write_text("cctv-setup-7", encoding="utf-8")
+
+    def offline(_url):
+        raise OSError("no internet")
+
+    updater = Updater(root=tmp_path, updates=tmp_path / "updates", clock=lambda: 1e6, fetch=offline)
     updater.next_check = 0
     assert updater.tick() is False
-    assert asked == []
+    assert update_info(tmp_path / "updates")["lastUpdateCheck"] is None
 
 
-def test_update_checks_are_six_hours_apart(tmp_path):
+def test_update_info_is_empty_on_a_pc_with_no_updater(tmp_path):
+    from auto_update import update_info
+
+    assert update_info(tmp_path) == {"lastUpdateCheck": None, "updateWaiting": None, "autoUpdate": None}
+
+
+def test_update_checks_are_six_hours_apart(tmp_path, monkeypatch):
     from auto_update import Updater
 
+    monkeypatch.delenv("AUTO_UPDATE", raising=False)
+    (tmp_path / "VERSION").write_text("cctv-setup-7", encoding="utf-8")
     now = [0.0]
     checks = []
     updater = Updater(root=tmp_path, updates=tmp_path / "updates", clock=lambda: now[0],
-                      read_status=lambda: checks.append(1))
+                      fetch=lambda url: checks.append(url) or b"{}")
     for seconds in range(0, 7 * 3600, 30):
         now[0] = float(seconds)
         updater.tick()
     assert len(checks) == 2  # after 10 minutes, then 6 hours later
+
+
+def test_installer_check_names_the_library_that_will_not_load(tmp_path):
+    check = _load_installer_module("check_install")
+    log = tmp_path / "logs" / "install.log"
+
+    def load(name):
+        if name == "torch":
+            raise OSError("DLL load failed")
+
+    assert check.preflight(log, tmp_path, load) == 1
+    assert "torch cannot load (OSError)" in log.read_text(encoding="utf-8")
+    assert check.preflight(log, tmp_path, lambda _name: None) == 0
+    assert "every library loads" in log.read_text(encoding="utf-8")
+
+
+def test_installer_check_waits_for_this_version_and_can_be_forced_to_fail(tmp_path, monkeypatch):
+    check = _load_installer_module("check_install")
+    log = tmp_path / "install.log"
+    (tmp_path / "VERSION").write_text("cctv-setup-9\n", encoding="utf-8")
+    asked = []
+
+    def waiter(path, version, _since, _seconds):
+        asked.append((path.name, version))
+        return True
+
+    monkeypatch.delenv("DVS_INSTALL_TEST_FAIL", raising=False)
+    assert check.wait(log, tmp_path, 1.0, waiter) == 0
+    assert asked == [("status.json", "cctv-setup-9")]
+    assert check.wait(log, tmp_path, 1.0, lambda *_a: False) == 1
+    monkeypatch.setenv("DVS_INSTALL_TEST_FAIL", "wait")
+    assert check.wait(log, tmp_path, 1.0, waiter) == 1
+    assert len(asked) == 1
+
+
+def test_a_normal_push_never_publishes_a_release():
+    workflow = (Path(__file__).parent.parent / ".github" / "workflows" / "installer.yml").read_text(encoding="utf-8")
+    publish = workflow[workflow.index("- name: Publish"):]
+    condition = publish.splitlines()[1]
+    assert condition.strip().startswith("if:")
+    assert "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'" in condition
+    assert "startsWith(github.ref, 'refs/tags/cctv-v')" in condition
+    assert "cctv-v*" in workflow[:workflow.index("jobs:")]
+
+
+def test_the_installer_stops_processes_by_a_path_it_can_read():
+    """NSIS is 32-bit, and 32-bit PowerShell gets no .Path for a 64-bit process."""
+    script = (Path(__file__).parent / "installer" / "dvs-cctv-setup.nsi").read_text(encoding="utf-8")
+    assert "ExecutablePath -like" in script
+    assert "$$_.Path" not in script
 
 
 def test_the_update_package_leaves_out_settings_and_models(tmp_path):

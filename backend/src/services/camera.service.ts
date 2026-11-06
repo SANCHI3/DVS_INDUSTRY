@@ -71,6 +71,12 @@ export interface MonitoringDto {
   offlineAlert: boolean;
   /** Software version on the plant computer, once it reports one */
   version: string | null;
+  /** When the plant computer last asked GitHub for a new version */
+  lastUpdateCheck: string | null;
+  /** A version downloaded and waiting for the night window */
+  updateWaiting: string | null;
+  /** AUTO_UPDATE=false at the plant */
+  updatesOff: boolean;
   /** e.g. "DVR address changed to 192.168.0.110" */
   notice: string | null;
   /** Live video is switched on at the CCTV PC */
@@ -258,7 +264,9 @@ export class CameraService {
       previous.cameraIds.join() !== cameraIds.join() ||
       previous.info?.['dvrNotice'] !== info?.['dvrNotice'] ||
       previous.info?.['liveUrl'] !== info?.['liveUrl'] ||
-      previous.info?.['version'] !== info?.['version'];
+      previous.info?.['version'] !== info?.['version'] ||
+      previous.info?.['updateWaiting'] !== info?.['updateWaiting'] ||
+      previous.info?.['autoUpdate'] !== info?.['autoUpdate'];
     const stale = !previous?.savedAt || now.getTime() - previous.savedAt.getTime() >= DB_REFRESH_MS;
     let savedAt = previous?.savedAt ?? null;
     if (changed || stale) {
@@ -451,6 +459,9 @@ export class CameraService {
           lastLive !== null &&
           now.getTime() - lastLive.getTime() >= OFFLINE_ALERT_MS,
         version: infoText(live, 'version'),
+        lastUpdateCheck: infoText(live, 'lastUpdateCheck'),
+        updateWaiting: infoText(live, 'updateWaiting'),
+        updatesOff: infoText(live, 'autoUpdate') === 'off',
         notice: infoText(live, 'dvrNotice'),
         liveEnabled:
           liveOnline &&

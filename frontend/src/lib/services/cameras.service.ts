@@ -30,6 +30,9 @@ export interface MonitoringDto {
   lastSeenAt?: string | null;
   offlineAlert?: boolean;
   version?: string | null;
+  lastUpdateCheck?: string | null;
+  updateWaiting?: string | null;
+  updatesOff?: boolean;
   notice?: string | null;
   liveEnabled?: boolean;
   instances: Array<{ id: string; source: 'LIVE' | 'DEV'; online: boolean; lastHeartbeatAt: string }>;

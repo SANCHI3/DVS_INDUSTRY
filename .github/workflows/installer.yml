@@ -1,8 +1,11 @@
 name: CCTV installer
 
+# Every push builds and tests the installer. Only a manual run or a cctv-v* tag
+# publishes one, because the plant PC installs whatever release is latest.
 on:
   push:
     branches: [master]
+    tags: ['cctv-v*']
     paths:
       - perception-service/**
       - .github/workflows/installer.yml
@@ -11,9 +14,10 @@ on:
 permissions:
   contents: write
 
+# A push may replace an older check, but nothing may cancel a release being published
 concurrency:
-  group: cctv-installer
-  cancel-in-progress: true
+  group: cctv-installer-${{ github.event_name == 'push' && github.ref_type == 'branch' && 'check' || 'release' }}
+  cancel-in-progress: ${{ github.event_name == 'push' && github.ref_type == 'branch' }}
 
 jobs:
   build:
@@ -44,21 +48,11 @@ jobs:
         run: |
           C:\dvs-cctv\python\python.exe C:\dvs-cctv\app\installer\ci_smoke_test.py
           if ($LASTEXITCODE) { throw "smoke test failed" }
-      - name: Upgrade over the installed copy keeps the settings
+      - name: Upgrade over the running copy, including failures
         shell: pwsh
         run: |
-          Add-Content C:\dvs-cctv\app\config\cameras.yaml "# plant edit"
-          New-Item -ItemType Directory -Force C:\dvs-cctv\calibration\snapshots | Out-Null
-          Set-Content C:\dvs-cctv\calibration\snapshots\keep.txt "keep"
-          $files = "C:\dvs-cctv\app\.env", "C:\dvs-cctv\app\config\cameras.yaml", "C:\dvs-cctv\calibration\snapshots\keep.txt"
-          $before = $files | ForEach-Object { (Get-FileHash $_).Hash }
-          $access = (Get-Acl C:\dvs-cctv\app\.env).Sddl
-          Start-Process -Wait -FilePath .\dvs-cctv-setup.exe -ArgumentList "/S"
-          $after = $files | ForEach-Object { (Get-FileHash $_).Hash }
-          if (Compare-Object $before $after) { throw "the upgrade changed the settings" }
-          if ((Get-Acl C:\dvs-cctv\app\.env).Sddl -ne $access) { throw "the upgrade changed who can read .env" }
-          C:\dvs-cctv\ffmpeg\bin\ffprobe.exe -version | Select-Object -First 1
-          if ($LASTEXITCODE) { throw "ffprobe does not run after the upgrade" }
+          python perception-service\installer\ci_upgrade_test.py dvs-cctv-setup.exe
+          if ($LASTEXITCODE) { throw "upgrade test failed" }
           C:\dvs-cctv\python\python.exe -c "import cv2, torch; print('upgrade ok')"
           if ($LASTEXITCODE) { throw "python does not run after the upgrade" }
       - name: Update and roll back on the installed copy
@@ -69,8 +63,11 @@ jobs:
       - name: Show the log after a failure
         if: failure()
         shell: pwsh
-        run: Get-Content C:\dvs-cctv\app\logs\perception.log -Tail 60 -ErrorAction SilentlyContinue
+        run: |
+          Get-Content C:\dvs-cctv\logs\install.log -Tail 60 -ErrorAction SilentlyContinue
+          Get-Content C:\dvs-cctv\app\logs\perception.log -Tail 60 -ErrorAction SilentlyContinue
       - name: Publish
+        if: (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master') || startsWith(github.ref, 'refs/tags/cctv-v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

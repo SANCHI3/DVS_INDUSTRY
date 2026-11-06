@@ -127,6 +127,33 @@ describe("plant computer offline", () => {
   });
 });
 
+describe("plant software line", () => {
+  const withMonitoring = (extra: Partial<CamerasOverview["monitoring"]>): CamerasOverview => ({
+    ...overview(1),
+    monitoring: { state: "online", since: null, instances: [], ...extra },
+  });
+
+  it("shows the version, the last check and a waiting update", () => {
+    panel(withMonitoring({ version: "cctv-setup-9", lastUpdateCheck: new Date().toISOString(), updateWaiting: "cctv-setup-10" }));
+    const line = screen.getByText(/Plant software: cctv-setup-9/).textContent;
+    expect(line).toContain("Last update check");
+    expect(line).toContain("Update waiting: cctv-setup-10 (installs tonight)");
+  });
+
+  it("works with plant software that sends only its version", () => {
+    panel(withMonitoring({ version: "cctv-setup-7" }));
+    expect(screen.getByText("Plant software: cctv-setup-7")).toBeTruthy();
+  });
+
+  it("says when updates are off, and shows nothing with no version", () => {
+    panel(withMonitoring({ version: "cctv-setup-9", updatesOff: true }));
+    expect(screen.getByText(/Automatic updates are off/)).toBeTruthy();
+    cleanup();
+    panel(withMonitoring({}));
+    expect(screen.queryByText(/Plant software/)).toBeNull();
+  });
+});
+
 describe("renaming a camera", () => {
   it("has no Edit button without permission", () => {
     panel(overview(1));
