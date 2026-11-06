@@ -14,6 +14,7 @@ import time
 from typing import Callable, Optional
 
 import cv2
+import numpy as np
 
 from ingestion.dvr import mask_text
 from ingestion.stream_reader import configure_ffmpeg_rtsp
@@ -50,15 +51,28 @@ def grab_frames(url: str, count: int = 3, timeout_s: float = 10.0, spacing_s: fl
         cap.release()
 
 
+def snapshot_frame(cfg, channel: Optional[int]):
+    """One picture from the DVR's web port, for when the video cannot be read."""
+    from ingestion.rtsp_probe import fetch_snapshot
+
+    if channel is None:
+        return None
+    picture = fetch_snapshot(cfg, channel, "main", 10.0)
+    if "jpeg" not in picture:
+        return None
+    return cv2.imdecode(np.frombuffer(picture["jpeg"], np.uint8), cv2.IMREAD_COLOR)
+
+
 class MainStreamGrabber:
     def __init__(self, output_dir: str, password: str = "", count: int = 3,
                  on_saved: Optional[Callable[[str, list[str]], None]] = None,
-                 grab: Callable = grab_frames):
+                 grab: Callable = grab_frames, fallback: Optional[Callable] = None):
         self.output_dir = output_dir
         self.password = password
         self.count = count
         self.on_saved = on_saved
         self.grab = grab
+        self.fallback = fallback
         self._jobs: queue.Queue = queue.Queue(maxsize=32)
         self._thread = threading.Thread(target=self._run, name="main-stream-grabber", daemon=True)
         self._thread.start()
@@ -83,6 +97,9 @@ class MainStreamGrabber:
             incident_id, camera_id, url = job
             try:
                 frames = self.grab(url, self.count)
+                if not frames and self.fallback is not None:
+                    picture = self.fallback(camera_id)
+                    frames = [] if picture is None else [picture]
                 paths = []
                 os.makedirs(self.output_dir, exist_ok=True)
                 for i, frame in enumerate(frames):

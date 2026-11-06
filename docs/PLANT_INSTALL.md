@@ -44,3 +44,16 @@ numbers, then **Save**. Render restarts the site.
   and reconnects. The Cameras page shows "DVR address changed to X" for a day.
 - Live video runs only while someone watches. Viewers need a 2-minute pass from
   the website, and each viewing is written to the audit log.
+
+## Updates
+
+From the first release with the updater, the PC updates itself. Every 6 hours it looks for a newer release, downloads the small `dvs-cctv-app.zip`, checks its SHA-256 and restarts on the new version. If the website has not accepted a heartbeat from the new version within 5 minutes, the old files come back and that version is skipped from then on.
+
+- Every push that changes `perception-service/` makes a new release, so it reaches the plant within 6 hours.
+- A release that changes Python libraries, models, FFmpeg or MediaMTX needs the full installer. The PC skips it and says so in `logs/perception.log`.
+- `.env`, `config/cameras.yaml`, logs and pictures are never replaced.
+- The result of the last update is in `updates/result.json` in the install folder, and the running version shows on the website's Cameras tab.
+
+Running the full installer over an installed copy needs one Windows "Yes". It replaces the programs, keeps every setting and restarts the monitoring, with no setup window.
+
+Saving a change to `.env` takes effect by itself within 30 seconds, with no reboot.

@@ -57,6 +57,11 @@ robocopy perception-service "$stage\app" /E /NFL /NDL /NJH /NJS /NP `
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed" }
 $global:LASTEXITCODE = 0
 
+Write-Host "== Update package"
+$version = if ($env:DVS_VERSION) { $env:DVS_VERSION } else { "dev" }
+& $py perception-service\installer\make_update_package.py "$stage\app" update-package $version perception-service\installer\build_windows.ps1
+if ($LASTEXITCODE) { throw "update package failed" }
+
 Write-Host "== Check the bundle"
 Push-Location "$stage\app"
 & $py -c "import cv2, torch, ultralytics, supervision, requests, psutil, tkinter, PIL, main, multi_camera, service, live_view; print('imports ok', torch.__version__)"

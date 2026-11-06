@@ -473,3 +473,386 @@ def test_compat_check_catches_what_broke_the_plant_pc():
     assert check.problems_in(Path("a.dll"), {"KERNEL32.dll": {"Sleep"}}, set()) == []
     assert "not in the bundle" in check.problems_in(Path("c10.dll"), {"MSVCP140.dll": set()}, set())[0]
     assert check.problems_in(Path("c10.dll"), {"MSVCP140.dll": set()}, {"msvcp140.dll"}) == []
+
+
+# ── auto-update ─────────────────────────────────────────────────────────────
+
+def _load_installer_module(name):
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).parent / "installer" / f"{name}.py"
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _package(files: dict) -> bytes:
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, text in files.items():
+            archive.writestr(name, text)
+    return buffer.getvalue()
+
+
+def _sha(data: bytes) -> str:
+    import hashlib
+
+    return hashlib.sha256(data).hexdigest()
+
+
+def _github(tag="cctv-setup-8", runtime="r1", sha="a" * 64, base=None):
+    import json
+
+    base = base or "https://github.com/SANCHI3/DVS_INDUSTRY/releases/download/x/"
+    answers = {
+        "https://api.github.com/repos/SANCHI3/DVS_INDUSTRY/releases/latest": {
+            "tag_name": tag,
+            "assets": [{"name": "dvs-cctv-app.zip", "browser_download_url": base + "dvs-cctv-app.zip"},
+                       {"name": "dvs-cctv-app.json", "browser_download_url": base + "dvs-cctv-app.json"}],
+        },
+        base + "dvs-cctv-app.json": {"version": tag, "sha256": sha, "runtime": runtime},
+    }
+    return lambda url: json.dumps(answers[url]).encode()
+
+
+def test_only_a_newer_release_with_the_same_runtime_is_taken():
+    from auto_update import find_update
+
+    assert find_update("cctv-setup-7", "r1", set(), _github()).version == "cctv-setup-8"
+    assert find_update("cctv-setup-8", "r1", set(), _github()) is None
+    assert find_update("cctv-setup-9", "r1", set(), _github()) is None
+    assert find_update("cctv-setup-7", "other", set(), _github()) is None
+    assert find_update("cctv-setup-7", "r1", {"cctv-setup-8"}, _github()) is None
+    assert find_update("dev", "r1", set(), _github()) is None
+    assert find_update("cctv-setup-7", "r1", set(), _github(tag="v1.0")) is None
+
+
+def test_a_package_from_anywhere_else_is_refused():
+    from auto_update import find_update
+
+    assert find_update("cctv-setup-7", "r1", set(), _github(base="https://evil.example/")) is None
+
+
+def test_a_package_with_the_wrong_hash_is_refused(tmp_path):
+    from auto_update import unpack
+
+    data = _package({"VERSION": "cctv-setup-8", "a.py": "x = 1"})
+    with pytest.raises(ValueError, match="SHA-256"):
+        unpack(data, "0" * 64, tmp_path / "staged")
+    assert not (tmp_path / "staged").exists()
+
+
+def test_a_package_that_escapes_its_folder_is_refused(tmp_path):
+    from auto_update import unpack
+
+    data = _package({"../evil.py": "x = 1", "VERSION": "cctv-setup-8"})
+    with pytest.raises(ValueError, match="unsafe"):
+        unpack(data, _sha(data), tmp_path / "staged")
+    assert not (tmp_path / "evil.py").exists()
+
+
+def test_a_package_with_broken_python_is_refused(tmp_path):
+    from auto_update import unpack
+
+    data = _package({"VERSION": "cctv-setup-8", "a.py": "def ("})
+    with pytest.raises(ValueError):
+        unpack(data, _sha(data), tmp_path / "staged")
+
+
+def _installed(tmp_path):
+    install = tmp_path / "dvs-cctv"
+    app = install / "app"
+    (app / "config").mkdir(parents=True)
+    (app / "logs").mkdir()
+    (app / "models").mkdir()
+    (install / "updates" / "staged" / "config").mkdir(parents=True)
+    (app / ".env").write_text("DVR_HOST=1.2.3.4\n")
+    (app / "VERSION").write_text("cctv-setup-7\n")
+    (app / "service.py").write_text("old\n")
+    (app / "old_only.py").write_text("old\n")
+    (app / "logs" / "perception.log").write_text("log\n")
+    (app / "models" / "big.pt").write_text("model\n")
+    (app / "config" / "cameras.yaml").write_text("plant names\n")
+    (app / "config" / "thresholds.yaml").write_text("old\n")
+    staged = install / "updates" / "staged"
+    (staged / "VERSION").write_text("cctv-setup-8\n")
+    (staged / "service.py").write_text("new\n")
+    (staged / "new_only.py").write_text("new\n")
+    (staged / "config" / "thresholds.yaml").write_text("new\n")
+    return install, app
+
+
+def _kept_as_they_were(app):
+    assert (app / ".env").read_text() == "DVR_HOST=1.2.3.4\n"
+    assert (app / "config" / "cameras.yaml").read_text() == "plant names\n"
+    assert (app / "logs" / "perception.log").read_text() == "log\n"
+    assert (app / "models" / "big.pt").read_text() == "model\n"
+
+
+def test_update_that_reports_in_stays_and_keeps_the_settings(tmp_path):
+    swap = _load_installer_module("swap_update")
+    install, app = _installed(tmp_path)
+    started = []
+    assert swap.run_update(install, "cctv-setup-8", stop=lambda _i: None, start=started.append,
+                           wait=lambda *_a: True)
+    assert (app / "VERSION").read_text() == "cctv-setup-8\n"
+    assert (app / "service.py").read_text() == "new\n"
+    assert (app / "config" / "thresholds.yaml").read_text() == "new\n"
+    assert started == [install]
+    _kept_as_they_were(app)
+
+
+def test_update_with_no_heartbeat_goes_back_and_is_never_tried_again(tmp_path):
+    swap = _load_installer_module("swap_update")
+    install, app = _installed(tmp_path)
+    started = []
+    assert not swap.run_update(install, "cctv-setup-8", stop=lambda _i: None, start=started.append,
+                               wait=lambda *_a: False)
+    assert (app / "VERSION").read_text() == "cctv-setup-7\n"
+    assert (app / "service.py").read_text() == "old\n"
+    assert (app / "config" / "thresholds.yaml").read_text() == "old\n"
+    assert not (app / "new_only.py").exists()
+    assert (app / "old_only.py").exists()
+    assert "cctv-setup-8" in (install / "updates" / "bad.txt").read_text()
+    assert len(started) == 2
+    _kept_as_they_were(app)
+
+
+def test_a_failure_half_way_puts_every_file_back(tmp_path, monkeypatch):
+    import os
+
+    swap = _load_installer_module("swap_update")
+    install, app = _installed(tmp_path)
+    real_replace = os.replace
+
+    def fails_on_the_new_file(source, target):
+        if str(target).endswith("service.py") and "staged" in str(source):
+            raise PermissionError("in use")
+        real_replace(source, target)
+
+    monkeypatch.setattr(swap.os, "replace", fails_on_the_new_file)
+    started = []
+    assert not swap.run_update(install, "cctv-setup-8", stop=lambda _i: None, start=started.append)
+    monkeypatch.undo()
+    assert (app / "service.py").read_text() == "old\n"
+    assert (app / "VERSION").read_text() == "cctv-setup-7\n"
+    assert started == [install]
+    _kept_as_they_were(app)
+
+
+@pytest.mark.parametrize("name", [".env", "config/cameras.yaml", "logs/x.log", "output/status.json"])
+def test_a_package_can_never_replace_plant_data(tmp_path, name):
+    swap = _load_installer_module("swap_update")
+    staged = tmp_path / "staged"
+    (staged / name).parent.mkdir(parents=True)
+    (staged / name).write_text("x")
+    with pytest.raises(ValueError):
+        swap.files_to_replace(staged)
+
+
+def test_only_a_heartbeat_from_the_new_version_counts(tmp_path):
+    import json
+
+    swap = _load_installer_module("swap_update")
+    status = tmp_path / "status.json"
+    status.write_text(json.dumps({"version": "cctv-setup-7", "websiteOkAt": 200.0}))
+    assert not swap.heartbeat_accepted(status, "cctv-setup-8", 100.0)
+    status.write_text(json.dumps({"version": "cctv-setup-8", "websiteOkAt": 50.0}))
+    assert not swap.heartbeat_accepted(status, "cctv-setup-8", 100.0)
+    status.write_text(json.dumps({"version": "cctv-setup-8", "websiteOkAt": 200.0}))
+    assert swap.heartbeat_accepted(status, "cctv-setup-8", 100.0)
+
+
+def test_a_pc_that_cannot_reach_the_website_does_not_update(tmp_path):
+    from auto_update import Updater
+
+    asked = []
+    updater = Updater(root=tmp_path, updates=tmp_path / "updates", clock=lambda: 1e6, wall_clock=lambda: 1000.0,
+                      fetch=lambda url: asked.append(url), read_status=lambda: {"websiteOkAt": 100.0})
+    updater.next_check = 0
+    assert updater.tick() is False
+    assert asked == []
+
+
+def test_update_checks_are_six_hours_apart(tmp_path):
+    from auto_update import Updater
+
+    now = [0.0]
+    checks = []
+    updater = Updater(root=tmp_path, updates=tmp_path / "updates", clock=lambda: now[0],
+                      read_status=lambda: checks.append(1))
+    for seconds in range(0, 7 * 3600, 30):
+        now[0] = float(seconds)
+        updater.tick()
+    assert len(checks) == 2  # after 10 minutes, then 6 hours later
+
+
+def test_the_update_package_leaves_out_settings_and_models(tmp_path):
+    import json
+    import zipfile
+
+    make = _load_installer_module("make_update_package")
+    app = tmp_path / "app"
+    (app / "installer").mkdir(parents=True)
+    (app / "config").mkdir()
+    (app / "models").mkdir()
+    (app / "requirements.txt").write_text("a==1\n")
+    (app / "installer" / "constraints.txt").write_text("b==1\n")
+    (app / "config" / "cameras.yaml").write_text("x")
+    (app / ".env").write_text("x")
+    (app / "models" / "big.pt").write_bytes(b"1")
+    (app / "service.py").write_text("x = 1\n")
+    script = tmp_path / "build.ps1"
+    script.write_text('$FfmpegVersion = "5.1.2"\n')
+
+    manifest = make.build(app, tmp_path / "out", "cctv-setup-8", script)
+    names = zipfile.ZipFile(tmp_path / "out" / "dvs-cctv-app.zip").namelist()
+    assert "service.py" in names and "VERSION" in names and "RUNTIME" in names
+    assert ".env" not in names and "config/cameras.yaml" not in names and "models/big.pt" not in names
+    assert json.loads((tmp_path / "out" / "dvs-cctv-app.json").read_text()) == manifest
+
+    first = manifest["runtime"]
+    (app / "models" / "big.pt").write_bytes(b"2")
+    assert make.runtime_hash(app, script) != first
+    (app / "models" / "big.pt").write_bytes(b"1")
+    assert make.runtime_hash(app, script) == first
+    script.write_text('$FfmpegVersion = "6.0"\n')
+    assert make.runtime_hash(app, script) != first
+
+
+# ── settings reload, memory, speed ──────────────────────────────────────────
+
+def test_a_changed_settings_file_is_noticed_and_a_half_written_one_is_not(tmp_path):
+    import os
+
+    path = tmp_path / ".env"
+    path.write_text("DVR_HOST=1.2.3.4\n")
+    settings = service.SettingsFile(path)
+    assert not settings.changed()
+    path.write_text("")
+    os.utime(path, (1000, 1000))
+    assert not settings.changed()
+    path.write_text("DVR_HOST=1.2.3.5\n")
+    os.utime(path, (2000, 2000))
+    assert settings.changed()
+    settings.remember()
+    assert not settings.changed()
+
+
+def test_reload_applies_new_values_and_drops_removed_ones(tmp_path, monkeypatch):
+    import os
+
+    monkeypatch.setenv("LIVE_VIEW_URL", "old")
+    monkeypatch.setenv("REMOVED_SETTING", "x")
+    path = tmp_path / ".env"
+    path.write_text('LIVE_VIEW_URL=https://server.example.ts.net\nDVR_PASSWORD="p#w"\n')
+    monkeypatch.setenv("DVR_PASSWORD", "before")
+    keys = service.reload_settings(path, {"REMOVED_SETTING", "LIVE_VIEW_URL"})
+    assert os.environ["LIVE_VIEW_URL"] == "https://server.example.ts.net"
+    assert os.environ["DVR_PASSWORD"] == "p#w"
+    assert "REMOVED_SETTING" not in os.environ
+    assert keys == {"LIVE_VIEW_URL", "DVR_PASSWORD"}
+
+
+class _Running:
+    def __init__(self):
+        self.stopped = 0
+
+    def poll(self):
+        return None
+
+    def terminate(self):
+        self.stopped += 1
+
+
+class _NoUpdate:
+    def tick(self):
+        return False
+
+
+class _SameSettings:
+    def changed(self):
+        return False
+
+
+def _watcher(used_mb, clock):
+    control = service.Control()
+    control.process = _Running()
+    return control, service.Watcher(control, _SameSettings(), _NoUpdate(), read_memory=lambda _p: used_mb, clock=clock)
+
+
+def test_memory_over_the_limit_restarts_only_after_it_stays_high(monkeypatch):
+    monkeypatch.delenv("MEMORY_LIMIT_MB", raising=False)
+    control, watcher = _watcher(1600.0, lambda: 10_000.0)
+    for _ in range(service.MEMORY_OVER_CHECKS - 1):
+        watcher.check()
+    assert control.process.stopped == 0
+    watcher.check()
+    assert control.process.stopped == 1
+    assert control.take_reason() == "memory"
+
+
+def test_memory_restarts_are_at_most_hourly(monkeypatch):
+    monkeypatch.delenv("MEMORY_LIMIT_MB", raising=False)
+    now = [10_000.0]
+    control, watcher = _watcher(1600.0, lambda: now[0])
+    for _ in range(service.MEMORY_OVER_CHECKS * 3):
+        now[0] += 30
+        watcher.check()
+    assert control.process.stopped == 1
+
+
+def test_a_short_memory_peak_is_ignored(monkeypatch):
+    monkeypatch.delenv("MEMORY_LIMIT_MB", raising=False)
+    readings = iter([1600.0, 1600.0, 900.0, 1600.0, 1600.0, 1600.0, 900.0])
+    control = service.Control()
+    control.process = _Running()
+    watcher = service.Watcher(control, _SameSettings(), _NoUpdate(), read_memory=lambda _p: next(readings),
+                              clock=lambda: 10_000.0)
+    for _ in range(7):
+        watcher.check()
+    assert control.process.stopped == 0
+
+
+def test_no_camera_goes_above_one_frame_a_second_even_with_old_settings(monkeypatch):
+    import multi_camera
+    from ingestion.camera_config import CameraSpec
+
+    monkeypatch.delenv("MAX_FPS_PER_CAMERA", raising=False)
+    fields = {f.name for f in __import__("dataclasses").fields(CameraSpec)}
+    base = {"id": "dvr-ch1", "name": "Camera 01", "fps": 2.0}
+    fast = CameraSpec(**{k: v for k, v in base.items() if k in fields})
+    slow = __import__("dataclasses").replace(fast, fps=0.5)
+    assert [c.fps for c in multi_camera.limit_camera_fps([fast, slow])] == [1.0, 0.5]
+
+
+def test_live_view_stops_when_it_is_switched_off(monkeypatch):
+    monkeypatch.delenv("LIVE_VIEW_ENABLED", raising=False)
+
+    class Server:
+        stopped = False
+
+        def stop(self):
+            Server.stopped = True
+
+    service.start_live_view(Server())
+    assert Server.stopped
+
+
+def test_evidence_uses_the_dvr_snapshot_when_the_video_gives_nothing(tmp_path):
+    import numpy as np
+
+    from ingestion.evidence_grabber import MainStreamGrabber
+
+    saved = {}
+    grabber = MainStreamGrabber(str(tmp_path), on_saved=lambda _i, paths: saved.update(paths=paths),
+                                grab=lambda *_a: [], fallback=lambda _c: np.zeros((8, 8, 3), np.uint8))
+    grabber.request("inc-1", "dvr-ch1", "rtsp://x")
+    grabber.close()
+    assert len(saved["paths"]) == 1

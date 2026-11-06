@@ -320,7 +320,7 @@ class Setup(tk.Tk):
         if live:
             core.enable_live_view(lambda line: self.say(box, line))
         if result.get("autostart"):
-            core.subprocess.run(["schtasks", "/run", "/tn", core.TASK_NAME], capture_output=True, **core.NO_WINDOW)
+            core.restart_task()  # also picks up the live view settings saved just now
             time.sleep(10)
             if not core.read_task_running():
                 self.say(box, "Could not start through the task; starting directly.")

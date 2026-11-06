@@ -231,14 +231,15 @@ def stop_running_copies() -> None:
             continue
 
 
-def run_elevated(live: bool, wait_s: float = 600.0) -> dict:
+def run_elevated(live: bool = False, wait_s: float = 600.0, restart_only: bool = False) -> dict:
     """One "Allow" prompt for everything that needs it. Result, or {'declined': True}."""
     import ctypes
 
     ELEVATED_RESULT.parent.mkdir(parents=True, exist_ok=True)
     ELEVATED_RESULT.unlink(missing_ok=True)
     args = (f'"{APP / "installer" / "elevated_steps.py"}" --sid {user_sid()} '
-            f'--result "{ELEVATED_RESULT}"' + (" --live" if live else ""))
+            f'--result "{ELEVATED_RESULT}"' + (" --live" if live else "")
+            + (" --restart-only" if restart_only else ""))
     code = ctypes.windll.shell32.ShellExecuteW(None, "runas", str(python_exe(True)), args, str(APP), 0)
     if code <= 32:  # declined, or this account cannot approve it
         return {"declined": True}
@@ -252,6 +253,11 @@ def run_elevated(live: bool, wait_s: float = 600.0) -> dict:
                 continue
         time.sleep(1)
     return {"declined": True}
+
+
+def restart_task() -> bool:
+    """Through the elevated step: a normal user cannot stop a task that runs as SYSTEM."""
+    return bool(run_elevated(restart_only=True, wait_s=120.0).get("restarted"))
 
 
 def start_at_login_instead() -> None:

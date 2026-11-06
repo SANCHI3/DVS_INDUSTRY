@@ -19,15 +19,18 @@ import os
 import socket
 import subprocess
 import sys
+import threading
 import time
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
+from typing import Optional
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)  # config/, models/ and output/ are relative to here
 
-from env_loader import load_env  # noqa: E402
+from auto_update import Updater, current_version, launch_swap  # noqa: E402
+from env_loader import load_env, read_env_file  # noqa: E402
 from ingestion.dvr import DvrConfig, mask_text  # noqa: E402
 from ingestion.dvr_finder import read_env_value  # noqa: E402
 from system_load import read_status, set_low_priority  # noqa: E402
@@ -37,6 +40,9 @@ LOG_DIR = ROOT / "logs"
 RESTART_DELAYS = (5, 15, 30, 60, 120, 300)
 RESTART_EXIT = 75  # multi_camera.RESTART_EXIT: the DVR moved, start again now
 INSTALL_DIR = ROOT.parent  # C:\\dvs-cctv when installed
+WATCH_EVERY_S = 30.0
+MEMORY_OVER_CHECKS = 5  # 2.5 minutes over the limit, not one busy moment
+MEMORY_RESTART_GAP_S = 3600.0
 
 
 # ── logging: daily files, 14 kept ───────────────────────────────────────────
@@ -87,10 +93,12 @@ def setup_logging(log_dir: Path = LOG_DIR, keep_days: int = 14) -> logging.Logge
 
 # ── run with restarts ───────────────────────────────────────────────────────
 
-def launch_monitoring(cmd: list[str]) -> int:
+def launch_monitoring(cmd: list[str], control: Optional["Control"] = None) -> int:
     """Run the monitoring; its output goes through the masked log, line by line."""
     process = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                text=True, encoding="utf-8", errors="replace", bufsize=1)
+    if control is not None:
+        control.process = process
     try:
         for line in process.stdout:
             sys.stdout.write(line)
@@ -98,6 +106,111 @@ def launch_monitoring(cmd: list[str]) -> int:
     except BaseException:
         process.terminate()
         raise
+
+
+class Control:
+    """Why the watcher stopped the monitoring, so run() knows what to do next."""
+
+    def __init__(self) -> None:
+        self.process: Optional[subprocess.Popen] = None
+        self.reason: Optional[str] = None
+
+    def stop_monitoring(self, reason: str) -> None:
+        self.reason = reason
+        if self.process is not None and self.process.poll() is None:
+            self.process.terminate()
+
+    def take_reason(self) -> Optional[str]:
+        reason, self.reason = self.reason, None
+        return reason
+
+
+def memory_limit_mb() -> float:
+    try:
+        return float(os.environ.get("MEMORY_LIMIT_MB") or 1536)
+    except ValueError:
+        return 1536.0
+
+
+def memory_mb(process) -> float:
+    """The monitoring and anything it started."""
+    import psutil
+
+    try:
+        watched = psutil.Process(process.pid)
+        return sum(p.memory_info().rss for p in [watched, *watched.children(recursive=True)]) / 1e6
+    except (psutil.Error, OSError):
+        return 0.0
+
+
+class SettingsFile:
+    """Notices a changed .env by its time stamp; a file being rewritten is ignored."""
+
+    def __init__(self, path: Path):
+        self.path = path
+        self.remember()
+
+    def _stamp(self) -> float:
+        try:
+            return self.path.stat().st_mtime
+        except OSError:
+            return 0.0
+
+    def remember(self) -> None:
+        self.stamp = self._stamp()
+
+    def changed(self) -> bool:
+        return self._stamp() != self.stamp and "DVR_HOST" in read_env_file(self.path)
+
+
+def reload_settings(path: Path, previous: set[str]) -> set[str]:
+    """.env wins over what was loaded before; a removed setting goes too. Returns its keys."""
+    values = read_env_file(path)
+    for key in previous - set(values):
+        os.environ.pop(key, None)
+    os.environ.update(values)
+    return set(values)
+
+
+class Watcher(threading.Thread):
+    """Every 30 s: changed settings, memory use, and whether an update is ready."""
+
+    def __init__(self, control: Control, settings: SettingsFile, updater: Updater,
+                 read_memory=memory_mb, clock=time.monotonic):
+        super().__init__(name="service-watcher", daemon=True)
+        self.control, self.settings, self.updater = control, settings, updater
+        self.read_memory, self.clock = read_memory, clock
+        self.over_limit = 0
+        self.last_memory_restart = -MEMORY_RESTART_GAP_S
+
+    def check(self) -> None:
+        if self.settings.changed():
+            print("[service] settings changed; restarting the monitoring", flush=True)
+            self.settings.remember()
+            self.control.stop_monitoring("settings")
+            return
+        process = self.control.process
+        if process is not None and process.poll() is None:
+            used = self.read_memory(process)
+            self.over_limit = self.over_limit + 1 if used > memory_limit_mb() else 0
+            if (self.over_limit >= MEMORY_OVER_CHECKS
+                    and self.clock() - self.last_memory_restart >= MEMORY_RESTART_GAP_S):
+                print(f"[service] using {used:.0f} MB, over the {memory_limit_mb():.0f} MB limit; "
+                      "restarting the monitoring", flush=True)
+                self.over_limit = 0
+                self.last_memory_restart = self.clock()
+                self.control.stop_monitoring("memory")
+                return
+        if self.updater.tick():
+            self.control.stop_monitoring("update")
+
+    def run(self) -> None:
+        while True:
+            time.sleep(WATCH_EVERY_S)
+            try:
+                self.check()
+            except Exception as exc:  # noqa: BLE001 - the watcher must never stop the monitoring
+                print(f"[service] watcher: {type(exc).__name__}", flush=True)
 
 
 def add_bundled_tools_to_path() -> None:
@@ -112,6 +225,7 @@ def start_live_view(server) -> None:
     from ingestion.camera_config import load_camera_setup
 
     if not live_view.enabled():
+        server.stop()
         return
     try:
         setup = load_camera_setup(str(ROOT / "config" / "cameras.yaml"))
@@ -132,17 +246,25 @@ def run(extra_args: list[str], restart_delays=RESTART_DELAYS, launch=None) -> in
     add_bundled_tools_to_path()
     os.environ.setdefault("OMP_NUM_THREADS", os.environ.get("MODEL_THREADS") or "2")
     cmd = [sys.executable, "-u", str(ROOT / "main.py"), "--all", "--no-display", *extra_args]
+    print(f"[service] version {current_version()}")
     live = None
+    control = Control()
+    settings = updater = None
+    env_keys = set(read_env_file(ROOT / ".env"))
     if launch is None:
         from live_view import LiveServer
 
-        launch = lambda: launch_monitoring(cmd)  # noqa: E731
+        launch = lambda: launch_monitoring(cmd, control)  # noqa: E731
+        settings, updater = SettingsFile(ROOT / ".env"), Updater()
+        Watcher(control, settings, updater).start()
         live = LiveServer(INSTALL_DIR / "mediamtx" / "mediamtx.exe", INSTALL_DIR / "mediamtx" / "mediamtx.yml",
                           LOG_DIR / "live-video.log")
         start_live_view(live)
     failures = 0
     while True:
         started = time.monotonic()
+        if settings is not None:
+            settings.remember()  # the DVR finder may have just saved a new address
         print("[service] starting the CCTV monitoring")
         try:
             code = launch()
@@ -155,6 +277,20 @@ def run(extra_args: list[str], restart_delays=RESTART_DELAYS, launch=None) -> in
             if live is not None:
                 live.stop()
             return 0  # a timed test run
+        reason = control.take_reason()
+        if reason == "update":
+            if live is not None:
+                live.stop()
+            print(f"[service] handing over to version {updater.ready}")
+            launch_swap(updater.ready)
+            return 0
+        if reason == "settings":
+            env_keys = reload_settings(ROOT / ".env", env_keys)
+            if live is not None:
+                start_live_view(live)
+            continue
+        if reason == "memory":
+            continue
         if code == RESTART_EXIT:
             # The child saved the new address in .env; the old one is in our environment
             os.environ["DVR_HOST"] = read_env_value(ROOT / ".env", "DVR_HOST") or os.environ.get("DVR_HOST", "")
@@ -302,7 +438,8 @@ def doctor(channels: int = 8, out=print) -> int:
     if status is None:
         line(WARN, "monitoring", "not running yet")
     else:
-        line(OK, "monitoring", f"CPU {status.get('cpuPercent', '?')}%, detection speed "
+        line(OK, "monitoring", f"version {current_version()}, CPU {status.get('cpuPercent', '?')}%, "
+             f"{status.get('memoryMb', '?')} MB, detection speed "
              f"{float(status.get('detectionSpeed', 1)):.0%} (at {status.get('updatedAt', '?')})")
         for cam_id, cam in (status.get("cameras") or {}).items():
             fps = cam.get("fps")

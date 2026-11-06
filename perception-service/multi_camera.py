@@ -7,7 +7,8 @@ down or shows video loss is skipped and retried; it never stops the others.
 Models are loaded once and shared (shared_models.py).
 
 Environment:
-    MAX_INFER_FPS_TOTAL   frames per second across all cameras (default 12;
+    MAX_FPS_PER_CAMERA    frames per second for any one camera (default 1)
+    MAX_INFER_FPS_TOTAL   frames per second across all cameras (default 8;
                           4 with REMOTE_MODE=true)
     REMOTE_MODE           true on a laptop over Tailscale: sub stream, <= 1 fps
 
@@ -17,6 +18,7 @@ address the process exits with RESTART_EXIT and service.py starts it again.
 """
 from __future__ import annotations
 
+import dataclasses
 import os
 import sys
 import time
@@ -25,10 +27,11 @@ from typing import Optional
 
 import yaml
 
+from auto_update import current_version
 from ingestion.camera_config import CameraSetup, load_camera_setup
 from ingestion.dvr import mask_text
 from ingestion.dvr_finder import DvrWatcher, read_notice
-from ingestion.evidence_grabber import MainStreamGrabber
+from ingestion.evidence_grabber import MainStreamGrabber, snapshot_frame
 from ingestion.stream_reader import StreamReader
 from main import build_detector, camera_info, inference_device, _env_float
 from pipeline import CameraPipeline, section_configs
@@ -36,7 +39,7 @@ from reporting.camera_heartbeat import CameraHeartbeat
 from reporting.evidence_uploader import EvidenceUploader, evidence_meta, pick_pictures
 from reporting.incident_report import IncidentReporter
 from scheduler import FrameScheduler
-from system_load import CpuGuard, limit_model_threads, set_low_priority, write_status
+from system_load import CpuGuard, limit_model_threads, memory_mb, set_low_priority, write_status
 
 STATS_EVERY_S = 60.0
 STATUS_EVERY_S = 15.0
@@ -44,7 +47,13 @@ RESTART_EXIT = 75  # "start me again now": the DVR has a new address
 
 
 def total_fps_limit(setup: CameraSetup) -> float:
-    return _env_float("MAX_INFER_FPS_TOTAL", 4.0 if setup.remote_mode else 12.0)
+    return _env_float("MAX_INFER_FPS_TOTAL", 4.0 if setup.remote_mode else 8.0)
+
+
+def limit_camera_fps(cameras: list) -> list:
+    """The server is shared: a higher fps in cameras.yaml is not honoured."""
+    most = _env_float("MAX_FPS_PER_CAMERA", 1.0)
+    return [dataclasses.replace(c, fps=min(c.fps, most)) for c in cameras]
 
 
 def format_stats(stats: dict, statuses: dict, cpu: Optional[float] = None, speed: float = 1.0) -> str:
@@ -75,6 +84,7 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
     if any(c.is_dvr for c in cameras) and setup.dvr is None:
         raise SystemExit("DVR_HOST is not set in perception-service/.env (see docs/CCTV_SETUP.md)")
     password = setup.dvr.password if setup.dvr else ""
+    cameras = limit_camera_fps(cameras)
 
     set_low_priority()
     threads = limit_model_threads()
@@ -104,7 +114,11 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
         if uploader is not None:
             uploader.enqueue(incident_id, pick_pictures(keyframes, main_frames, gradcam), meta)
 
-    grabber = MainStreamGrabber(os.path.join(evidence_dir, "main"), password=password, on_saved=send_evidence)
+    channels = {c.id: c.channel for c in cameras}
+    grabber = MainStreamGrabber(
+        os.path.join(evidence_dir, "main"), password=password, on_saved=send_evidence,
+        fallback=(lambda cam_id: snapshot_frame(setup.dvr, channels[cam_id])) if setup.dvr else None,
+    )
 
     guard = CpuGuard()
     readers: dict[str, StreamReader] = {}
@@ -155,6 +169,8 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
             "liveUrl": os.getenv("LIVE_VIEW_URL", "").strip().rstrip("/") or None,
             "cpuPercent": round(guard.cpu),
             "detectionSpeed": guard.speed,
+            "version": current_version(),
+            "memoryMb": memory_mb(),
         })
         print(f"[multi] camera status to the website as '{heartbeat.instance_id}' ({heartbeat.source})")
     scheduler = FrameScheduler({c.id: c.fps for c in cameras}, max_total_fps=limit)
@@ -170,7 +186,9 @@ def run_all(camera_ids: Optional[list[str]] = None, max_seconds: Optional[float]
         now_status = statuses()
         write_status(
             status_path,
+            version=current_version(),
             cpuPercent=round(guard.cpu),
+            memoryMb=memory_mb(),
             detectionSpeed=guard.speed,
             cameras={c.id: {"name": c.name, "status": now_status.get(c.id, "OFFLINE"),
                             "fps": (latest_stats.get(c.id) or {}).get("fps")} for c in cameras},

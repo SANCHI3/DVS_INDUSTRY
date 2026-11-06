@@ -29,6 +29,7 @@ jobs:
         shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DVS_VERSION: cctv-setup-${{ github.run_number }}
         run: |
           $env:PATH = "C:\Program Files (x86)\NSIS;$env:PATH"
           ./perception-service/installer/build_windows.ps1
@@ -60,6 +61,11 @@ jobs:
           if ($LASTEXITCODE) { throw "ffprobe does not run after the upgrade" }
           C:\dvs-cctv\python\python.exe -c "import cv2, torch; print('upgrade ok')"
           if ($LASTEXITCODE) { throw "python does not run after the upgrade" }
+      - name: Update and roll back on the installed copy
+        shell: pwsh
+        run: |
+          C:\dvs-cctv\python\python.exe C:\dvs-cctv\app\installer\ci_update_test.py update-package\dvs-cctv-app.zip
+          if ($LASTEXITCODE) { throw "update test failed" }
       - name: Show the log after a failure
         if: failure()
         shell: pwsh
@@ -70,4 +76,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = "cctv-setup-${{ github.run_number }}"
-          gh release create $tag dvs-cctv-setup.exe --title "CCTV installer ${{ github.run_number }}" --notes "Windows installer for the plant CCTV PC." --latest
+          gh release create $tag dvs-cctv-setup.exe update-package\dvs-cctv-app.zip update-package\dvs-cctv-app.json --title "CCTV installer ${{ github.run_number }}" --notes "Windows installer for the plant CCTV PC." --latest

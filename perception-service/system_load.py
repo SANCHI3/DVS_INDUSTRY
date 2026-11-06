@@ -55,6 +55,13 @@ def limit_model_threads() -> int:
     return threads
 
 
+def memory_mb() -> int:
+    """Memory this process is using."""
+    import psutil
+
+    return round(psutil.Process().memory_info().rss / 1e6)
+
+
 def read_cpu_percent() -> float:
     import psutil
 

@@ -24,7 +24,14 @@ def run(*cmd: str, timeout: float = 120) -> bool:
     return subprocess.run(list(cmd), capture_output=True, timeout=timeout, **NO_WINDOW).returncode == 0
 
 
+def restart_task() -> bool:
+    run("schtasks", "/end", "/tn", TASK_NAME)
+    return run("schtasks", "/run", "/tn", TASK_NAME)
+
+
 def install_task(sid: str) -> bool:
+    if run("schtasks", "/query", "/tn", TASK_NAME):
+        return True  # keep the one that is working, and the account it runs as
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "task.xml"
         path.write_text(task_xml(sid, python_exe(), APP), encoding="utf-16")
@@ -46,10 +53,14 @@ def main() -> None:
     parser.add_argument("--sid", required=True)
     parser.add_argument("--result", required=True)
     parser.add_argument("--live", action="store_true")
+    parser.add_argument("--restart-only", action="store_true")
     args = parser.parse_args()
 
     result = {"autostart": False, "power": False, "tailscale": None}
     try:
+        if args.restart_only:
+            result = {"restarted": restart_task()}
+            return
         result["autostart"] = install_task(args.sid)
         result["power"] = all([run("powercfg", "/change", "standby-timeout-ac", "0"),
                                run("powercfg", "/change", "hibernate-timeout-ac", "0")])
@@ -61,9 +72,10 @@ def main() -> None:
                 "action=allow", "protocol=UDP", f"program={program}")
     except Exception as exc:  # noqa: BLE001 - the window must get an answer
         result["error"] = type(exc).__name__
-    temporary = Path(args.result).with_suffix(".tmp")
-    temporary.write_text(json.dumps(result), encoding="utf-8")
-    os.replace(temporary, args.result)
+    finally:
+        temporary = Path(args.result).with_suffix(".tmp")
+        temporary.write_text(json.dumps(result), encoding="utf-8")
+        os.replace(temporary, args.result)
 
 
 if __name__ == "__main__":

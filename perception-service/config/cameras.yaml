@@ -38,7 +38,7 @@ defaults:
   enabled: true
   detect_stream: sub
   evidence_stream: main
-  fps: 2    # shared server: see MAX_INFER_FPS_TOTAL and the CPU guard
+  fps: 1    # shared server: see MAX_FPS_PER_CAMERA and the CPU guard
   rules: [fire, fall, crowd, fight, anomaly]
 
 cameras:
