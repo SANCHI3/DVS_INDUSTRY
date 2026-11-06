@@ -278,3 +278,198 @@ def test_the_installed_tracker_library_still_has_what_detection_uses():
     import supervision
 
     assert hasattr(supervision, "ByteTrack")
+
+
+# ── Windows Server 2016 (the plant PC) ──────────────────────────────────────
+
+ENTRY_POINT_NOT_FOUND = 0xC0000139
+
+
+def _dvr():
+    from ingestion.dvr import DvrConfig
+
+    return DvrConfig(host="127.0.0.1", username="admin", password="pw", http_port=1)
+
+
+def _opens(*_args):
+    return type("Answer", (), {"status": "OK", "codec": "H264", "detail": ""})()
+
+
+def test_ffprobe_that_windows_cannot_start_is_reported_in_plain_words():
+    from ingestion.rtsp_probe import ffprobe_failure
+
+    assert "could not start on this Windows" in ffprobe_failure(ENTRY_POINT_NOT_FOUND, "")
+    assert ffprobe_failure(1, "401 Unauthorized") == "401 Unauthorized"
+
+
+def test_opencv_takes_over_when_ffprobe_cannot_run(monkeypatch):
+    from ingestion import rtsp_probe
+
+    monkeypatch.setattr(rtsp_probe.shutil, "which", lambda _name: "ffprobe")
+    monkeypatch.setattr(rtsp_probe, "measure_with_ffprobe", lambda *_a: {"error": "could not start"})
+    monkeypatch.setattr(rtsp_probe, "measure_with_opencv", lambda *_a: {"width": 704, "height": 576, "fps": 12.0})
+    assert rtsp_probe.measure_stream("rtsp://x", 1)["width"] == 704
+
+
+def test_ffprobe_file_that_is_not_a_program_does_not_crash_the_test(monkeypatch):
+    from ingestion import rtsp_probe
+
+    def cannot_start(*_a, **_k):
+        raise OSError(193, "not a valid application")
+
+    monkeypatch.setattr(rtsp_probe.subprocess, "run", cannot_start)
+    assert "could not start" in rtsp_probe.measure_with_ffprobe("rtsp://x", 1)["error"]
+
+
+def test_every_failed_method_is_named():
+    from scripts.probe_dvr import plain_line, probe_stream
+
+    result = probe_stream(
+        _dvr(), 3, "sub", 1, True, describe=_opens,
+        measure=lambda *_a: {"error": "ffprobe: could not start; OpenCV: no frame within the timeout"},
+        snapshot=lambda *_a: {"error": "the DVR web port did not answer"},
+    )
+    line = plain_line(3, [result])
+    assert not result.ok
+    for word in ("ffprobe", "OpenCV", "DVR snapshot", "web port"):
+        assert word in line
+
+
+def test_snapshot_only_camera_says_the_ai_cannot_use_it():
+    from scripts.probe_dvr import plain_line, probe_stream
+
+    result = probe_stream(
+        _dvr(), 3, "main", 1, True, describe=_opens,
+        measure=lambda *_a: {"error": "OpenCV: no frame within the timeout"},
+        snapshot=lambda *_a: {"jpeg": b"x", "width": 1920, "height": 1080},
+    )
+    assert result.ok and result.video_problem
+    assert "AI monitoring will not work" in plain_line(3, [result])
+
+
+class _FakeDvrWeb:
+    """Digest login like a Hikvision web port."""
+
+    def __init__(self, password="pw"):
+        import hashlib
+        import http.server
+        import io
+        import threading
+
+        from PIL import Image
+
+        outer = self
+        self.requests = []
+        buffer = io.BytesIO()
+        Image.new("RGB", (640, 360)).save(buffer, "JPEG")
+        picture = buffer.getvalue()
+
+        def md5(text):
+            return hashlib.md5(text.encode()).hexdigest()
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *_a):
+                pass
+
+            def do_GET(self):
+                outer.requests.append(self.path)
+                header = self.headers.get("Authorization", "")
+                if not header:
+                    return self.refuse()
+                fields = dict(part.strip().split("=", 1) for part in header[7:].split(","))
+                fields = {k: v.strip('"') for k, v in fields.items()}
+                ha1 = md5(f"admin:dvr:{password}")
+                ha2 = md5(f"GET:{self.path}")
+                good = md5(f"{ha1}:{fields['nonce']}:{fields['nc']}:{fields['cnonce']}:{fields['qop']}:{ha2}")
+                if fields["response"] != good:
+                    return self.refuse()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(picture)))
+                self.end_headers()
+                self.wfile.write(picture)
+
+            def refuse(self):
+                self.send_response(401)
+                self.send_header("WWW-Authenticate", 'Digest realm="dvr", nonce="abc", qop="auth"')
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+
+        self.server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.port = self.server.server_address[1]
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+def test_snapshot_uses_digest_login_and_the_exact_hikvision_path(monkeypatch):
+    from ingestion import rtsp_probe
+    from ingestion.dvr import DvrConfig
+
+    monkeypatch.setattr(rtsp_probe, "_snapshot_login_refused", [False])
+    fake = _FakeDvrWeb()
+    try:
+        cfg = DvrConfig(host="127.0.0.1", http_port=fake.port, username="admin", password="pw")
+        picture = rtsp_probe.fetch_snapshot(cfg, 3, "main", 5)
+    finally:
+        fake.close()
+    assert (picture["width"], picture["height"]) == (640, 360)
+    assert fake.requests[-1] == "/ISAPI/Streaming/channels/301/picture"
+
+
+def test_wrong_login_stops_snapshots_so_the_dvr_does_not_lock(monkeypatch):
+    from ingestion import rtsp_probe
+    from ingestion.dvr import DvrConfig
+
+    monkeypatch.setattr(rtsp_probe, "_snapshot_login_refused", [False])
+    fake = _FakeDvrWeb(password="other")
+    try:
+        cfg = DvrConfig(host="127.0.0.1", http_port=fake.port, username="admin", password="pw")
+        first = rtsp_probe.fetch_snapshot(cfg, 1, "main", 5)
+        sent = len(fake.requests)
+        second = rtsp_probe.fetch_snapshot(cfg, 2, "main", 5)
+    finally:
+        fake.close()
+    assert "refused" in first["error"] and "refused" in second["error"]
+    assert sent <= 2 and len(fake.requests) == sent
+
+
+def test_snapshot_failure_never_shows_the_password(monkeypatch):
+    from ingestion import rtsp_probe
+    from ingestion.dvr import DvrConfig
+
+    monkeypatch.setattr(rtsp_probe, "_snapshot_login_refused", [False])
+    cfg = DvrConfig(host="127.0.0.1", http_port=1, username="admin", password="S3cret!pw")
+    assert "S3cret" not in rtsp_probe.fetch_snapshot(cfg, 1, "main", 1)["error"]
+
+
+def test_error_boxes_stay_off_in_programs_started_from_here():
+    import subprocess
+    import sys
+
+    from windows_errors import QUIET, suppress_error_boxes
+
+    if sys.platform != "win32":
+        pytest.skip("Windows setting")
+    suppress_error_boxes()
+    code = "import ctypes; print(ctypes.windll.kernel32.GetErrorMode())"
+    child = int(subprocess.run([sys.executable, "-c", code], capture_output=True, text=True).stdout)
+    assert child & QUIET == QUIET
+
+
+def test_compat_check_catches_what_broke_the_plant_pc():
+    import importlib.util
+    from pathlib import Path
+
+    pytest.importorskip("pefile")
+    path = Path(__file__).parent / "installer" / "check_windows_compat.py"
+    spec = importlib.util.spec_from_file_location("check_windows_compat", path)
+    check = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(check)
+
+    bad = check.problems_in(Path("ffprobe.exe"), {"KERNEL32.dll": {"SetThreadDescription", "Sleep"}}, set())
+    assert len(bad) == 1 and "SetThreadDescription" in bad[0]
+    assert check.problems_in(Path("a.dll"), {"KERNEL32.dll": {"Sleep"}}, set()) == []
+    assert "not in the bundle" in check.problems_in(Path("c10.dll"), {"MSVCP140.dll": set()}, set())[0]
+    assert check.problems_in(Path("c10.dll"), {"MSVCP140.dll": set()}, {"msvcp140.dll"}) == []

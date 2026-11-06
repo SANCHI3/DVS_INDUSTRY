@@ -15,7 +15,15 @@ BrandingText "DVS Industries"
 Section
   ; Files in use cannot be replaced, so stop a running copy first
   nsExec::Exec 'schtasks /end /tn "DVS CCTV Monitoring"'
-  nsExec::Exec `powershell -NoProfile -Command "Get-Process python,pythonw,mediamtx -ErrorAction SilentlyContinue | Where-Object { $$_.Path -like 'C:\dvs-cctv\*' } | Stop-Process -Force"`
+  nsExec::Exec `powershell -NoProfile -Command "Get-Process python,pythonw,mediamtx,ffmpeg,ffprobe -ErrorAction SilentlyContinue | Where-Object { $$_.Path -like 'C:\dvs-cctv\*' } | Stop-Process -Force"`
+
+  Sleep 2000
+
+  ; Only the programs are replaced. app\.env, app\logs, app\output, calibration and
+  ; app\config\cameras.yaml stay as they are, so an upgrade keeps every setting.
+  RMDir /r "$INSTDIR\python"
+  RMDir /r "$INSTDIR\ffmpeg"
+  RMDir /r "$INSTDIR\mediamtx"
 
   SetOutPath "$INSTDIR"
   File /r "..\..\stage\*.*"

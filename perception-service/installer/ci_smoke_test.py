@@ -99,6 +99,17 @@ def main() -> int:
         camera = next(e for e in events if e.get("kind") == "camera")
         assert camera["ok"] and "working, 704×576" in camera["line"], camera
 
+        # The plant failure: ffprobe cannot run. OpenCV must take over, with no error box.
+        ffprobe = core.INSTALL / "ffmpeg" / "bin" / "ffprobe.exe"
+        working_copy = ffprobe.read_bytes()
+        ffprobe.write_bytes(b"this is not a program")
+        events = []
+        core.run_probe(events.append, channels="1")
+        ffprobe.write_bytes(working_copy)
+        print("probe without ffprobe:", events)
+        camera = next(e for e in events if e.get("kind") == "camera")
+        assert camera["ok"] and camera["video"] and "working, 704×576" in camera["line"], camera
+
         pictures = core.grab_snapshots(print, channels="1")
         assert pictures, "no snapshot saved"
 

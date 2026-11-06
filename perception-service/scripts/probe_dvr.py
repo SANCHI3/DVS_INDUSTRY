@@ -24,8 +24,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from env_loader import load_env  # noqa: E402
 from ingestion.dvr import FORMAT_FALLBACKS, STREAMS, DvrConfig, mask_text  # noqa: E402
 from ingestion.rtsp_probe import (  # noqa: E402
-    StreamResult, diagnose_unreachable, measure_stream, rtsp_describe, tcp_reachable,
+    StreamResult, diagnose_unreachable, fetch_snapshot, measure_stream, rtsp_describe, tcp_reachable,
 )
+from windows_errors import suppress_error_boxes  # noqa: E402
 
 REASONS = {
     "AUTH_FAILED": "auth failed",
@@ -48,7 +49,7 @@ def parse_channels(text: str) -> list[int]:
 
 
 def probe_stream(cfg: DvrConfig, channel: int, stream: str, timeout_s: float, decode: bool,
-                 describe=rtsp_describe, measure=measure_stream) -> StreamResult:
+                 describe=rtsp_describe, measure=measure_stream, snapshot=fetch_snapshot) -> StreamResult:
     result = StreamResult(channel, stream)
     formats = [cfg.url_format, *FORMAT_FALLBACKS[cfg.url_format]]
     for fmt in formats:
@@ -66,7 +67,13 @@ def probe_stream(cfg: DvrConfig, channel: int, stream: str, timeout_s: float, de
         if decode:
             info = measure(cfg.rtsp_url(channel, stream, fmt), timeout_s, cfg.password)
             if "error" in info:
-                result.status, result.reason = "FAIL", f"opens but no picture: {info['error']}"
+                picture = snapshot(cfg, channel, stream, timeout_s)
+                if "error" in picture:
+                    result.status = "FAIL"
+                    result.reason = f"opens but no picture: {info['error']}; DVR snapshot: {picture['error']}"
+                else:
+                    result.width, result.height = picture["width"], picture["height"]
+                    result.video_problem = info["error"]
             else:
                 result.codec = info.get("codec") or result.codec
                 result.width, result.height, result.fps = info["width"], info["height"], info["fps"]
@@ -80,10 +87,15 @@ def plain_line(channel: int, results: list[StreamResult]) -> str:
     if not ok:
         reason = next((r.reason for r in results if r.reason), "")
         if "no picture" in reason:
-            return f"Camera {channel:02d}: no picture (is a camera connected to this channel?)"
+            tried = reason.split(": ", 1)[-1]
+            return f"Camera {channel:02d}: no picture. Is a camera connected to this channel? Tried {tried}"
         return f"Camera {channel:02d}: not working ({reason or 'no answer'})"
-    best = max(ok, key=lambda r: r.width * r.height)
+    video = [r for r in ok if not r.video_problem]
+    best = max(video or ok, key=lambda r: r.width * r.height)
     size = f", {best.width}×{best.height}" if best.width else ""
+    if not video:
+        return (f"Camera {channel:02d}: picture received{size}, but this PC cannot read its video, "
+                f"so the AI monitoring will not work. {best.video_problem}")
     rate = f", {best.fps:g} fps" if best.fps else ""
     return f"Camera {channel:02d}: working{size}{rate}"
 
@@ -131,7 +143,8 @@ def probe_json(cfg: DvrConfig, channels: list[int], timeout_s: float) -> int:
                 return 1
         ok = [r for r in results if r.ok]
         working += [r.url_format for r in ok]
-        emit(kind="camera", channel=channel, ok=bool(ok), line=plain_line(channel, results))
+        emit(kind="camera", channel=channel, ok=bool(ok), video=any(not r.video_problem for r in ok),
+             line=plain_line(channel, results))
     if working:
         emit(kind="done", url_format=max(set(working), key=working.count))
     return 0 if working else 1
@@ -146,6 +159,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="one JSON line per camera, for the setup window")
     args = parser.parse_args(argv)
 
+    suppress_error_boxes()
     load_env()
     try:
         cfg = DvrConfig.from_env()

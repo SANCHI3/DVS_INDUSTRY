@@ -25,6 +25,9 @@ APP = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(APP))
 
 from ingestion.dvr import mask_text  # noqa: E402
+from windows_errors import suppress_error_boxes  # noqa: E402
+
+suppress_error_boxes()  # also covers everything this window starts
 
 INSTALL = APP.parent
 ENV_PATH = APP / ".env"
@@ -159,6 +162,9 @@ def run_lines(cmd: list[str], on_line: Callable[[str], None]) -> int:
 
 def run_probe(on_event: Callable[[dict], None], channels: str = "1-8") -> None:
     def parse(line: str) -> None:
+        if line.startswith(("Probe failed", "Setup problem")):
+            on_event({"kind": "error", "message": line})
+            return
         try:
             on_event(json.loads(line))
         except ValueError:

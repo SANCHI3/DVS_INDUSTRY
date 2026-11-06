@@ -20,8 +20,11 @@ sys.path.insert(0, str(ROOT))
 
 from env_loader import load_env  # noqa: E402
 from ingestion.dvr import FORMAT_FALLBACKS, DvrConfig, mask_text  # noqa: E402
-from ingestion.rtsp_probe import OPENCV_TCP_OPTIONS, diagnose_unreachable, tcp_reachable  # noqa: E402
+from ingestion.rtsp_probe import (  # noqa: E402
+    OPENCV_TCP_OPTIONS, diagnose_unreachable, fetch_snapshot, tcp_reachable,
+)
 from scripts.probe_dvr import parse_channels  # noqa: E402
+from windows_errors import suppress_error_boxes  # noqa: E402
 
 SNAPSHOT_DIR = ROOT / "calibration" / "snapshots"
 
@@ -44,6 +47,22 @@ def grab_frame(url: str, timeout_s: float, skip: int = 5):
         cap.release()
 
 
+def save_from_video(cfg: DvrConfig, channel: int, stream: str, formats: list[str], timeout_s: float,
+                    path: Path) -> tuple[int, int] | None:
+    """(width, height) of the saved picture, or None if the video could not be read."""
+    try:
+        import cv2
+
+        for fmt in formats:
+            frame = grab_frame(cfg.rtsp_url(channel, stream, fmt), timeout_s)
+            if frame is not None:
+                cv2.imwrite(str(path), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+                return frame.shape[1], frame.shape[0]
+    except (ImportError, OSError):
+        pass  # the snapshot needs no video decoder
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--channels", default="1-8")
@@ -52,6 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=SNAPSHOT_DIR)
     args = parser.parse_args(argv)
 
+    suppress_error_boxes()
     load_env()
     try:
         cfg = DvrConfig.from_env()
@@ -66,24 +86,22 @@ def main(argv: list[str] | None = None) -> int:
     os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = OPENCV_TCP_OPTIONS.format(timeout_us=int(args.timeout * 1e6))
     os.environ.setdefault("OPENCV_FFMPEG_LOGLEVEL", "-8")
     os.environ.setdefault("OPENCV_LOG_LEVEL", "SILENT")
-    import cv2
 
     args.out.mkdir(parents=True, exist_ok=True)
     formats = [cfg.url_format, *FORMAT_FALLBACKS[cfg.url_format]]
     saved = 0
     for channel in parse_channels(args.channels):
-        frame = None
-        for fmt in formats:
-            frame = grab_frame(cfg.rtsp_url(channel, args.stream, fmt), args.timeout)
-            if frame is not None:
-                break
-        if frame is None:
-            print(f"  ch{channel}: no picture (run scripts/probe_dvr.py for the reason)")
-            continue
         path = args.out / f"ch{channel}.jpg"
-        cv2.imwrite(str(path), frame, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+        size = save_from_video(cfg, channel, args.stream, formats, args.timeout, path)
+        if size is None:
+            picture = fetch_snapshot(cfg, channel, args.stream, args.timeout)
+            if "error" in picture:
+                print(f"  ch{channel}: no picture (video failed; DVR snapshot: {picture['error']})")
+                continue
+            path.write_bytes(picture["jpeg"])
+            size = (picture["width"], picture["height"])
         saved += 1
-        print(f"  ch{channel}: {frame.shape[1]}x{frame.shape[0]} -> {path}", flush=True)
+        print(f"  ch{channel}: {size[0]}x{size[1]} -> {path}", flush=True)
     print(f"\nSaved {saved} picture(s) to {args.out}")
     return 0 if saved else 1
 

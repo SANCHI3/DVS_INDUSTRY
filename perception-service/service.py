@@ -31,6 +31,7 @@ from env_loader import load_env  # noqa: E402
 from ingestion.dvr import DvrConfig, mask_text  # noqa: E402
 from ingestion.dvr_finder import read_env_value  # noqa: E402
 from system_load import read_status, set_low_priority  # noqa: E402
+from windows_errors import suppress_error_boxes  # noqa: E402
 
 LOG_DIR = ROOT / "logs"
 RESTART_DELAYS = (5, 15, 30, 60, 120, 300)
@@ -319,6 +320,7 @@ def doctor(channels: int = 8, out=print) -> int:
 
 
 def main(argv=None) -> int:
+    suppress_error_boxes()  # passes on to the monitoring and MediaMTX
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     run_p = sub.add_parser("run", help="run all cameras with automatic restart and log files")

@@ -209,13 +209,15 @@ class Setup(tk.Tk):
                                                saved.get("DASHBOARD_SERVICE_KEY", ""))
             self.say(box, text)
             self.say(box, "Checking the cameras…")
-            good, blocked, url_format = [], [False], [None]
+            good, no_video, blocked, url_format = [], [], [False], [None]
 
             def on_event(event: dict) -> None:
                 if event.get("kind") == "camera":
                     self.say(box, event["line"])
                     if event["ok"]:
                         good.append(event["channel"])
+                        if not event.get("video", True):
+                            no_video.append(event["channel"])
                 elif event.get("kind") == "done":
                     url_format[0] = event["url_format"]
                 elif event.get("message"):
@@ -226,6 +228,9 @@ class Setup(tk.Tk):
             if url_format[0]:
                 core.save_setting("DVR_URL_FORMAT", url_format[0])
             self.say(box, f"\n{len(good)} of 8 cameras working.")
+            if no_video:
+                self.say(box, f"{len(no_video)} of these gave a picture only, so the AI monitoring "
+                              "will not work on them yet. Send this page to support.")
 
             def finish() -> None:
                 if not self.test_only:
