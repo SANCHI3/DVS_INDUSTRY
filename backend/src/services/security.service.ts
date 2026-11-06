@@ -1,5 +1,5 @@
 import { SecurityRepository } from '../repositories/security.repository';
-import { CameraRepository } from '../repositories/camera.repository';
+import { CameraRepository, type CameraNames } from '../repositories/camera.repository';
 import type {
   BulkIncidentAction,
   BulkIncidentResult,
@@ -27,6 +27,7 @@ import { NotFoundError, BadRequestError } from '../errors';
 import { logger } from '../logger';
 import { publishSecurityEvent } from '../lib/securityEvents';
 import { prisma } from '../lib/prismaClient';
+import { cameraLabel, displayedCamera } from '../utils/cameraLabel';
 
 /**
  * SecurityService — business rules:
@@ -46,6 +47,27 @@ import { prisma } from '../lib/prismaClient';
  *  8. Auto-expire: if expiresAt is past and status is ACTIVE → mark EXPIRED
  *  9. Cannot delete ACTIVE/CRITICAL alerts directly — must resolve first
  */
+
+/** The plant only knows its own camera names: use the website's on a new incident. */
+export function withWebsiteName<
+  T extends {
+    location?: string | null | undefined;
+    description: string;
+    aiSummary?: string | null | undefined;
+  },
+>(data: T, names: CameraNames | undefined): T {
+  if (!names?.displayName && !names?.displayZone) return data;
+  const shown = displayedCamera(names);
+  const location = cameraLabel(shown.name, shown.zone);
+  const plant = data.location;
+  const swap = (text: string) => (plant ? text.split(plant).join(location) : text);
+  return {
+    ...data,
+    location,
+    description: swap(data.description),
+    aiSummary: data.aiSummary ? swap(data.aiSummary) : data.aiSummary,
+  };
+}
 
 const ALLOWED_INCIDENT_TRANSITIONS: Record<IncidentStatus, IncidentStatus[]> = {
   OPEN: ['INVESTIGATING', 'RESOLVED'],
@@ -81,8 +103,8 @@ export class SecurityService {
 
     try {
       // The camera row may not exist yet if the incident beats the first heartbeat
-      if (data.camera) await this.cameras.ensure(data.camera);
-      const incident = await this.repo.createIncident(data);
+      const names = data.camera ? await this.cameras.ensure(data.camera) : undefined;
+      const incident = await this.repo.createIncident(withWebsiteName(data, names));
       logger.info('Security incident created', {
         id: incident.id,
         number: incident.incidentNumber,

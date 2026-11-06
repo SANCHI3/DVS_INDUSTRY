@@ -12,8 +12,10 @@ export interface CameraLive {
   lastFrameAt: Date | null;
   achievedFps: number | null;
   inferMs: number | null;
-  /** A change could not be saved; try again on the next heartbeat */
+  /** A change is waiting to be saved; it goes with a later heartbeat */
   unsaved: boolean;
+  /** When the database last heard about this camera */
+  savedAt: Date | null;
 }
 
 export interface InstanceLive {
@@ -35,14 +37,17 @@ export interface SnapshotLive {
  *
  * The CCTV PC reports every 30 s and sends 8 pictures every 2 minutes. Writing
  * each to Neon would keep the free database awake around the clock, so the
- * database only hears about status changes (and a picture every 30 minutes).
- * After a restart the next heartbeat fills this in again within 30 s.
+ * database only hears about status changes, and gets a refresh (last seen time
+ * and a picture) every 30 minutes. After a restart the page shows those saved
+ * values until the next heartbeat fills this in again, within 30 s.
  */
 export class CameraState {
   readonly cameras = new Map<string, CameraLive>();
   readonly instances = new Map<string, InstanceLive>();
   readonly snapshots = new Map<string, SnapshotLive>();
   hydrated = false;
+
+  constructor(readonly bootedAt: Date = new Date()) {}
 }
 
 /** One per process: every CameraService reads the same memory. */

@@ -35,7 +35,7 @@ import { useTabHash } from "../../../lib/useTabHash";
 import { downloadCSV } from "../../../lib/csv";
 import { Modal } from "../shared/Modal";
 import { useApiData } from "../../../lib/useApiData";
-import { getCameras, type CameraDto } from "../../../lib/services/cameras.service";
+import { getCameras, renameCamera, type CameraDto } from "../../../lib/services/cameras.service";
 import { liveBadgeState, monitoringBanner } from "../../../lib/cameraStatus";
 import { CamerasPanel } from "./security/CamerasPanel";
 
@@ -527,7 +527,15 @@ export function SecurityPage() {
           <Card style={{ borderRadius: "0.75rem" }}>
             <CardHeader title="Cameras" subtitle="Status and latest picture of each factory camera; refreshes every minute" />
             <div className="p-5">
-              <CamerasPanel overview={cameras.data} loading={cameras.loading} error={cameras.error} onSelect={showCameraIncidents} />
+              <CamerasPanel
+                overview={cameras.data}
+                loading={cameras.loading}
+                error={cameras.error}
+                onSelect={showCameraIncidents}
+                onRename={securityActions(getStoredBackendRole()).renameCameras
+                  ? async (camera, names) => { await renameCamera(camera.id, names); cameras.reload(); loadAll(); }
+                  : undefined}
+              />
             </div>
           </Card>
         )}

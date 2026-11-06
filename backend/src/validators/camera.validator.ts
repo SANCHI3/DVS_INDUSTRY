@@ -37,6 +37,14 @@ export const cameraIdParamSchema = z.object({
   id: z.string().regex(SAFE_ID, 'Invalid camera id'),
 });
 
+/** PATCH /cameras/:id: website names. Empty goes back to what the plant reports. */
+export const cameraRenameSchema = z
+  .object({
+    name: z.string().max(100).trim().optional().nullable(),
+    zone: z.string().max(100).trim().optional().nullable(),
+  })
+  .refine((v) => v.name !== undefined || v.zone !== undefined, 'Send a name or an area');
+
 export const liveTokenQuerySchema = z.object({
   quality: z.enum(['sd', 'hd']).optional().default('sd'),
 });
@@ -53,4 +61,5 @@ export const streamAuthSchema = z.object({
 
 export type StreamAuthInput = z.infer<typeof streamAuthSchema>;
 export type HeartbeatInput = z.infer<typeof heartbeatSchema>;
+export type CameraRenameInput = z.infer<typeof cameraRenameSchema>;
 export type CameraHeartbeatItem = z.infer<typeof cameraHeartbeatItem>;

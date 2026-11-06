@@ -6,6 +6,8 @@ export const cameraSelect = {
   channel: true,
   name: true,
   zone: true,
+  displayName: true,
+  displayZone: true,
   enabled: true,
   status: true,
   statusDetail: true,
@@ -18,6 +20,15 @@ export const cameraSelect = {
 } satisfies Prisma.CameraSelect;
 
 export type CameraRow = Prisma.CameraGetPayload<{ select: typeof cameraSelect }>;
+
+const cameraNamesSelect = {
+  name: true,
+  zone: true,
+  displayName: true,
+  displayZone: true,
+} satisfies Prisma.CameraSelect;
+
+export type CameraNames = Prisma.CameraGetPayload<{ select: typeof cameraNamesSelect }>;
 
 export interface LastDetectionRow {
   cameraId: string;
@@ -75,12 +86,36 @@ export class CameraRepository {
     name: string;
     zone: string | null;
     channel: number | null;
-  }): Promise<void> {
-    await prisma.camera.upsert({
+  }): Promise<CameraNames> {
+    return prisma.camera.upsert({
       where: { id: cam.id },
       create: { id: cam.id, name: cam.name, zone: cam.zone, channel: cam.channel },
       update: {},
+      select: cameraNamesSelect,
     });
+  }
+
+  async findNames(id: string): Promise<CameraNames | null> {
+    return prisma.camera.findUnique({ where: { id }, select: cameraNamesSelect });
+  }
+
+  /**
+   * Saves the website's names and puts them on this camera's incidents and
+   * alerts, so reports, notifications and Ask DVS all read the same name.
+   */
+  async rename(
+    id: string,
+    names: { displayName: string | null; displayZone: string | null },
+    location: string,
+  ): Promise<void> {
+    await prisma.$transaction([
+      prisma.camera.update({ where: { id }, data: names }),
+      prisma.securityIncident.updateMany({ where: { cameraId: id }, data: { location } }),
+      prisma.securityAlert.updateMany({
+        where: { incident: { cameraId: id } },
+        data: { location },
+      }),
+    ]);
   }
 
   async saveInstance(

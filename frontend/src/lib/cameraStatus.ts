@@ -36,6 +36,16 @@ export function monitoringBanner(monitoring: MonitoringDto | null | undefined, n
     : "CCTV monitoring PC is offline";
 }
 
+/** The red banner on the Cameras tab, after 10 minutes without a heartbeat. */
+export function plantOfflineBanner(monitoring: MonitoringDto | null | undefined, now: Date = new Date()): string | null {
+  if (!monitoring?.offlineAlert) return null;
+  if (!monitoring.since) return "Plant computer offline. Check that it is on and has internet.";
+  const since = new Date(monitoring.since);
+  const time = since.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+  const day = since.toDateString() === now.toDateString() ? "" : `${since.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}, `;
+  return `Plant computer offline since ${day}${time}. Check that it is on and has internet.`;
+}
+
 /** Text under a tile: why it is offline / no video, or how recent the picture is. */
 export function cameraLine(camera: CameraDto, now: number = Date.now()): string {
   if (camera.status === "OFFLINE") return camera.statusSince ? `Offline since ${clockTime(camera.statusSince, new Date(now))}` : "Offline";

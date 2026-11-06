@@ -4,7 +4,11 @@ import { CameraService, type LiveQuality } from '../services/camera.service';
 import type { AuthenticatedRequest } from '../types';
 import { liveTokenPath } from '../utils/liveToken';
 import { sendNoContent, sendSuccess } from '../utils/response';
-import type { HeartbeatInput, StreamAuthInput } from '../validators/camera.validator';
+import type {
+  CameraRenameInput,
+  HeartbeatInput,
+  StreamAuthInput,
+} from '../validators/camera.validator';
 
 const cameraService = new CameraService();
 const auditRepo = new AuditRepository();
@@ -29,6 +33,11 @@ export async function uploadSnapshot(req: Request, res: Response): Promise<void>
 
 export async function listCameras(_req: Request, res: Response): Promise<void> {
   sendSuccess(res, await cameraService.list());
+}
+
+export async function renameCamera(req: Request, res: Response): Promise<void> {
+  const names = await cameraService.rename(String(req.params['id']), req.body as CameraRenameInput);
+  sendSuccess(res, names, 200, 'Camera updated');
 }
 
 export async function getSnapshot(req: Request, res: Response): Promise<void> {

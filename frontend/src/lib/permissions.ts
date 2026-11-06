@@ -138,6 +138,7 @@ export function securityActions(role: string | null | undefined) {
   return {
     manageIncidents: is(role, "ADMIN", "MANAGER"),
     deleteIncidents: is(role, "ADMIN"),
+    renameCameras: is(role, "ADMIN"),
   };
 }
 export type SecurityActions = ReturnType<typeof securityActions>;

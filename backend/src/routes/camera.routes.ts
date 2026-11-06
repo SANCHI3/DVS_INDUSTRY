@@ -6,6 +6,7 @@ import { authorize } from '../middleware/authorize';
 import * as CameraController from '../controllers/camera.controller';
 import {
   cameraIdParamSchema,
+  cameraRenameSchema,
   heartbeatSchema,
   liveTokenQuerySchema,
   streamAuthSchema,
@@ -65,6 +66,18 @@ router.post(
 
 /** GET /api/v1/cameras: status of every camera + monitoring PC. Access: ADMIN, MANAGER, PRODUCTION */
 router.get('/', authorize(...SEC_READ), asyncHandler(CameraController.listCameras));
+
+/**
+ * PATCH /api/v1/cameras/:id
+ * Body: { name?, zone? }. The name and area shown everywhere; heartbeats never
+ * change them. Access: ADMIN
+ */
+router.patch(
+  '/:id',
+  authorize(ROLES.ADMIN),
+  validateRequest({ params: cameraIdParamSchema, body: cameraRenameSchema }),
+  asyncHandler(CameraController.renameCamera),
+);
 
 /** GET /api/v1/cameras/:id/snapshot: the latest picture (image/jpeg). Access: ADMIN, MANAGER, PRODUCTION */
 router.get(

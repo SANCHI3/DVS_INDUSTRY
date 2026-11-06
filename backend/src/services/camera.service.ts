@@ -2,18 +2,27 @@ import type { CameraStatus, Prisma } from '@prisma/client';
 import { BadRequestError, NotFoundError } from '../errors';
 import { logger } from '../logger';
 import { CameraRepository, type CameraRow } from '../repositories/camera.repository';
+import { cameraLabel, displayedCamera } from '../utils/cameraLabel';
 import { jpegDimensions } from '../utils/jpeg';
 import { LIVE_TOKEN_TTL_S, signLiveToken } from '../utils/liveToken';
-import type { HeartbeatInput } from '../validators/camera.validator';
+import type { CameraRenameInput, HeartbeatInput } from '../validators/camera.validator';
 import type { CameraState } from './camera.state';
 import { sharedCameraState, type CameraLive } from './camera.state';
 
 /** No heartbeat for this long: the camera (or the whole monitoring PC) is offline. */
 export const HEARTBEAT_STALE_MS = 3 * 60_000;
+/** Silent this long: the red banner and the admin notification. */
+export const OFFLINE_ALERT_MS = 10 * 60_000;
 export const SNAPSHOT_MAX_BYTES = 100 * 1024;
 export const SNAPSHOT_MAX_WIDTH = 640;
-/** Memory holds the newest picture; the database gets one this often at most. */
+/**
+ * Memory holds the newest heartbeat and picture; the database gets them this
+ * often. Writing every minute would keep Neon awake all day and use up the free
+ * compute hours, and the page only needs these after a restart.
+ */
 export const DB_REFRESH_MS = 30 * 60_000;
+/** However often a camera's status flips, at most one database write a minute. */
+export const MIN_DB_WRITE_MS = 60_000;
 /** The address the CCTV PC reports for live video: only its own Tailscale name. */
 const LIVE_URL = /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.ts\.net$/;
 
@@ -27,6 +36,9 @@ export interface CameraDto {
   channel: number | null;
   name: string;
   zone: string | null;
+  /** What the plant calls it, shown when editing the name */
+  plantName: string;
+  plantZone: string | null;
   enabled: boolean;
   status: CameraStatus;
   statusDetail: string | null;
@@ -53,6 +65,12 @@ export interface MonitoringDto {
   /** online: the factory PC reports; offline: it stopped; never: it has not reported yet */
   state: 'online' | 'offline' | 'never';
   since: string | null;
+  /** The last heartbeat from the plant computer */
+  lastSeenAt: string | null;
+  /** Silent for 10 minutes: show the red banner */
+  offlineAlert: boolean;
+  /** Software version on the plant computer, once it reports one */
+  version: string | null;
   /** e.g. "DVR address changed to 192.168.0.110" */
   notice: string | null;
   /** Live video is switched on at the CCTV PC */
@@ -67,13 +85,32 @@ export interface MonitoringDto {
 
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);
 
+/**
+ * Just after a restart the newest heartbeat is the one saved in the database,
+ * up to 30 minutes old. For the first 3 minutes that counts as current, so the
+ * page does not show "0 of 8" while the next heartbeat is on its way.
+ */
+export function savedHeartbeatStillCounts(bootedAt: Date, last: Date, now: Date): boolean {
+  const sinceBoot = now.getTime() - bootedAt.getTime();
+  return (
+    sinceBoot >= 0 &&
+    sinceBoot <= HEARTBEAT_STALE_MS &&
+    now.getTime() - last.getTime() <= DB_REFRESH_MS + HEARTBEAT_STALE_MS
+  );
+}
+
 /** OFFLINE when the last heartbeat is older than 3 minutes, else what was reported. */
 export function effectiveStatus(
   row: Pick<CameraRow, 'status' | 'statusSince' | 'lastHeartbeatAt'>,
   now: Date,
+  bootedAt?: Date,
 ): { status: CameraStatus; since: Date | null } {
   const last = row.lastHeartbeatAt;
-  if (!last || now.getTime() - last.getTime() > HEARTBEAT_STALE_MS) {
+  const current =
+    last &&
+    (now.getTime() - last.getTime() <= HEARTBEAT_STALE_MS ||
+      (bootedAt && savedHeartbeatStillCounts(bootedAt, last, now)));
+  if (!current) {
     return { status: 'OFFLINE', since: last ?? row.statusSince ?? null };
   }
   return { status: row.status, since: row.statusSince };
@@ -98,8 +135,10 @@ export class CameraService {
   private async hydrate(): Promise<void> {
     if (this.state.hydrated) return;
     const [rows, instances] = await Promise.all([this.repo.findAll(), this.repo.findInstances()]);
-    for (const { id, snapshotAt, ...row } of rows) {
-      if (!this.state.cameras.has(id)) this.state.cameras.set(id, { ...row, unsaved: false });
+    for (const { id, snapshotAt, displayName: _name, displayZone: _zone, ...row } of rows) {
+      if (!this.state.cameras.has(id)) {
+        this.state.cameras.set(id, { ...row, unsaved: false, savedAt: row.lastHeartbeatAt });
+      }
       if (snapshotAt && !this.state.snapshots.has(id)) {
         this.state.snapshots.set(id, { data: null, at: snapshotAt, savedAt: snapshotAt });
       }
@@ -164,6 +203,7 @@ export class CameraService {
         achievedFps: cam.achievedFps ?? null,
         inferMs: cam.inferMs ?? null,
         unsaved: false,
+        savedAt: previous?.savedAt ?? null,
       };
       const detailsChanged =
         !previous ||
@@ -172,13 +212,16 @@ export class CameraService {
           (k) => previous[k] !== details[k],
         );
       this.state.cameras.set(cam.id, live);
-      if (statusChanged || detailsChanged || previous.unsaved) {
+      const changed = statusChanged || detailsChanged || previous?.unsaved === true;
+      const sinceSaved = live.savedAt ? now.getTime() - live.savedAt.getTime() : Infinity;
+      if ((changed && sinceSaved >= MIN_DB_WRITE_MS) || sinceSaved >= DB_REFRESH_MS) {
         try {
           await this.repo.upsertFromHeartbeat(
             { id: cam.id, ...live },
             now,
             live.statusSince ?? now,
           );
+          live.savedAt = now;
         } catch (err) {
           // The website keeps working from memory; the next heartbeat tries again
           live.unsaved = true;
@@ -187,6 +230,8 @@ export class CameraService {
             error: err instanceof Error ? err.message : String(err),
           });
         }
+      } else if (changed) {
+        live.unsaved = true;
       }
       if (previous && statusChanged) {
         logger.info('Camera status changed', {
@@ -212,7 +257,8 @@ export class CameraService {
       previous.source !== input.source ||
       previous.cameraIds.join() !== cameraIds.join() ||
       previous.info?.['dvrNotice'] !== info?.['dvrNotice'] ||
-      previous.info?.['liveUrl'] !== info?.['liveUrl'];
+      previous.info?.['liveUrl'] !== info?.['liveUrl'] ||
+      previous.info?.['version'] !== info?.['version'];
     const stale = !previous?.savedAt || now.getTime() - previous.savedAt.getTime() >= DB_REFRESH_MS;
     let savedAt = previous?.savedAt ?? null;
     if (changed || stale) {
@@ -239,6 +285,22 @@ export class CameraService {
       lastHeartbeatAt: now,
       savedAt,
     });
+  }
+
+  /** The website's name and area for a camera. An empty value goes back to the plant's. */
+  async rename(
+    id: string,
+    input: CameraRenameInput,
+  ): Promise<{ name: string; zone: string | null }> {
+    const row = await this.repo.findNames(id);
+    if (!row) throw new NotFoundError('Camera not found');
+    const names = {
+      displayName: input.name === undefined ? row.displayName : input.name || null,
+      displayZone: input.zone === undefined ? row.displayZone : input.zone || null,
+    };
+    const shown = displayedCamera({ ...row, ...names });
+    await this.repo.rename(id, names, cameraLabel(shown.name, shown.zone));
+    return shown;
   }
 
   /** A 2-minute pass for one camera's live video, or the reason there is none. */
@@ -332,19 +394,23 @@ export class CameraService {
     const detections = new Map(
       (await this.repo.lastDetections(rows.map((r) => r.id))).map((d) => [d.cameraId, d]),
     );
+    const { bootedAt } = this.state;
     const fresh = instances.filter(
-      (i) => now.getTime() - i.lastHeartbeatAt.getTime() <= HEARTBEAT_STALE_MS,
+      (i) =>
+        now.getTime() - i.lastHeartbeatAt.getTime() <= HEARTBEAT_STALE_MS ||
+        savedHeartbeatStillCounts(bootedAt, i.lastHeartbeatAt, now),
     );
 
     const cameras = rows.map((row): CameraDto => {
-      const { status, since } = effectiveStatus(row, now);
+      const { status, since } = effectiveStatus(row, now, bootedAt);
       const sources = fresh.filter((i) => i.cameraIds.includes(row.id)).map((i) => i.id);
       const d = detections.get(row.id);
       return {
         id: row.id,
         channel: row.channel,
-        name: row.name,
-        zone: row.zone,
+        ...displayedCamera(row),
+        plantName: row.name,
+        plantZone: row.zone,
         enabled: row.enabled,
         status,
         statusDetail: status === row.status ? row.statusDetail : null,
@@ -379,6 +445,12 @@ export class CameraService {
       monitoring: {
         state: liveOnline ? 'online' : live.length > 0 ? 'offline' : 'never',
         since: liveOnline ? null : iso(lastLive),
+        lastSeenAt: iso(lastLive),
+        offlineAlert:
+          !liveOnline &&
+          lastLive !== null &&
+          now.getTime() - lastLive.getTime() >= OFFLINE_ALERT_MS,
+        version: infoText(live, 'version'),
         notice: infoText(live, 'dvrNotice'),
         liveEnabled:
           liveOnline &&

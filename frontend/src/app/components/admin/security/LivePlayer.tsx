@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { getLivePass, type CameraDto, type LiveQuality } from "../../../../lib/services/cameras.service";
 import { playLive } from "../../../../lib/liveStream";
+import { CameraSnapshot } from "./CameraSnapshot";
 
 type LiveState = "connecting" | "live" | "camera-offline" | "pc-offline" | "not-enabled" | "failed";
 
@@ -10,8 +11,8 @@ export const LIVE_STATE_TEXT: Record<LiveState, string> = {
   live: "Live",
   "camera-offline": "Camera offline",
   "pc-offline": "Monitoring PC offline",
-  "not-enabled": "Live view is not switched on yet",
-  failed: "Could not start the video. Try again.",
+  "not-enabled": "Live view starts after the plant computer restarts",
+  failed: "Could not start, try again",
 };
 
 const REASON_STATE = {
@@ -25,6 +26,7 @@ export function LivePlayer({ camera, onClose }: { camera: CameraDto; onClose: ()
   const video = useRef<HTMLVideoElement>(null);
   const [quality, setQuality] = useState<LiveQuality>("sd");
   const [state, setState] = useState<LiveState>("connecting");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,15 +46,26 @@ export function LivePlayer({ camera, onClose }: { camera: CameraDto; onClose: ()
       cancelled = true;
       stop?.();
     };
-  }, [camera.id, quality]);
+  }, [camera.id, quality, attempt]);
 
   return (
     <div className="relative overflow-hidden rounded-t-lg" style={{ aspectRatio: "16 / 10", background: "#1F1A19" }}>
       <video ref={video} autoPlay muted playsInline aria-label={`Live video from ${camera.name}`} className="h-full w-full object-contain" />
       {state !== "live" && (
-        <span role="status" className="absolute inset-0 flex items-center justify-center px-3 text-center" style={{ color: "#fff", fontSize: "0.78rem" }}>
-          {LIVE_STATE_TEXT[state]}
-        </span>
+        <>
+          {/* Until the video runs, or if it cannot, the latest picture stays on screen */}
+          <div className="absolute inset-0"><CameraSnapshot camera={camera} /></div>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 px-3 text-center">
+            <span role="status" className="rounded px-2 py-1" style={{ background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: "0.78rem" }}>
+              {LIVE_STATE_TEXT[state]}
+            </span>
+            {state === "failed" && (
+              <button type="button" onClick={() => setAttempt(attempt + 1)} className="rounded px-2 py-0.5" style={{ background: "#fff", color: "#302725", fontSize: "0.7rem", fontWeight: 700, cursor: "pointer" }}>
+                Try again
+              </button>
+            )}
+          </div>
+        </>
       )}
       <div className="absolute left-1.5 top-1.5 flex items-center gap-1">
         {state === "live" && (

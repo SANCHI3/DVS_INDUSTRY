@@ -993,8 +993,12 @@ enum CameraStatus {
 model Camera {
   id              String       @id // dvr-ch1
   channel         Int?
+  /// What the plant reports. Heartbeats may change these two
   name            String
   zone            String?
+  /// Set on the website. These win over name and zone, and heartbeats never touch them
+  displayName     String?
+  displayZone     String?
   enabled         Boolean      @default(true)
   status          CameraStatus @default(CONNECTING)
   statusDetail    String?

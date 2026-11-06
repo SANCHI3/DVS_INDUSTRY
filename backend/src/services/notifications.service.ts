@@ -61,12 +61,13 @@ export async function cameraNotifications(
 ): Promise<Array<Omit<NotificationItem, 'unread'>>> {
   const { cameras: list, monitoring } = await cameras.list(now);
   if (monitoring.state === 'offline') {
+    if (!monitoring.offlineAlert) return [];
     return [
       {
         id: 'cctv-pc-offline',
         kind: 'camera',
         severity: 'critical',
-        message: 'CCTV monitoring PC is offline',
+        message: 'Plant computer is offline. Check that it is on and has internet.',
         at: monitoring.since ?? now.toISOString(),
         section: 'security-cameras',
       },

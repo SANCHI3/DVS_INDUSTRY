@@ -8,6 +8,7 @@ vi.mock('../../lib/prismaClient', () => ({ prisma: {} }));
 
 import { CameraService, DB_REFRESH_MS } from '../../services/camera.service';
 import { CameraState } from '../../services/camera.state';
+import { withWebsiteName } from '../../services/security.service';
 import { liveTokenPath, signLiveToken } from '../../utils/liveToken';
 import { serviceKeyMatches } from '../../utils/serviceKey';
 import { resolveAction } from '../../middleware/auditLog';
@@ -196,5 +197,209 @@ describe('service key', () => {
   it('lets nobody in when the key is missing or too short', () => {
     expect(serviceKeyMatches('', undefined)).toBe(false);
     expect(serviceKeyMatches('short', 'short')).toBe(false);
+  });
+});
+
+describe('after the API restarts', () => {
+  const saved = (minutesAgo: number) => ({
+    id: 'dvr-ch1',
+    channel: 1,
+    name: 'Camera 01',
+    zone: null,
+    displayName: 'Store aisle',
+    displayZone: 'Warehouse',
+    enabled: true,
+    status: 'ONLINE',
+    statusDetail: null,
+    statusSince: new Date(NOW.getTime() - 86_400_000),
+    lastHeartbeatAt: new Date(NOW.getTime() - minutesAgo * 60_000),
+    lastFrameAt: null,
+    achievedFps: 1,
+    inferMs: 80,
+    snapshotAt: new Date(NOW.getTime() - minutesAgo * 60_000),
+  });
+  const instance = (minutesAgo: number) => ({
+    id: 'plant-pc',
+    source: 'LIVE',
+    cameraIds: ['dvr-ch1'],
+    info: null,
+    lastHeartbeatAt: new Date(NOW.getTime() - minutesAgo * 60_000),
+  });
+  const restarted = (minutesAgo: number, bootedMsAgo: number) => {
+    const { repo } = setup();
+    repo.findAll.mockResolvedValue([saved(minutesAgo)]);
+    repo.findInstances.mockResolvedValue([instance(minutesAgo)]);
+    const state = new CameraState(new Date(NOW.getTime() - bootedMsAgo));
+    return { repo, service: new CameraService(repo as unknown as CameraRepository, state) };
+  };
+
+  it('shows the saved cameras, names and picture instead of 0 of 8', async () => {
+    const { service } = restarted(25, 20_000);
+    const { cameras, monitoring } = await service.list(NOW);
+    expect(cameras[0]).toMatchObject({
+      status: 'ONLINE',
+      name: 'Store aisle',
+      zone: 'Warehouse',
+      hasSnapshot: true,
+    });
+    expect(monitoring.state).toBe('online');
+  });
+
+  it('stops trusting the saved status once a heartbeat should have come', async () => {
+    const { service } = restarted(25, 4 * 60_000);
+    const { cameras, monitoring } = await service.list(NOW);
+    expect(cameras[0]?.status).toBe('OFFLINE');
+    expect(monitoring.state).toBe('offline');
+  });
+
+  it('is online again from the next heartbeat', async () => {
+    const { service } = restarted(25, 4 * 60_000);
+    await service.heartbeat(beat(), NOW);
+    expect((await service.list(NOW)).cameras[0]?.status).toBe('ONLINE');
+  });
+
+  it('keeps website names out of memory, so a rename is seen at once', async () => {
+    const { repo, service } = restarted(25, 20_000);
+    await service.heartbeat(beat(), NOW);
+    repo.findAll.mockResolvedValue([{ ...saved(0), displayName: 'Front gate' }]);
+    expect((await service.list(NOW)).cameras[0]?.name).toBe('Front gate');
+  });
+});
+
+describe('website camera names', () => {
+  it('heartbeats never write them', async () => {
+    const { repo, service } = setup();
+    await service.heartbeat(beat(), NOW);
+    const sent = repo.upsertFromHeartbeat.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect(sent).not.toHaveProperty('displayName');
+    expect(sent).not.toHaveProperty('displayZone');
+  });
+
+  it('saves the name and puts it on the incidents and alerts', async () => {
+    const rename = vi.fn().mockResolvedValue(undefined);
+    const findNames = vi
+      .fn()
+      .mockResolvedValue({ name: 'Camera 01', zone: null, displayName: null, displayZone: null });
+    const service = new CameraService(
+      { rename, findNames } as unknown as CameraRepository,
+      new CameraState(),
+    );
+    await service.rename('dvr-ch1', { name: 'Store aisle', zone: 'Warehouse' });
+    expect(rename).toHaveBeenCalledWith(
+      'dvr-ch1',
+      { displayName: 'Store aisle', displayZone: 'Warehouse' },
+      'Store aisle, Warehouse',
+    );
+  });
+
+  it('goes back to the plant name when emptied, and leaves the other field alone', async () => {
+    const rename = vi.fn().mockResolvedValue(undefined);
+    const findNames = vi.fn().mockResolvedValue({
+      name: 'Camera 01',
+      zone: null,
+      displayName: 'Old',
+      displayZone: 'Warehouse',
+    });
+    const service = new CameraService(
+      { rename, findNames } as unknown as CameraRepository,
+      new CameraState(),
+    );
+    await service.rename('dvr-ch1', { name: '' });
+    expect(rename).toHaveBeenCalledWith(
+      'dvr-ch1',
+      { displayName: null, displayZone: 'Warehouse' },
+      'Camera 01, Warehouse',
+    );
+  });
+
+  it('refuses a camera that does not exist', async () => {
+    const service = new CameraService(
+      { findNames: vi.fn().mockResolvedValue(null) } as unknown as CameraRepository,
+      new CameraState(),
+    );
+    await expect(service.rename('dvr-ch9', { name: 'x' })).rejects.toThrow('Camera not found');
+  });
+
+  it('a new incident uses the website name, in its text too', () => {
+    const named = withWebsiteName(
+      { location: 'Camera 01', description: 'A fall in Camera 01', aiSummary: 'At Camera 01.' },
+      { name: 'Camera 01', zone: null, displayName: 'Store aisle', displayZone: null },
+    );
+    expect(named).toEqual({
+      location: 'Store aisle',
+      description: 'A fall in Store aisle',
+      aiSummary: 'At Store aisle.',
+    });
+  });
+
+  it('an incident on an unnamed camera is left exactly as it came', () => {
+    const data = { location: 'Camera 01', description: 'x' };
+    const names = { name: 'Camera 01', zone: null, displayName: null, displayZone: null };
+    expect(withWebsiteName(data, names)).toBe(data);
+    expect(withWebsiteName(data, undefined)).toBe(data);
+  });
+});
+
+describe('database writes stay rare', () => {
+  it('a camera that keeps flipping is written at most once a minute', async () => {
+    const { repo, service } = setup();
+    await service.heartbeat(beat('ONLINE'), NOW);
+    await service.heartbeat(beat('OFFLINE'), later(30_000));
+    expect(repo.upsertFromHeartbeat).toHaveBeenCalledTimes(1);
+    await service.heartbeat(beat('OFFLINE'), later(60_000));
+    expect(repo.upsertFromHeartbeat).toHaveBeenCalledTimes(2);
+    expect(repo.upsertFromHeartbeat.mock.calls[1]?.[0]).toMatchObject({ status: 'OFFLINE' });
+  });
+
+  it('saves the last seen time every 30 minutes, for after a restart', async () => {
+    const { repo, service } = setup();
+    await service.heartbeat(beat(), NOW);
+    for (let t = 30_000; t <= DB_REFRESH_MS; t += 30_000) {
+      await service.heartbeat(beat(), later(t));
+    }
+    expect(repo.upsertFromHeartbeat).toHaveBeenCalledTimes(2);
+    expect(repo.saveInstance).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('plant computer offline', () => {
+  const silentFor = async (ms: number) => {
+    const { service } = setup();
+    const { repo } = {
+      repo: (service as unknown as { repo: ReturnType<typeof setup>['repo'] }).repo,
+    };
+    repo.findInstances.mockResolvedValue([
+      {
+        id: 'plant-pc',
+        source: 'LIVE',
+        cameraIds: [],
+        info: null,
+        lastHeartbeatAt: new Date(NOW.getTime() - ms),
+      },
+    ]);
+    return (await service.list(NOW)).monitoring;
+  };
+
+  it('raises the alert after 10 minutes and always says when it was last seen', async () => {
+    expect(await silentFor(5 * 60_000)).toMatchObject({ state: 'offline', offlineAlert: false });
+    const monitoring = await silentFor(10 * 60_000);
+    expect(monitoring.offlineAlert).toBe(true);
+    expect(monitoring.lastSeenAt).toBe(new Date(NOW.getTime() - 10 * 60_000).toISOString());
+  });
+
+  it('reports the version the plant sends, and works without one', async () => {
+    const { service, repo } = setup();
+    await service.heartbeat(beat('ONLINE', { version: 'cctv-setup-7' }), NOW);
+    repo.findInstances.mockResolvedValue([
+      {
+        id: 'factory-pc',
+        source: 'LIVE',
+        cameraIds: ['dvr-ch1'],
+        info: null,
+        lastHeartbeatAt: NOW,
+      },
+    ]);
+    expect((await service.list(NOW)).monitoring.version).toBe('cctv-setup-7');
+    expect((await silentFor(0)).version).toBeNull();
   });
 });

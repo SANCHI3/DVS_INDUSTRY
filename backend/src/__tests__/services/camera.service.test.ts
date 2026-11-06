@@ -81,7 +81,10 @@ describe('heartbeat', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('stores every camera and the instance, marking status changes', async () => {
-    const repo = makeRepo({ cameras: [camRow('dvr-ch1'), camRow('dvr-ch2')] });
+    const saved = { lastHeartbeatAt: ago(120_000) };
+    const repo = makeRepo({
+      cameras: [camRow('dvr-ch1', saved), camRow('dvr-ch2', saved)],
+    });
     await new CameraService(repo, new CameraState()).heartbeat(beat(), NOW);
     // ch1 is still ONLINE, so only ch2 (ONLINE -> VIDEO_LOSS) reaches the database
     expect(repo.upsertFromHeartbeat).toHaveBeenCalledTimes(1);
@@ -214,7 +217,11 @@ describe('camera notifications', () => {
     );
     const items = await cameraNotifications(NOW, svc);
     expect(items).toHaveLength(1);
-    expect(items[0]).toMatchObject({ kind: 'camera', message: 'CCTV monitoring PC is offline' });
+    expect(items[0]).toMatchObject({
+      kind: 'camera',
+      severity: 'critical',
+      message: 'Plant computer is offline. Check that it is on and has internet.',
+    });
   });
 
   it('lists cameras with no picture, never as incidents', async () => {

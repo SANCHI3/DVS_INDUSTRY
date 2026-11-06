@@ -7,6 +7,8 @@ export interface CameraDto {
   channel: number | null;
   name: string;
   zone: string | null;
+  plantName?: string;
+  plantZone?: string | null;
   enabled: boolean;
   status: CameraStatus;
   statusDetail: string | null;
@@ -25,6 +27,9 @@ export interface CameraDto {
 export interface MonitoringDto {
   state: 'online' | 'offline' | 'never';
   since: string | null;
+  lastSeenAt?: string | null;
+  offlineAlert?: boolean;
+  version?: string | null;
   notice?: string | null;
   liveEnabled?: boolean;
   instances: Array<{ id: string; source: 'LIVE' | 'DEV'; online: boolean; lastHeartbeatAt: string }>;
@@ -43,6 +48,11 @@ export type LiveAccess =
 /** A 2-minute pass for one camera's live video, or why there is none. */
 export async function getLivePass(id: string, quality: LiveQuality): Promise<LiveAccess> {
   return unwrap(await api.get(`/cameras/${encodeURIComponent(id)}/live-token`, { params: { quality } }));
+}
+
+/** The name and area shown everywhere. Empty goes back to what the plant reports. */
+export async function renameCamera(id: string, names: { name: string; zone: string }): Promise<void> {
+  await api.patch(`/cameras/${encodeURIComponent(id)}`, names);
 }
 
 export async function getCameras(): Promise<CamerasOverview> {

@@ -31,7 +31,11 @@ vi.mock('../../lib/prismaClient', () => ({
       upsert: vi.fn().mockResolvedValue({}),
       updateMany: vi.fn(),
       findUnique: vi.fn(),
+      update: vi.fn().mockResolvedValue({}),
     },
+    securityIncident: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    securityAlert: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+    $transaction: vi.fn().mockResolvedValue([]),
     perceptionInstance: { findMany: vi.fn(), upsert: vi.fn().mockResolvedValue({}) },
     $queryRaw: vi.fn().mockResolvedValue([]),
     auditLog: { create: vi.fn().mockResolvedValue({}) },
@@ -176,7 +180,7 @@ describe('GET /api/v1/cameras', () => {
   it('lists cameras and the monitoring state for Production', async () => {
     const res = await request(app).get('/api/v1/cameras').set(auth('production'));
     expect(res.status).toBe(200);
-    expect(res.body.data).toEqual({
+    expect(res.body.data).toMatchObject({
       cameras: [],
       monitoring: { state: 'never', since: null, notice: null, liveEnabled: false, instances: [] },
     });
@@ -247,5 +251,95 @@ describe('live view', () => {
     expect(logged).toHaveLength(1);
     expect((await request(app).get(url).set(auth('store'))).status).toBe(403);
     expect((await request(app).get(url)).status).toBe(401);
+  });
+});
+
+describe('the software already installed at the plant', () => {
+  // Exactly what cctv-setup-5 sends (reporting/camera_heartbeat.py). If this
+  // fails, the change would break a PC that nobody can reach to update.
+  const installedHeartbeat = {
+    instanceId: 'plant-pc',
+    source: 'live',
+    cameras: [
+      {
+        id: 'dvr-ch1',
+        channel: 1,
+        name: 'Camera 01',
+        zone: null,
+        enabled: true,
+        status: 'ONLINE',
+        statusDetail: null,
+        lastFrameAt: '2026-11-06T12:00:00.123456+00:00',
+        achievedFps: 0.87,
+        inferMs: 412.5,
+      },
+      {
+        id: 'dvr-ch2',
+        channel: 2,
+        name: 'Camera 02',
+        zone: null,
+        enabled: true,
+        status: 'VIDEO_LOSS',
+        statusDetail: 'Black picture',
+        lastFrameAt: null,
+        achievedFps: null,
+        inferMs: null,
+      },
+    ],
+    info: { device: 'cpu', liveUrl: 'https://server.taild7bde2.ts.net' },
+  };
+
+  it('heartbeat is accepted', async () => {
+    const res = await request(app)
+      .post('/api/v1/cameras/heartbeat')
+      .set('Authorization', 'Bearer service')
+      .send(installedHeartbeat);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ cameras: 2 });
+  });
+
+  it('picture upload is accepted', async () => {
+    await request(app)
+      .post('/api/v1/cameras/heartbeat')
+      .set('Authorization', 'Bearer service')
+      .send(installedHeartbeat);
+    const res = await request(app)
+      .post('/api/v1/cameras/dvr-ch1/snapshot')
+      .set('Authorization', 'Bearer service')
+      .set('Content-Type', 'image/jpeg')
+      .send(fakeJpeg(640, 360));
+    expect(res.status).toBe(204);
+  });
+});
+
+describe('PATCH /api/v1/cameras/:id', () => {
+  const rename = (token: string, body: object) =>
+    request(app)
+      .patch('/api/v1/cameras/dvr-ch1')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body);
+
+  beforeEach(() => {
+    fn(prisma.camera.findUnique).mockResolvedValue({
+      name: 'Camera 01',
+      zone: null,
+      displayName: null,
+      displayZone: null,
+    });
+  });
+
+  it('lets an admin set the name and area', async () => {
+    const res = await rename('admin', { name: 'Store aisle', zone: 'Warehouse' });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toEqual({ name: 'Store aisle', zone: 'Warehouse' });
+  });
+
+  it('is admin only, and the plant service cannot use it', async () => {
+    expect((await rename('production', { name: 'x' })).status).toBe(403);
+    expect((await rename('service', { name: 'x' })).status).toBe(403);
+  });
+
+  it('needs a name or an area', async () => {
+    expect((await rename('admin', {})).status).toBe(422);
   });
 });

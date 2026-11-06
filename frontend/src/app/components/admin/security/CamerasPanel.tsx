@@ -1,63 +1,67 @@
-import { useEffect, useState } from "react";
-import { Camera, CameraOff, Copy, Info, Video } from "lucide-react";
-import { getCameraSnapshot, type CameraDto, type CamerasOverview } from "../../../../lib/services/cameras.service";
-import { CAMERA_STATUS, cameraLine, shortAgo } from "../../../../lib/cameraStatus";
+import { useState, type FormEvent } from "react";
+import { AlertTriangle, CameraOff, Copy, Info, Pencil, Video } from "lucide-react";
+import type { CameraDto, CamerasOverview } from "../../../../lib/services/cameras.service";
+import { CAMERA_STATUS, cameraLine, plantOfflineBanner, shortAgo } from "../../../../lib/cameraStatus";
 import { eventTypeLabel } from "../../../../lib/incidentLabels";
+import { CameraSnapshot } from "./CameraSnapshot";
 import { LivePlayer } from "./LivePlayer";
 
 export const MAX_LIVE_TILES = 4;
 
-/** The latest picture of one camera, fetched with the sign-in token. */
-function Snapshot({ camera }: { camera: CameraDto }) {
-  const [url, setUrl] = useState<string | null>(null);
+/** Admin only: the name and area shown everywhere. Empty goes back to the plant's. */
+function CameraEditForm({ camera, onSave, onClose }: {
+  camera: CameraDto;
+  onSave: (names: { name: string; zone: string }) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [name, setName] = useState(camera.name === camera.plantName ? "" : camera.name);
+  const [zone, setZone] = useState(camera.zone === (camera.plantZone ?? null) ? "" : camera.zone ?? "");
+  const [saving, setSaving] = useState(false);
   const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    if (!camera.hasSnapshot) return;
-    let cancelled = false;
-    let objectUrl: string | null = null;
-    getCameraSnapshot(camera.id)
-      .then((blob) => {
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setUrl(objectUrl);
-        setFailed(false);
-      })
-      .catch(() => { if (!cancelled) setFailed(true); });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-    // A new picture arrives every ~2 minutes: refetch when its time changes
-  }, [camera.id, camera.hasSnapshot, camera.snapshotAt]);
-
-  const dim = camera.status !== "ONLINE";
+  const field = { borderColor: "#EEE4E0", color: "#302725", fontSize: "0.8rem" };
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setFailed(false);
+    try {
+      await onSave({ name: name.trim(), zone: zone.trim() });
+      onClose();
+    } catch {
+      setFailed(true);
+      setSaving(false);
+    }
+  };
   return (
-    <div className="relative flex items-center justify-center overflow-hidden rounded-t-lg" style={{ aspectRatio: "16 / 10", background: "#1F1A19" }}>
-      {url && !failed ? (
-        <img src={url} alt={`Latest picture from ${camera.name}`} className="h-full w-full object-cover" style={{ opacity: dim ? 0.45 : 1 }} />
-      ) : (
-        <span className="flex flex-col items-center gap-1" style={{ color: "#BFB3B0", fontSize: "0.72rem" }}>
-          {camera.status === "ONLINE" ? <Camera size={22} aria-hidden="true" /> : <CameraOff size={22} aria-hidden="true" />}
-          {camera.hasSnapshot ? (failed ? "Picture could not be loaded" : "Loading picture…") : "No picture yet"}
-        </span>
-      )}
-      {camera.snapshotAt && url && (
-        <span className="absolute bottom-1.5 right-1.5 rounded px-1.5 py-0.5" style={{ background: "rgba(0,0,0,0.55)", color: "#fff", fontSize: "0.62rem" }}>
-          Picture {shortAgo(camera.snapshotAt)}
-        </span>
-      )}
-    </div>
+    <form role="dialog" aria-label={`Edit ${camera.name}`} onSubmit={save} className="absolute inset-0 z-10 flex flex-col gap-2 overflow-auto rounded-lg p-3" style={{ background: "#FFFFFF" }}>
+      <label style={{ color: "#665956", fontSize: "0.72rem", fontWeight: 600 }}>
+        Camera name
+        <input value={name} maxLength={100} onChange={(e) => setName(e.target.value)} placeholder={camera.plantName ?? camera.name} className="mt-1 w-full rounded border px-2 py-1" style={field} />
+      </label>
+      <label style={{ color: "#665956", fontSize: "0.72rem", fontWeight: 600 }}>
+        Area
+        <input value={zone} maxLength={100} onChange={(e) => setZone(e.target.value)} placeholder={camera.plantZone ?? "e.g. Store aisle"} className="mt-1 w-full rounded border px-2 py-1" style={field} />
+      </label>
+      {failed && <p role="alert" style={{ color: "#B42318", fontSize: "0.72rem" }}>Could not save. Try again.</p>}
+      <div className="mt-auto flex justify-end gap-2">
+        <button type="button" onClick={onClose} className="rounded px-2 py-1" style={{ color: "#665956", fontSize: "0.74rem", cursor: "pointer" }}>Cancel</button>
+        <button type="submit" disabled={saving} className="rounded px-2 py-1" style={{ background: "#A52A2A", color: "#fff", fontSize: "0.74rem", fontWeight: 700, cursor: "pointer" }}>
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+    </form>
   );
 }
 
-export function CameraTile({ camera, onSelect, live = false, onLive, onStopLive }: {
+export function CameraTile({ camera, onSelect, live = false, onLive, onStopLive, onRename }: {
   camera: CameraDto;
   onSelect: (camera: CameraDto) => void;
   live?: boolean;
   onLive?: () => void;
   onStopLive?: () => void;
+  onRename?: (names: { name: string; zone: string }) => Promise<void>;
 }) {
   const status = CAMERA_STATUS[camera.status];
+  const [editing, setEditing] = useState(false);
   return (
     <div className="hover-card relative flex flex-col rounded-lg border text-left" style={{ borderColor: "#EEE4E0", background: "#FFFFFF", opacity: camera.enabled ? 1 : 0.6 }}>
       {live && <LivePlayer camera={camera} onClose={() => onStopLive?.()} />}
@@ -68,7 +72,7 @@ export function CameraTile({ camera, onSelect, live = false, onLive, onStopLive 
         className="flex flex-1 flex-col text-left"
         style={{ cursor: "pointer" }}
       >
-      {!live && <Snapshot camera={camera} />}
+      {!live && <CameraSnapshot camera={camera} />}
       <div className="flex flex-col gap-1 p-3">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate" style={{ color: "#302725", fontSize: "0.85rem", fontWeight: 700 }}>{camera.name}</span>
@@ -107,15 +111,29 @@ export function CameraTile({ camera, onSelect, live = false, onLive, onStopLive 
           <Video size={12} aria-hidden="true" /> Live
         </button>
       )}
+      {!live && onRename && (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          aria-label={`Edit ${camera.name}`}
+          className="absolute left-1.5 top-1.5 flex items-center rounded p-1"
+          style={{ background: "rgba(0,0,0,0.55)", color: "#fff", cursor: "pointer" }}
+        >
+          <Pencil size={12} aria-hidden="true" />
+        </button>
+      )}
+      {editing && onRename && <CameraEditForm camera={camera} onSave={onRename} onClose={() => setEditing(false)} />}
     </div>
   );
 }
 
-export function CamerasPanel({ overview, loading, error, onSelect }: {
+export function CamerasPanel({ overview, loading, error, onSelect, onRename }: {
   overview: CamerasOverview | null;
   loading: boolean;
   error: string | null;
   onSelect: (camera: CameraDto) => void;
+  /** Admins only: without it there is no Edit button */
+  onRename?: (camera: CameraDto, names: { name: string; zone: string }) => Promise<void>;
 }) {
   const [liveIds, setLiveIds] = useState<string[]>([]);
   const [limitHit, setLimitHit] = useState(false);
@@ -145,11 +163,20 @@ export function CamerasPanel({ overview, loading, error, onSelect }: {
     );
   }
   const online = overview.cameras.filter((c) => c.status === "ONLINE").length;
+  const offlineBanner = plantOfflineBanner(overview.monitoring);
+  const { lastSeenAt, version } = overview.monitoring;
   return (
     <div className="space-y-3">
+      {offlineBanner && (
+        <p role="alert" className="flex items-center gap-2 rounded-md px-3 py-2" style={{ background: "#FBECEA", color: "#8C1D18", border: "1px solid #F2C4BE", fontSize: "0.8rem", fontWeight: 600 }}>
+          <AlertTriangle size={15} aria-hidden="true" /> {offlineBanner}
+        </p>
+      )}
       <p style={{ color: "#837572", fontSize: "0.76rem" }}>
         {online} of {overview.cameras.length} cameras online. Pictures refresh every couple of minutes.
         Press Live to watch a camera, or click a camera to see its incidents.
+        {lastSeenAt ? ` Last seen ${shortAgo(lastSeenAt)}.` : ""}
+        {version ? ` Plant software ${version}.` : ""}
       </p>
       {overview.monitoring.notice && (
         <p role="status" className="flex items-center gap-1.5 rounded-md px-3 py-2" style={{ background: "#FFF8E1", color: "#7A5B00", fontSize: "0.76rem" }}>
@@ -170,6 +197,7 @@ export function CamerasPanel({ overview, loading, error, onSelect }: {
             live={liveIds.includes(camera.id)}
             onLive={() => startLive(camera.id)}
             onStopLive={() => stopLive(camera.id)}
+            onRename={onRename && ((names) => onRename(camera, names))}
           />
         ))}
       </div>
