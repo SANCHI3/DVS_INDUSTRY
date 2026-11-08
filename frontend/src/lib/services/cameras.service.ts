@@ -1,4 +1,5 @@
 import api, { unwrap } from '../api';
+import type { LiveCheck } from '../liveCheck';
 
 export type CameraStatus = 'CONNECTING' | 'ONLINE' | 'OFFLINE' | 'VIDEO_LOSS';
 
@@ -51,6 +52,11 @@ export type LiveAccess =
 /** A 2-minute pass for one camera's live video, or why there is none. */
 export async function getLivePass(id: string, quality: LiveQuality): Promise<LiveAccess> {
   return unwrap(await api.get(`/cameras/${encodeURIComponent(id)}/live-token`, { params: { quality } }));
+}
+
+/** Admin: where live view stops, from the website's memory. */
+export async function getLiveCheck(): Promise<LiveCheck> {
+  return unwrap(await api.get('/cameras/live-check'));
 }
 
 /** The name and area shown everywhere. Empty goes back to what the plant reports. */

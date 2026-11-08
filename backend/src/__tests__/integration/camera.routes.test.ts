@@ -71,6 +71,7 @@ vi.mock('../../logger', () => ({
 import { prisma } from '../../lib/prismaClient';
 import { env } from '../../config/env';
 import { signLiveToken } from '../../utils/liveToken';
+import { streamAuthLog } from '../../utils/streamAuthLog';
 
 const fn = (f: unknown) => f as ReturnType<typeof vi.fn>;
 let app: Express;
@@ -341,5 +342,63 @@ describe('PATCH /api/v1/cameras/:id', () => {
 
   it('needs a name or an area', async () => {
     expect((await rename('admin', {})).status).toBe(422);
+  });
+});
+
+describe('GET /api/v1/cameras/live-check', () => {
+  const check = (who?: string) => {
+    const req = request(app).get('/api/v1/cameras/live-check');
+    return who ? req.set(auth(who)) : req;
+  };
+
+  beforeEach(() => streamAuthLog.clear());
+
+  it('is for admins only', async () => {
+    expect((await check('production')).status).toBe(403);
+    expect((await check('store')).status).toBe(403);
+    expect((await check()).status).toBe(401);
+    expect((await check('admin')).status).toBe(200);
+  });
+
+  it('shows the cctv-setup-5 heartbeat with no live address as not switched on', async () => {
+    const hb = {
+      instanceId: 'plant-pc-old',
+      source: 'live',
+      info: { device: 'cpu' },
+      cameras: [{ id: 'dvr-ch7', channel: 7, name: 'Camera 07', status: 'ONLINE' }],
+    };
+    expect(
+      (await request(app).post('/api/v1/cameras/heartbeat').set(auth('service')).send(hb)).status,
+    ).toBe(200);
+    const res = await check('admin');
+    const plant = res.body.data.plants.find((p: { id: string }) => p.id === 'plant-pc-old');
+    expect(plant).toMatchObject({ version: null, liveUrl: null, online: true });
+    expect(res.body.data.cameras).toContainEqual(
+      expect.objectContaining({ id: 'dvr-ch7', live: 'not-enabled' }),
+    );
+  });
+
+  it('logs every stream-auth call with its outcome, and never the pass', async () => {
+    const token = signLiveToken('dvr-ch1-sd', 1);
+    const send = (body: object) => request(app).post('/api/v1/cameras/stream-auth').send(body);
+    await send({ action: 'read', path: 'dvr-ch1-sd', protocol: 'webrtc', token });
+    await send({ action: 'read', path: 'dvr-ch1-sd', protocol: 'hls', query: `token=${token}` });
+    await send({ action: 'read', path: 'dvr-ch2-sd', protocol: 'hls', token });
+    await send({ action: 'read', path: 'dvr-ch1-sd', protocol: 'hls' });
+
+    const res = await check('admin');
+    expect(
+      res.body.data.streamAuth.map((e: { protocol: string; allowed: boolean; reason: string }) => [
+        e.protocol,
+        e.allowed,
+        e.reason,
+      ]),
+    ).toEqual([
+      ['hls', false, 'no-pass'],
+      ['hls', false, 'wrong-path'],
+      ['hls', true, 'allowed'],
+      ['webrtc', true, 'allowed'],
+    ]);
+    expect(JSON.stringify(res.body)).not.toContain(token);
   });
 });

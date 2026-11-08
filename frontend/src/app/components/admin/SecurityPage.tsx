@@ -38,6 +38,7 @@ import { useApiData } from "../../../lib/useApiData";
 import { getCameras, renameCamera, type CameraDto } from "../../../lib/services/cameras.service";
 import { liveBadgeState, monitoringBanner } from "../../../lib/cameraStatus";
 import { CamerasPanel } from "./security/CamerasPanel";
+import { LiveViewCheck } from "./security/LiveViewCheck";
 
 const SECURITY_TABS = ["live", "cameras", "incidents", "reports"];
 const tabs = [
@@ -536,6 +537,7 @@ export function SecurityPage() {
                   ? async (camera, names) => { await renameCamera(camera.id, names); cameras.reload(); loadAll(); }
                   : undefined}
               />
+              {securityActions(getStoredBackendRole()).checkLiveView && <LiveViewCheck />}
             </div>
           </Card>
         )}

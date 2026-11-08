@@ -24,6 +24,10 @@ export interface InstanceLive {
   info: Record<string, unknown> | null;
   lastHeartbeatAt: Date;
   savedAt: Date | null;
+  /** Read back from the database after a website restart, not heard by this process */
+  fromDatabase?: boolean;
+  /** Heartbeats came back after 2 minutes or more of silence: most likely a restart */
+  resumedAt?: Date | null;
 }
 
 export interface SnapshotLive {

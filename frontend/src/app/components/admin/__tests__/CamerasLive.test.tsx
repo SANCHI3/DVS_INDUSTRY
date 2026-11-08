@@ -45,6 +45,21 @@ describe("live view on the Cameras tab", () => {
     expect(stopStream).toHaveBeenCalled();
   });
 
+  it("says when it falls back to the slower mode, and renews the pass for it", async () => {
+    let options: { onSlowMode?: () => void; renew?: () => Promise<unknown> } = {};
+    playLive.mockImplementation((_video: unknown, _pass: unknown, opts: typeof options) => {
+      options = opts;
+      opts.onSlowMode?.();
+      return new Promise(() => {});
+    });
+    panel(overview(1));
+    fireEvent.click(screen.getByRole("button", { name: "Watch Camera 01 live" }));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Connecting (slower mode)…"));
+    getLivePass.mockClear();
+    expect(await options.renew?.()).toMatchObject({ available: true, token: "t" });
+    expect(getLivePass).toHaveBeenCalledWith("dvr-ch1", "sd");
+  });
+
   it("switches to HD on request", async () => {
     panel(overview(1));
     fireEvent.click(screen.getByRole("button", { name: "Watch Camera 01 live" }));

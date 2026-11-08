@@ -8,6 +8,7 @@ import { LIVE_TOKEN_TTL_S, signLiveToken } from '../utils/liveToken';
 import type { CameraRenameInput, HeartbeatInput } from '../validators/camera.validator';
 import type { CameraState } from './camera.state';
 import { sharedCameraState, type CameraLive } from './camera.state';
+import { streamAuthLog, type StreamAuthEntry } from '../utils/streamAuthLog';
 
 /** No heartbeat for this long: the camera (or the whole monitoring PC) is offline. */
 export const HEARTBEAT_STALE_MS = 3 * 60_000;
@@ -26,10 +27,48 @@ export const MIN_DB_WRITE_MS = 60_000;
 /** The address the CCTV PC reports for live video: only its own Tailscale name. */
 const LIVE_URL = /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.ts\.net$/;
 
+/** Silence this long, then heartbeats again: the plant software most likely restarted. */
+export const RESTART_GAP_MS = 2 * 60_000;
+
 export type LiveQuality = 'sd' | 'hd';
+export type LiveRefusal = 'monitoring-offline' | 'camera-offline' | 'not-enabled';
 export type LiveAccess =
   | { available: true; token: string; whepUrl: string; hlsUrl: string; expiresAt: string }
-  | { available: false; reason: 'monitoring-offline' | 'camera-offline' | 'not-enabled' };
+  | { available: false; reason: LiveRefusal };
+
+/** Admin page: where live view stops, from what this process knows. */
+export interface LiveCheckDto {
+  checkedAt: string;
+  /** This website server's start: memory, and the stream-auth log, begin here */
+  websiteStartedAt: string;
+  plants: Array<{
+    id: string;
+    source: 'LIVE' | 'DEV';
+    online: boolean;
+    lastHeartbeatAt: string;
+    /** null: an older version that does not report one (cctv-setup-5) */
+    version: string | null;
+    liveUrl: string | null;
+    /** The address has the form the website hands out (https://name.tailnet.ts.net) */
+    liveUrlAccepted: boolean;
+    /** Only if the plant software reports it */
+    startedAt: string | null;
+    /** Heartbeats came back after 2+ minutes of silence (seen by this server) */
+    resumedAt: string | null;
+    /** Read from the database after a website restart; no heartbeat heard yet */
+    fromDatabase: boolean;
+    /** Names of the fields in the last heartbeat's info, never their values */
+    infoFields: string[];
+  }>;
+  cameras: Array<{
+    id: string;
+    channel: number | null;
+    name: string;
+    status: string;
+    live: 'available' | LiveRefusal;
+  }>;
+  streamAuth: StreamAuthEntry[];
+}
 
 export interface CameraDto {
   id: string;
@@ -157,6 +196,8 @@ export class CameraService {
         info: (i.info as Record<string, unknown> | null) ?? null,
         lastHeartbeatAt: i.lastHeartbeatAt,
         savedAt: i.lastHeartbeatAt,
+        fromDatabase: true,
+        resumedAt: null,
       });
     }
     this.state.hydrated = true;
@@ -286,12 +327,19 @@ export class CameraService {
         });
       }
     }
+    // Only a silence this process heard counts: after a website restart the saved time is old
+    const resumed =
+      previous &&
+      !previous.fromDatabase &&
+      now.getTime() - previous.lastHeartbeatAt.getTime() >= RESTART_GAP_MS;
     this.state.instances.set(input.instanceId, {
       source: input.source,
       cameraIds,
       info,
       lastHeartbeatAt: now,
       savedAt,
+      fromDatabase: false,
+      resumedAt: resumed ? now : (previous?.resumedAt ?? null),
     });
   }
 
@@ -313,20 +361,9 @@ export class CameraService {
 
   /** A 2-minute pass for one camera's live video, or the reason there is none. */
   liveAccess(id: string, quality: LiveQuality, userId: number, now: Date = new Date()): LiveAccess {
-    const reporting = [...this.state.instances.values()].filter(
-      (i) =>
-        i.source === 'LIVE' &&
-        i.cameraIds.includes(id) &&
-        now.getTime() - i.lastHeartbeatAt.getTime() <= HEARTBEAT_STALE_MS,
-    );
-    if (reporting.length === 0) return { available: false, reason: 'monitoring-offline' };
-    if (this.state.cameras.get(id)?.status !== 'ONLINE') {
-      return { available: false, reason: 'camera-offline' };
-    }
-    const base = reporting
-      .map((i) => i.info?.['liveUrl'])
-      .find((u): u is string => typeof u === 'string' && LIVE_URL.test(u));
-    if (!base) return { available: false, reason: 'not-enabled' };
+    const live = this.liveBase(id, now);
+    if ('reason' in live) return { available: false, reason: live.reason };
+    const { base } = live;
 
     const path = `${id}-${quality}`;
     return {
@@ -335,6 +372,72 @@ export class CameraService {
       whepUrl: `${base}/${path}/whep`,
       hlsUrl: `${base}:8443/${path}/index.m3u8`,
       expiresAt: new Date(now.getTime() + LIVE_TOKEN_TTL_S * 1000).toISOString(),
+    };
+  }
+
+  /** The plant's live address for this camera, or the reason live view cannot start. */
+  private liveBase(id: string, now: Date): { base: string } | { reason: LiveRefusal } {
+    const reporting = [...this.state.instances.values()].filter(
+      (i) =>
+        i.source === 'LIVE' &&
+        i.cameraIds.includes(id) &&
+        now.getTime() - i.lastHeartbeatAt.getTime() <= HEARTBEAT_STALE_MS,
+    );
+    if (reporting.length === 0) return { reason: 'monitoring-offline' };
+    if (this.state.cameras.get(id)?.status !== 'ONLINE') return { reason: 'camera-offline' };
+    const base = reporting
+      .map((i) => i.info?.['liveUrl'])
+      .find((u): u is string => typeof u === 'string' && LIVE_URL.test(u));
+    return base ? { base } : { reason: 'not-enabled' };
+  }
+
+  /** Admin Live view check: the last heartbeat's facts and what /live-token would answer. */
+  async liveCheck(now: Date = new Date()): Promise<LiveCheckDto> {
+    await this.hydrate();
+    const text = (info: Record<string, unknown> | null, key: string): string | null => {
+      const value = info?.[key];
+      return typeof value === 'string' && value !== '' ? value : null;
+    };
+    const plants = [...this.state.instances.entries()]
+      .map(([id, i]) => {
+        const liveUrl = text(i.info, 'liveUrl');
+        return {
+          id,
+          source: i.source,
+          online: now.getTime() - i.lastHeartbeatAt.getTime() <= HEARTBEAT_STALE_MS,
+          lastHeartbeatAt: i.lastHeartbeatAt.toISOString(),
+          version: text(i.info, 'version'),
+          liveUrl,
+          liveUrlAccepted: liveUrl !== null && LIVE_URL.test(liveUrl),
+          startedAt: text(i.info, 'startedAt'),
+          resumedAt: iso(i.resumedAt ?? null),
+          fromDatabase: i.fromDatabase === true,
+          infoFields: Object.keys(i.info ?? {}).sort(),
+        };
+      })
+      .sort(
+        (a, b) =>
+          Number(b.source === 'LIVE') - Number(a.source === 'LIVE') ||
+          b.lastHeartbeatAt.localeCompare(a.lastHeartbeatAt),
+      );
+    const cameras = [...this.state.cameras.entries()]
+      .map(([id, c]) => {
+        const live = this.liveBase(id, now);
+        return {
+          id,
+          channel: c.channel,
+          name: c.name,
+          status: c.status,
+          live: 'reason' in live ? live.reason : ('available' as const),
+        };
+      })
+      .sort((a, b) => (a.channel ?? 999) - (b.channel ?? 999) || a.id.localeCompare(b.id));
+    return {
+      checkedAt: now.toISOString(),
+      websiteStartedAt: this.state.bootedAt.toISOString(),
+      plants,
+      cameras,
+      streamAuth: streamAuthLog.latest(10),
     };
   }
 

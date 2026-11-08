@@ -68,6 +68,14 @@ router.post(
 router.get('/', authorize(...SEC_READ), asyncHandler(CameraController.listCameras));
 
 /**
+ * GET /api/v1/cameras/live-check
+ * Where live view stops: the plant's last heartbeat (version, live address),
+ * what /live-token answers for each camera, and the video server's last 10
+ * stream-auth calls. From this server's memory. Access: ADMIN
+ */
+router.get('/live-check', authorize(ROLES.ADMIN), asyncHandler(CameraController.liveCheck));
+
+/**
  * PATCH /api/v1/cameras/:id
  * Body: { name?, zone? }. The name and area shown everywhere; heartbeats never
  * change them. Access: ADMIN

@@ -2,7 +2,8 @@ import type { Request, Response } from 'express';
 import { AuditRepository } from '../repositories/audit.repository';
 import { CameraService, type LiveQuality } from '../services/camera.service';
 import type { AuthenticatedRequest } from '../types';
-import { liveTokenPath } from '../utils/liveToken';
+import { decideStreamAuth } from '../utils/liveToken';
+import { streamAuthLog } from '../utils/streamAuthLog';
 import { sendNoContent, sendSuccess } from '../utils/response';
 import type {
   CameraRenameInput,
@@ -78,17 +79,19 @@ export function liveToken(req: AuthenticatedRequest, res: Response): void {
   sendSuccess(res, access);
 }
 
-/** The pass from the viewer's request, however the video server passed it on. */
-function passFrom(body: StreamAuthInput): string {
-  return body.token || body.password || (new URLSearchParams(body.query ?? '').get('token') ?? '');
-}
-
 export function streamAuth(req: Request, res: Response): void {
   const body = req.body as StreamAuthInput;
-  const allowed =
-    body.action === 'read' &&
-    ['webrtc', 'hls'].includes(body.protocol) &&
-    body.path !== '' &&
-    liveTokenPath(passFrom(body)) === body.path;
+  const { allowed, reason } = decideStreamAuth(body);
+  streamAuthLog.add({
+    path: body.path,
+    protocol: body.protocol,
+    action: body.action,
+    allowed,
+    reason,
+  });
   res.status(allowed ? 200 : 401).end();
+}
+
+export async function liveCheck(_req: Request, res: Response): Promise<void> {
+  sendSuccess(res, await cameraService.liveCheck());
 }

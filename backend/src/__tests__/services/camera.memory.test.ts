@@ -9,7 +9,8 @@ vi.mock('../../lib/prismaClient', () => ({ prisma: {} }));
 import { CameraService, DB_REFRESH_MS } from '../../services/camera.service';
 import { CameraState } from '../../services/camera.state';
 import { withWebsiteName } from '../../services/security.service';
-import { liveTokenPath, signLiveToken } from '../../utils/liveToken';
+import { decideStreamAuth, liveTokenPath, signLiveToken } from '../../utils/liveToken';
+import { StreamAuthLog } from '../../utils/streamAuthLog';
 import { serviceKeyMatches } from '../../utils/serviceKey';
 import { resolveAction } from '../../middleware/auditLog';
 import { fakeJpeg } from '../helpers/jpeg';
@@ -448,5 +449,152 @@ describe('plant computer offline', () => {
       later(30_000),
     );
     expect(repo.saveInstance).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('live view check', () => {
+  // What cctv-setup-5 sends when its process started before LIVE_VIEW_URL was set
+  const setup5 = (info: Record<string, string> = { device: 'cpu' }) => ({
+    instanceId: 'plant-pc',
+    source: 'LIVE' as const,
+    info,
+    cameras: [
+      { id: 'dvr-ch2', channel: 2, name: 'Camera 02', enabled: true, status: 'OFFLINE' as const },
+      { id: 'dvr-ch1', channel: 1, name: 'Camera 01', enabled: true, status: 'ONLINE' as const },
+    ],
+  });
+
+  it('shows a plant with no live address and no version, as cctv-setup-5 is', async () => {
+    const { service } = setup();
+    await service.heartbeat(setup5(), NOW);
+    const check = await service.liveCheck(later(10_000));
+    expect(check.plants).toEqual([
+      expect.objectContaining({
+        id: 'plant-pc',
+        online: true,
+        version: null,
+        liveUrl: null,
+        liveUrlAccepted: false,
+        startedAt: null,
+        infoFields: ['device'],
+      }),
+    ]);
+    expect(check.cameras.map((c) => [c.id, c.live])).toEqual([
+      ['dvr-ch1', 'not-enabled'],
+      ['dvr-ch2', 'camera-offline'],
+    ]);
+  });
+
+  it('says a camera is available once the live address arrives', async () => {
+    const { service } = setup();
+    await service.heartbeat(setup5({ liveUrl: 'https://server.taild7bde2.ts.net' }), NOW);
+    const check = await service.liveCheck(later(10_000));
+    expect(check.plants[0]).toMatchObject({
+      liveUrl: 'https://server.taild7bde2.ts.net',
+      liveUrlAccepted: true,
+    });
+    expect(check.cameras[0]).toMatchObject({ id: 'dvr-ch1', live: 'available' });
+  });
+
+  it('shows an address the website will not hand out', async () => {
+    const { service } = setup();
+    await service.heartbeat(setup5({ liveUrl: 'http://192.168.0.108:8889' }), NOW);
+    const check = await service.liveCheck(later(10_000));
+    expect(check.plants[0]).toMatchObject({ liveUrlAccepted: false });
+    expect(check.cameras[0]?.live).toBe('not-enabled');
+  });
+
+  it('notices heartbeats coming back after a restart', async () => {
+    const { service } = setup();
+    await service.heartbeat(setup5(), NOW);
+    await service.heartbeat(setup5(), later(30_000));
+    expect((await service.liveCheck(later(31_000))).plants[0]?.resumedAt).toBeNull();
+    await service.heartbeat(setup5(), later(5 * 60_000));
+    expect((await service.liveCheck(later(5 * 60_000))).plants[0]?.resumedAt).toBe(
+      later(5 * 60_000).toISOString(),
+    );
+  });
+
+  it('does not take a website restart for a plant restart', async () => {
+    const { service, repo } = setup();
+    repo.findInstances.mockResolvedValue([
+      {
+        id: 'plant-pc',
+        source: 'LIVE',
+        cameraIds: ['dvr-ch1', 'dvr-ch2'],
+        info: { device: 'cpu' },
+        lastHeartbeatAt: later(-20 * 60_000),
+      },
+    ]);
+    const before = await service.liveCheck(NOW);
+    expect(before.plants[0]).toMatchObject({ fromDatabase: true, online: false });
+    await service.heartbeat(setup5(), NOW);
+    expect((await service.liveCheck(NOW)).plants[0]).toMatchObject({
+      fromDatabase: false,
+      resumedAt: null,
+    });
+  });
+
+  it('reports a version and start time when newer plant software sends them', async () => {
+    const { service } = setup();
+    await service.heartbeat(
+      setup5({ version: 'cctv-setup-10', startedAt: '2026-11-05T08:59:00Z' }),
+      NOW,
+    );
+    expect((await service.liveCheck(NOW)).plants[0]).toMatchObject({
+      version: 'cctv-setup-10',
+      startedAt: '2026-11-05T08:59:00Z',
+    });
+  });
+});
+
+describe('stream-auth decisions', () => {
+  const read = { action: 'read', path: 'dvr-ch1-sd', protocol: 'webrtc' };
+
+  it('accepts the pass as a Bearer token (WHEP, hls.js) or in the address (Safari HLS)', () => {
+    const token = signLiveToken('dvr-ch1-sd', 1);
+    expect(decideStreamAuth({ ...read, token })).toEqual({ allowed: true, reason: 'allowed' });
+    expect(decideStreamAuth({ ...read, protocol: 'hls', token })).toEqual({
+      allowed: true,
+      reason: 'allowed',
+    });
+    expect(decideStreamAuth({ ...read, protocol: 'hls', query: `token=${token}` })).toEqual({
+      allowed: true,
+      reason: 'allowed',
+    });
+  });
+
+  it('says why a viewer is refused', () => {
+    const token = signLiveToken('dvr-ch1-sd', 1);
+    expect(decideStreamAuth(read).reason).toBe('no-pass');
+    expect(decideStreamAuth({ ...read, token: 'forged' }).reason).toBe('invalid');
+    expect(decideStreamAuth({ ...read, path: 'dvr-ch1-hd', token }).reason).toBe('wrong-path');
+    expect(decideStreamAuth({ ...read, action: 'publish', token }).reason).toBe('not-viewing');
+    expect(decideStreamAuth({ ...read, protocol: 'rtsp', token }).reason).toBe('not-viewing');
+  });
+
+  it('tells an expired pass from a forged one', () => {
+    vi.useFakeTimers({ now: NOW });
+    try {
+      const token = signLiveToken('dvr-ch1-sd', 1);
+      vi.setSystemTime(later(121_000));
+      expect(decideStreamAuth({ ...read, token })).toEqual({ allowed: false, reason: 'expired' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps the last calls, newest first, and no more than it should', () => {
+    const log = new StreamAuthLog();
+    for (let i = 0; i < 60; i++) {
+      log.add(
+        { path: `p${i}`, protocol: 'hls', action: 'read', allowed: false, reason: 'no-pass' },
+        later(i * 1000),
+      );
+    }
+    expect(log.latest(10).map((e) => e.path)).toEqual(
+      Array.from({ length: 10 }, (_, i) => `p${59 - i}`),
+    );
+    expect(log.latest(100)).toHaveLength(50);
   });
 });

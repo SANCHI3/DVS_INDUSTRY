@@ -1,6 +1,7 @@
 import { createHmac } from 'crypto';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
+import type { StreamAuthReason } from './streamAuthLog';
 
 /** A live-view pass lasts 2 minutes and opens one stream of one camera. */
 export const LIVE_TOKEN_TTL_S = 120;
@@ -19,17 +20,58 @@ export function signLiveToken(path: string, userId: number): string {
   });
 }
 
-/** The stream path the pass opens, or null if it is forged, expired or malformed. */
-export function liveTokenPath(token: string): string | null {
+/** The stream path the pass opens, or why it opens nothing. */
+export function checkLiveToken(token: string): { path: string } | { error: 'expired' | 'invalid' } {
   try {
     const payload = jwt.verify(token, signingKey(), {
       algorithms: ['HS256'],
       audience: AUDIENCE,
     });
     return typeof payload === 'object' && typeof payload['path'] === 'string'
-      ? payload['path']
-      : null;
-  } catch {
-    return null;
+      ? { path: payload['path'] }
+      : { error: 'invalid' };
+  } catch (err) {
+    return { error: err instanceof jwt.TokenExpiredError ? 'expired' : 'invalid' };
   }
+}
+
+/** The stream path the pass opens, or null if it is forged, expired or malformed. */
+export function liveTokenPath(token: string): string | null {
+  const result = checkLiveToken(token);
+  return 'path' in result ? result.path : null;
+}
+
+/** What the video server on the plant PC sends for each viewer (MediaMTX authHTTPAddress). */
+export interface StreamAuthRequest {
+  action: string;
+  path: string;
+  protocol: string;
+  token?: string | null | undefined;
+  password?: string | null | undefined;
+  query?: string | null | undefined;
+}
+
+/**
+ * The pass, however MediaMTX passed it on: WHEP and hls.js send it as
+ * "Authorization: Bearer", which MediaMTX forwards as `token`; Safari's own HLS
+ * player can only put it in the address, which arrives as `query`.
+ */
+export function passFrom(body: StreamAuthRequest): string {
+  return body.token || body.password || (new URLSearchParams(body.query ?? '').get('token') ?? '');
+}
+
+/** Allow one viewer, or say why not. Only reading WebRTC or HLS is ever allowed. */
+export function decideStreamAuth(body: StreamAuthRequest): {
+  allowed: boolean;
+  reason: StreamAuthReason;
+} {
+  if (body.action !== 'read' || !['webrtc', 'hls'].includes(body.protocol) || body.path === '') {
+    return { allowed: false, reason: 'not-viewing' };
+  }
+  const pass = passFrom(body);
+  if (!pass) return { allowed: false, reason: 'no-pass' };
+  const result = checkLiveToken(pass);
+  if ('error' in result) return { allowed: false, reason: result.error };
+  if (result.path !== body.path) return { allowed: false, reason: 'wrong-path' };
+  return { allowed: true, reason: 'allowed' };
 }

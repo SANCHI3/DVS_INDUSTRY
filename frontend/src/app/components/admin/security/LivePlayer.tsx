@@ -4,10 +4,11 @@ import { getLivePass, type CameraDto, type LiveQuality } from "../../../../lib/s
 import { playLive } from "../../../../lib/liveStream";
 import { CameraSnapshot } from "./CameraSnapshot";
 
-type LiveState = "connecting" | "live" | "camera-offline" | "pc-offline" | "not-enabled" | "failed";
+type LiveState = "connecting" | "slow" | "live" | "camera-offline" | "pc-offline" | "not-enabled" | "failed";
 
 export const LIVE_STATE_TEXT: Record<LiveState, string> = {
   connecting: "Connecting…",
+  slow: "Connecting (slower mode)…",
   live: "Live",
   "camera-offline": "Camera offline",
   "pc-offline": "Monitoring PC offline",
@@ -37,7 +38,13 @@ export function LivePlayer({ camera, onClose }: { camera: CameraDto; onClose: ()
       if (cancelled) return;
       if (!pass.available) { setState(REASON_STATE[pass.reason]); return; }
       if (!video.current) return;
-      const stopStream = await playLive(video.current, pass);
+      const stopStream = await playLive(video.current, pass, {
+        onSlowMode: () => { if (!cancelled) setState("slow"); },
+        renew: async () => {
+          const next = await getLivePass(camera.id, quality);
+          return next.available ? next : null;
+        },
+      });
       if (cancelled) { stopStream(); return; }
       stop = stopStream;
       setState("live");
