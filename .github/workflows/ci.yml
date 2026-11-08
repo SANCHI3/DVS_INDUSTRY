@@ -45,7 +45,8 @@ jobs:
 
   # The built frontend against the real API and a real database
   e2e:
-    runs-on: ubuntu-latest
+    # Playwright's browser install stops at once on Ubuntu 26, which ubuntu-latest became
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
