@@ -85,12 +85,16 @@ jobs:
           npx prisma generate
           npx prisma migrate deploy
           npm run db:seed
+      # Three steps, so a failure names the part that broke
+      - name: Frontend install
+        working-directory: frontend
+        run: npm ci
       - name: Frontend build
         working-directory: frontend
-        run: |
-          npm ci
-          npm run build
-          npx playwright install --with-deps chromium
+        run: npm run build
+      - name: Browser for the tests
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
       - name: End-to-end tests
         working-directory: frontend
         run: npm run test:e2e
