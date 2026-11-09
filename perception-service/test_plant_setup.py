@@ -211,6 +211,9 @@ def test_live_config_holds_no_password_but_the_process_gets_the_address():
     assert "authMethod: http" in text and "sourceOnDemand: yes" in text
     for off in ("rtsp: no", "rtmp: no", "srt: no", "moq: no"):
         assert off in text
+    for origin in ("https://www.dvsindustry.online", "https://dvsindustry.online", "https://dvs-industry.vercel.app"):
+        assert f'"{origin}"' in text.split("hlsAllowOrigins:")[1].split("\n")[0]
+        assert f'"{origin}"' in text.split("webrtcAllowOrigins:")[1].split("\n")[0]
     env = live_view.child_env(sources, {"DVR_PASSWORD": "s3cret!x", "DASHBOARD_SERVICE_KEY": "k"})
     assert env["MTX_PATHS_DVR-CH1-SD_SOURCE"].endswith("/Streaming/Channels/102")
     assert "DVR_PASSWORD" not in env and "DASHBOARD_SERVICE_KEY" not in env

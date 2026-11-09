@@ -22,7 +22,13 @@ from ingestion.dvr import mask_text
 WEBRTC_PORT = 8889
 HLS_PORT = 8888
 ICE_UDP_PORT = 8189
-WEBSITE_ORIGIN = "https://dvs-industry.vercel.app"
+# Every address the website is served from. www is the main one; the bare
+# domain redirects to it, and the vercel.app address still works.
+WEBSITE_ORIGINS = (
+    "https://www.dvsindustry.online",
+    "https://dvsindustry.online",
+    "https://dvs-industry.vercel.app",
+)
 NO_WINDOW = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
 
 
@@ -45,6 +51,7 @@ def stream_sources(setup: CameraSetup) -> dict[str, str]:
 
 def render_config(paths: list[str], auth_url: str, log_file: str, public_host: str = "") -> str:
     """mediamtx.yml. Only local listeners; Funnel is the one way in."""
+    origins = ", ".join(f'"{o}"' for o in WEBSITE_ORIGINS)
     lines = [
         "# Written by live_view.py. No passwords here: see its docstring.",
         "logLevel: warn",
@@ -57,12 +64,12 @@ def render_config(paths: list[str], auth_url: str, log_file: str, public_host: s
         "authMethod: http",
         f"authHTTPAddress: {auth_url}",
         f"hlsAddress: 127.0.0.1:{HLS_PORT}",
-        f'hlsAllowOrigins: ["{WEBSITE_ORIGIN}"]',
+        f"hlsAllowOrigins: [{origins}]",
         "hlsVariant: fmp4",
         "hlsSegmentCount: 7",
         "hlsSegmentDuration: 1s",
         f"webrtcAddress: 127.0.0.1:{WEBRTC_PORT}",
-        f'webrtcAllowOrigins: ["{WEBSITE_ORIGIN}"]',
+        f"webrtcAllowOrigins: [{origins}]",
         f"webrtcLocalUDPAddress: :{ICE_UDP_PORT}",
         "webrtcIPsFromInterfaces: no",
         "webrtcICEServers2:",

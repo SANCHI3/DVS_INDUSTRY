@@ -185,8 +185,9 @@ templates are covered in [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md) and
 
 ### Live deployment
 
-- Dashboard: https://dvs-industry.vercel.app (Vercel, `frontend/`, see
-  [frontend/vercel.json](frontend/vercel.json))
+- Dashboard: https://www.dvsindustry.online (Vercel, `frontend/`, see
+  [frontend/vercel.json](frontend/vercel.json)). `dvsindustry.online` redirects
+  to it; https://dvs-industry.vercel.app still works
 - API: https://dvs-industry-api.onrender.com (Render free plan, `backend/`, see
   [render.yaml](render.yaml)); the dashboard forwards `/api` to it
 - Database: Neon PostgreSQL

@@ -12,7 +12,7 @@ numbers, then **Save**. Render restarts the site.
 
 ## Install
 
-1. In Chrome on the plant PC, go to `dvs-industry.vercel.app/setup`. The
+1. In Chrome on the plant PC, go to `www.dvsindustry.online/setup`. The
    download starts by itself.
 2. Open the file. If Windows says "protected your PC", click **More info**, then
    **Run anyway**.
