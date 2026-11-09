@@ -16,7 +16,7 @@ import {
 } from "../../../../lib/liveCheck";
 import { shortAgo } from "../../../../lib/cameraStatus";
 
-/** The panel checks again on its own, so it appears when a problem starts. */
+/** The panel checks again on its own (while the tab is visible), so it appears when a problem starts. */
 export const LIVE_CHECK_REFRESH_MS = 60_000;
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
@@ -57,10 +57,29 @@ export function LiveViewCheck() {
     }
   }, []);
 
+  // Checks once a minute while the tab is visible; paused while it is hidden,
+  // and checks straight away when it is shown again.
   useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const start = () => {
+      if (timer === undefined) timer = setInterval(() => { void refresh(); }, LIVE_CHECK_REFRESH_MS);
+    };
+    const stop = () => {
+      clearInterval(timer);
+      timer = undefined;
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") { stop(); return; }
+      void refresh();
+      start();
+    };
     void refresh();
-    const timer = setInterval(() => { void refresh(); }, LIVE_CHECK_REFRESH_MS);
-    return () => clearInterval(timer);
+    if (document.visibilityState !== "hidden") start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [refresh]);
 
   const runTest = async () => {

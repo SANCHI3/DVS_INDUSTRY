@@ -234,6 +234,30 @@ describe('live view', () => {
     expect((await send({ ...read, path: 'dvr-ch1-hd', token })).status).toBe(401);
   });
 
+  it('lets a pass in for 2 minutes at most, and says so when giving it', async () => {
+    const start = Date.now();
+    vi.useFakeTimers({ now: start, toFake: ['Date'] });
+    try {
+      const token = signLiveToken('dvr-ch1-sd', 1);
+      vi.setSystemTime(start + 119_000);
+      expect((await send({ ...read, token })).status).toBe(200);
+      vi.setSystemTime(start + 121_000);
+      expect((await send({ ...read, token })).status).toBe(401);
+    } finally {
+      vi.useRealTimers();
+    }
+    const hb = { ...heartbeat, info: { liveUrl: 'https://plant.tail1234.ts.net' } };
+    await request(app).post('/api/v1/cameras/heartbeat').set(auth('service')).send(hb);
+    const res = await request(app)
+      .get('/api/v1/cameras/dvr-ch1/live-token?quality=sd')
+      .set(auth('admin')); // not 'production': the next test counts that user's viewings
+    const lasts = new Date(res.body.data.expiresAt).getTime() - Date.now();
+    expect(lasts).toBeGreaterThan(110_000);
+    expect(lasts).toBeLessThanOrEqual(120_000);
+    // A sign-in token is not a live pass
+    expect((await send({ ...read, token: 'admin' })).status).toBe(401);
+  });
+
   it('never allows publishing, other protocols or no pass', async () => {
     const token = signLiveToken('dvr-ch1-sd', 1);
     expect((await send({ ...read, action: 'publish', token })).status).toBe(401);

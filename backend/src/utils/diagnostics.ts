@@ -1,7 +1,7 @@
 import { env } from '../config/env';
 import { ROLES } from '../constants';
 
-/** "a@x.com, B@x.com" → {"a@x.com", "b@x.com"} */
+/** " a@x.com ,  B@X.com,, " → {"a@x.com", "b@x.com"}: capitals and spaces never matter */
 export function parseEmailList(raw: string | undefined): Set<string> {
   return new Set(
     (raw ?? '')
@@ -20,5 +20,7 @@ export function canSeeDiagnostics(
   user: { email: string; role: string } | undefined,
   allowed: Set<string> = parseEmailList(env.DIAGNOSTICS_EMAILS),
 ): boolean {
-  return user !== undefined && user.role === ROLES.ADMIN && allowed.has(user.email.toLowerCase());
+  return (
+    user !== undefined && user.role === ROLES.ADMIN && allowed.has(user.email.trim().toLowerCase())
+  );
 }

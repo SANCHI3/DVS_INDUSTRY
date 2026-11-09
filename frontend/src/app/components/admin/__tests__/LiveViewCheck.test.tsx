@@ -141,6 +141,63 @@ describe("Live view check panel, regular admin", () => {
   });
 });
 
+describe("checking while the tab is hidden", () => {
+  const setVisibility = (state: "visible" | "hidden") => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state });
+    document.dispatchEvent(new Event("visibilitychange"));
+  };
+
+  it("pauses the once-a-minute check while hidden, and checks at once when shown again", async () => {
+    vi.useFakeTimers();
+    try {
+      getLiveCheck.mockResolvedValue(healthy);
+      render(<LiveViewCheck />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      expect(getLiveCheck).toHaveBeenCalledTimes(1);
+
+      await act(async () => { setVisibility("hidden"); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(5 * 60_000); });
+      expect(getLiveCheck).toHaveBeenCalledTimes(1);
+
+      await act(async () => { setVisibility("visible"); await vi.advanceTimersByTimeAsync(0); });
+      expect(getLiveCheck).toHaveBeenCalledTimes(2);
+      await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
+      expect(getLiveCheck).toHaveBeenCalledTimes(3);
+    } finally {
+      setVisibility("visible");
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not start the minute timer when opened in a hidden tab", async () => {
+    vi.useFakeTimers();
+    try {
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+      render(<LiveViewCheck />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(3 * 60_000); });
+      expect(getLiveCheck).toHaveBeenCalledTimes(1);
+    } finally {
+      setVisibility("visible");
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops checking once the panel is closed", async () => {
+    vi.useFakeTimers();
+    try {
+      getLiveCheck.mockResolvedValue(healthy);
+      const { unmount } = render(<LiveViewCheck />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      unmount();
+      setVisibility("visible");
+      await vi.advanceTimersByTimeAsync(3 * 60_000);
+      expect(getLiveCheck).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe("Live view check panel, support staff", () => {
   it("folds the technical details away by default", async () => {
     getLiveCheck.mockResolvedValue(withTechnical(check(plant({ liveReported: true }))));
