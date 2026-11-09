@@ -2,7 +2,12 @@
  * Month-target maths. Actual output always comes from recorded work-order
  * output; the target is only what it is compared against. Every result is
  * null when it cannot be calculated, so the UI shows "N/A", never a guess.
+ *
+ * Pace counts plant WORKING days only (every day except the weekly off,
+ * Saturday), so the plant is never shown "behind" for a day it was closed.
  */
+
+import { PLANT_WEEKLY_OFF_DAY, plantToday, workingDaysBetween } from '../config/plant';
 
 /** "2026-10" → 2026-10-01T00:00:00.000Z; null for anything else. */
 export function monthStart(month: string): Date | null {
@@ -28,8 +33,9 @@ export function percent(part: number, whole: number): number | null {
 export type Pace = 'NOT_STARTED' | 'ON_TRACK' | 'BEHIND' | 'MET';
 
 export interface TargetProgress {
+  /** Working days in the month (the weekly off left out). */
   daysInMonth: number;
-  /** Days of the month that have begun (today counts); 0 for a future month. */
+  /** Working days of the month that have begun (today counts); 0 for a future month. */
   daysElapsed: number;
   /** actual ÷ target × 100 */
   progressPct: number | null;
@@ -43,15 +49,16 @@ export function computeTargetProgress(
   actual: number,
   start: Date,
   now: Date = new Date(),
+  weeklyOff: number = PLANT_WEEKLY_OFF_DAY,
 ): TargetProgress {
   const end = nextMonthStart(start);
-  const daysInMonth = Math.round((end.getTime() - start.getTime()) / 86_400_000);
-  const daysElapsed =
-    now < start
-      ? 0
-      : now >= end
-        ? daysInMonth
-        : Math.floor((now.getTime() - start.getTime()) / 86_400_000) + 1;
+  const daysInMonth = workingDaysBetween(start, end, weeklyOff);
+  // The plant's calendar day (IST), so 00:30 on the 1st is already the 1st
+  const today = plantToday(now);
+  const elapsedEnd = new Date(
+    Math.min(Math.max(today.getTime() + 86_400_000, start.getTime()), end.getTime()),
+  );
+  const daysElapsed = workingDaysBetween(start, elapsedEnd, weeklyOff);
 
   if (target === null || !(target > 0)) {
     return { daysInMonth, daysElapsed, progressPct: null, expectedToDate: null, pace: null };

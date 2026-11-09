@@ -160,6 +160,10 @@ model Employee {
   shiftId Int?
   shift   Shift? @relation(fields: [shiftId], references: [id], onDelete: SetNull)
 
+  // Own weekly off, 0 = Sunday … 6 = Saturday. Null = the plant's weekly off
+  // (PLANT_WEEKLY_OFF, Saturday).
+  weeklyOffDay Int?
+
   // Reporting Manager
   managerId Int?
   manager   Employee? @relation("EmployeeManager", fields: [managerId], references: [id])

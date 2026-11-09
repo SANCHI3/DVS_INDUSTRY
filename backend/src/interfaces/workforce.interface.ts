@@ -143,6 +143,10 @@ export interface DailyAttendanceSummary {
   onLeave: number;
   weekOff: number;
   attendanceRate: string; // e.g. "96.4%"; week-offs are not counted as working days
+  /** The day is the plant's weekly off (Saturday by default) */
+  isPlantWeeklyOff: boolean;
+  /** The plant's weekly off in words, e.g. "Saturday" */
+  plantWeeklyOff: string;
   byDepartment: Array<{
     departmentId: number;
     departmentName: string;

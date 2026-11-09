@@ -233,8 +233,12 @@ export interface DailyAttendanceSummary {
   late:              number;
   onLeave:           number;
   weekOff:           number;
-  /** Attended (present + late + half day) over working headcount; week-offs excluded. */
+  /** Attended (present + late + half day) over working headcount; week-offs excluded. "N/A" when nobody was due. */
   attendanceRate:    string;
+  /** The day is the plant's weekly off (Saturday). Absent from older API versions. */
+  isPlantWeeklyOff?: boolean;
+  /** The plant's weekly off in words, e.g. "Saturday" */
+  plantWeeklyOff?:   string;
   byDepartment:      Array<{ departmentId: number; departmentName: string; present: number; attended: number; weekOff: number; total: number }>;
 }
 

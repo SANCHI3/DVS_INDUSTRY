@@ -10,6 +10,7 @@ import {
 import { useApiData, type ApiData } from "../../../../lib/useApiData";
 import type { ProductionPermissions } from "../../../../lib/workforce";
 import { DialogFrame, Field, InlineNotice, LoadingLine, PrimaryButton, SecondaryButton, filterStyle, inputStyle } from "../workforce/formControls";
+import { PLANT_WEEKLY_OFF_LABEL } from "../../../../lib/plant";
 import { useConfirm } from "../../shared/ConfirmDialog";
 
 export function monthLabel(month: string): string {
@@ -232,7 +233,7 @@ export function MonthlyTargetCard({ month, onMonthChange, perms, onSaved, curren
                   <div>
                     <p style={{ fontSize: "0.72rem", color: "#7A6C6A", textTransform: "uppercase" }}>Expected by now</p>
                     <p style={{ fontSize: "1.25rem", fontWeight: 700 }}>{p.progress.expectedToDate === null ? "N/A" : qty(p.progress.expectedToDate)}</p>
-                    <p style={{ fontSize: "0.72rem", color: "#9A8A88" }}>Day {p.progress.daysElapsed} of {p.progress.daysInMonth}</p>
+                    <p style={{ fontSize: "0.72rem", color: "#9A8A88" }}>Working day {p.progress.daysElapsed} of {p.progress.daysInMonth} · {PLANT_WEEKLY_OFF_LABEL}s not counted</p>
                   </div>
                   <div>
                     <p style={{ fontSize: "0.72rem", color: "#7A6C6A", textTransform: "uppercase" }}>Progress</p>

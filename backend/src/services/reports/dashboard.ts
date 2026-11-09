@@ -11,34 +11,18 @@ import {
   completedShort,
   percentText,
   summariseAttendanceDay,
-  usualWeekOffDays,
   type AttendanceStatusName,
 } from './metrics';
+import { plantToday, weekdayOf } from '../../config/plant';
 
 const DAY_MS = 86_400_000;
-// Weekly offs are learned from this many weeks of attendance sheets
-const WEEK_OFF_LOOKBACK_DAYS = 56;
 
-function utcToday(now = new Date()): Date {
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-}
-
-/** Weekly-off context shared by today's KPIs and the 7-day trend. */
-async function loadWeekOffContext(today: Date) {
-  const [active, weekOffs] = await prisma.$transaction([
-    prisma.employee.findMany({
-      where: { deletedAt: null, status: 'ACTIVE' },
-      select: { id: true },
-    }),
-    prisma.attendance.findMany({
-      where: {
-        status: 'WEEK_OFF',
-        date: { gte: new Date(today.getTime() - WEEK_OFF_LOOKBACK_DAYS * DAY_MS), lte: today },
-      },
-      select: { employeeId: true, date: true },
-    }),
-  ]);
-  return { activeEmployeeIds: active.map((e) => e.id), usualOff: usualWeekOffDays(weekOffs) };
+/** Active employees and their own weekly off (null = the plant's, Saturday). */
+function loadRoster() {
+  return prisma.employee.findMany({
+    where: { deletedAt: null, status: 'ACTIVE' },
+    select: { id: true, weeklyOffDay: true },
+  });
 }
 
 /**
@@ -46,8 +30,9 @@ async function loadWeekOffContext(today: Date) {
  * monthly target set on the Production page. Same basis as that page.
  */
 async function getProductionMonth(now = new Date()): Promise<ProductionMonthSummary> {
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+  const today = plantToday(now);
+  const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+  const nextMonth = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1));
 
   const [target, output, completed] = await prisma.$transaction([
     prisma.productionMonthlyTarget.findUnique({ where: { periodStart: monthStart } }),
@@ -105,7 +90,7 @@ async function getProductionMonth(now = new Date()): Promise<ProductionMonthSumm
 export async function getDashboardKPIs(): Promise<DashboardKPIs> {
   logger.info('Fetching dashboard KPIs');
 
-  const today = utcToday();
+  const today = plantToday();
   const openStatuses = { in: ['OPEN', 'INVESTIGATING'] as Array<'OPEN' | 'INVESTIGATING'> };
 
   const [
@@ -180,10 +165,7 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
     prisma.securityAlert.count({ where: { status: 'ACTIVE', severity: 'CRITICAL' } }),
   ]);
 
-  const [weekOff, productionMonth] = await Promise.all([
-    loadWeekOffContext(today),
-    getProductionMonth(),
-  ]);
+  const [roster, productionMonth] = await Promise.all([loadRoster(), getProductionMonth()]);
 
   // Inventory value
   let inventoryValue = 0;
@@ -212,9 +194,8 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
       employeeId: a.employeeId,
       status: a.status as AttendanceStatusName,
     })),
-    activeEmployeeIds: weekOff.activeEmployeeIds,
-    usualOff: weekOff.usualOff,
-    weekday: today.getUTCDay(),
+    roster,
+    weekday: weekdayOf(today),
   });
 
   return {
@@ -256,7 +237,7 @@ export async function getDashboardKPIs(): Promise<DashboardKPIs> {
 export async function getDashboardCharts(): Promise<DashboardCharts> {
   logger.info('Fetching dashboard chart data');
 
-  const today = utcToday();
+  const today = plantToday();
 
   // Order status pie
   const [coPending, coApproved, coInProd, coDispatched, coDelivered] = await prisma.$transaction([
@@ -294,7 +275,7 @@ export async function getDashboardCharts(): Promise<DashboardCharts> {
     .slice(0, 6);
 
   // Last 7 days of scrap and attendance
-  const weekOff = await loadWeekOffContext(today);
+  const roster = await loadRoster();
   const scrapTrend: Array<{ day: string; scrap: number }> = [];
   const attendanceTrend: AttendanceTrendChartEntry[] = [];
 
@@ -323,9 +304,8 @@ export async function getDashboardCharts(): Promise<DashboardCharts> {
         employeeId: a.employeeId,
         status: a.status as AttendanceStatusName,
       })),
-      activeEmployeeIds: weekOff.activeEmployeeIds,
-      usualOff: weekOff.usualOff,
-      weekday: d.getUTCDay(),
+      roster,
+      weekday: weekdayOf(d),
     });
     // A gap, not a drop to zero, for weekly offs and days with nothing entered yet
     const plotted = day.recorded > 0 && !day.nonWorkingDay;

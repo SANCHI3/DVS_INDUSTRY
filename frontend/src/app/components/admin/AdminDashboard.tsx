@@ -10,6 +10,7 @@ import {
 import { KPICard, Card, CardHeader, StatusBadge, Btn } from "../shared/UI";
 import { getDashboard, type DashboardKPIs, type DashboardCharts } from "../../../lib/services/dashboard.service";
 import { eventTypeLabel } from "../../../lib/incidentLabels";
+import { PLANT_WEEKLY_OFF_LABEL } from "../../../lib/plant";
 import { getProductionTrend, type ProductionTrendEntry } from "../../../lib/services/production.service";
 import { formatINRCompact } from "../../../lib/format";
 
@@ -122,7 +123,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
       ? { type: "info", msg: `No output recorded yet in ${pm.label}` }
       : { type: "info", msg: `${pm.label}: ${fmtQty(pm.outputQty)} ${pm.unit} produced${pm.attainmentRate ? ` (${pm.attainmentRate} of monthly target)` : ""} · order fulfilment ${kpis.orderFulfillmentRate}` },
     kpis.isWeeklyOffToday
-      ? { type: "info", msg: "Today is a weekly off for most of the plant — no attendance expected" }
+      ? { type: "info", msg: `Today is the plant's weekly off (${PLANT_WEEKLY_OFF_LABEL}) — no attendance expected` }
       : attendanceRate === null
         ? { type: "info", msg: "Attendance not yet recorded today" }
         : { type: attendanceRate < 80 ? "warn" : "success", msg: `Today's attendance: ${kpis.attendanceTodayRate} of those due to work (${kpis.attendanceTodayPresent + kpis.attendanceTodayLate} present)` },
@@ -142,7 +143,9 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
 
   const workers = !hasKpis ? { value: pending, sub: undefined as string | undefined }
     : kpis.isWeeklyOffToday
-      ? { value: "Weekly off", sub: `${kpis.attendanceTodayWeekOff} on weekly off today` }
+      ? { value: "Weekly off", sub: kpis.attendanceTodayPresent + kpis.attendanceTodayLate > 0
+          ? `${kpis.attendanceTodayPresent + kpis.attendanceTodayLate} working · ${kpis.attendanceTodayWeekOff} on weekly off`
+          : `${kpis.attendanceTodayWeekOff} on weekly off today` }
       : kpis.attendanceTodayRecorded === 0
         ? { value: "Not entered", sub: "Attendance not yet recorded today" }
         : { value: String(kpis.attendanceTodayPresent + kpis.attendanceTodayLate), sub: `of ${kpis.activeEmployees} active · ${kpis.attendanceTodayRate ?? "—"}` };
@@ -221,7 +224,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (s: string) => void
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
         {/* Attendance trend */}
         <Card>
-          <CardHeader title="Attendance Trend" subtitle="Present, last 7 days · gaps are weekly offs or days not yet entered" />
+          <CardHeader title="Attendance Trend" subtitle={`Present, last 7 days · gaps are weekly offs (${PLANT_WEEKLY_OFF_LABEL}) or days not yet entered`} />
           <div className="p-4">
             {attHasPoints ? <ResponsiveContainer width="100%" height={150}>
               <LineChart data={attTrend}>

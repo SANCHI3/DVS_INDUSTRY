@@ -22,6 +22,12 @@ import type {
   EmployeeOutputSummary,
 } from '../interfaces';
 import { calculateEfficiency } from '../utils/efficiency';
+import {
+  PLANT_WEEKLY_OFF_DAY,
+  PLANT_WEEKLY_OFF_LABEL,
+  weekdayOf,
+  weeklyOffFor,
+} from '../config/plant';
 
 // ── Select shapes ─────────────────────────────────────────────────────────────
 
@@ -485,14 +491,17 @@ export class WorkforceRepository {
       ...(departmentId ? { departmentId } : {}),
     };
 
-    const [totalEmployees, records, depts] = await prisma.$transaction([
-      prisma.employee.count({ where: empWhere }),
+    const [roster, records, depts] = await prisma.$transaction([
+      prisma.employee.findMany({
+        where: empWhere,
+        select: { id: true, departmentId: true, weeklyOffDay: true },
+      }),
       prisma.attendance.findMany({
         where: {
           date: normDate,
           ...(departmentId ? { employee: { departmentId } } : {}),
         },
-        select: { status: true, employee: { select: { departmentId: true } } },
+        select: { employeeId: true, status: true, employee: { select: { departmentId: true } } },
       }),
       prisma.department.findMany({
         where: { deletedAt: null, isActive: true },
@@ -531,6 +540,18 @@ export class WorkforceRepository {
       }
     }
 
+    // Nothing entered for someone on their weekly off (their own, else the
+    // plant's, Saturday): that is a weekly off, not a missing entry. On any
+    // other day, Sunday included, a missing entry stays "not entered yet".
+    const weekday = weekdayOf(normDate);
+    const entered = new Set(records.map((r) => r.employeeId));
+    for (const e of roster) {
+      if (entered.has(e.id) || weeklyOffFor(e.weeklyOffDay) !== weekday) continue;
+      counts.weekOff++;
+      if (e.departmentId !== null) bump(deptWeekOffMap, e.departmentId);
+    }
+    const totalEmployees = roster.length;
+
     // Dept-level totals
     const deptEmpCounts = await prisma.employee.groupBy({
       by: ['departmentId'],
@@ -553,11 +574,12 @@ export class WorkforceRepository {
       total,
     }));
 
-    // A week-off is not a working day, so it is left out of the rate
+    // A week-off is not a working day, so it is left out of the rate. Someone
+    // who worked on their weekly off still counts as attended.
     const attended = counts.present + counts.late + counts.halfDay;
-    const workingHeadcount = totalEmployees - counts.weekOff;
+    const workingHeadcount = Math.max(totalEmployees - counts.weekOff, attended);
     const attendanceRate =
-      workingHeadcount > 0 ? ((attended / workingHeadcount) * 100).toFixed(1) + '%' : '0.0%';
+      workingHeadcount > 0 ? ((attended / workingHeadcount) * 100).toFixed(1) + '%' : 'N/A';
 
     return {
       date: normDate.toISOString().split('T')[0]!,
@@ -569,6 +591,8 @@ export class WorkforceRepository {
       onLeave: counts.onLeave,
       weekOff: counts.weekOff,
       attendanceRate,
+      isPlantWeeklyOff: weekday === PLANT_WEEKLY_OFF_DAY,
+      plantWeeklyOff: PLANT_WEEKLY_OFF_LABEL,
       byDepartment,
     };
   }

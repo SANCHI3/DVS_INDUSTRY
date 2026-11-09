@@ -37,8 +37,9 @@ function data(overrides: Partial<DashboardData["kpis"]> = {}): DashboardData {
     charts: {
       orderStatusPie: [], scrapByDepartment: [], scrapTrend: [],
       attendanceTrend: [
-        { date: "Sat", present: 80, absent: 5, late: 2, onLeave: 1, weekOff: 0, nonWorkingDay: false },
-        { date: "Sun", present: null, absent: 0, late: 0, onLeave: 0, weekOff: 88, nonWorkingDay: true },
+        { date: "Fri", present: 80, absent: 5, late: 2, onLeave: 1, weekOff: 0, nonWorkingDay: false },
+        { date: "Sat", present: null, absent: 0, late: 0, onLeave: 0, weekOff: 88, nonWorkingDay: true },
+        { date: "Sun", present: 82, absent: 4, late: 1, onLeave: 1, weekOff: 0, nonWorkingDay: false },
       ],
       recentOrders: [
         { id: 1, orderNumber: "ORD-CES-2021000329", client: "CES", product: "Bracket", qty: 500, status: "pending", orderDate: "2026-10-26T00:00:00.000Z" },
@@ -60,12 +61,27 @@ describe("Operations dashboard", () => {
     expect(await screen.findByText("₹11.1L")).toBeTruthy();
   });
 
-  it("treats a weekly off as a weekly off, not 0% attendance", async () => {
+  it("treats Saturday, the plant's weekly off, as a weekly off, not 0% attendance", async () => {
     vi.mocked(getDashboard).mockResolvedValue(data());
     render(<AdminDashboard onNavigate={vi.fn()} />);
     expect(await screen.findByText("Weekly off")).toBeTruthy();
-    expect(screen.getByText(/weekly off for most of the plant/)).toBeTruthy();
+    expect(screen.getByText(/Today is the plant's weekly off \(Saturday\)/)).toBeTruthy();
+    expect(screen.getByText(/gaps are weekly offs \(Saturday\)/)).toBeTruthy();
     expect(screen.queryByText(/0\.0%/)).toBeNull();
+  });
+
+  it("still counts people who work on the weekly off", async () => {
+    vi.mocked(getDashboard).mockResolvedValue(data({ attendanceTodayPresent: 3, attendanceTodayRecorded: 3, attendanceTodayWeekOff: 87 }));
+    render(<AdminDashboard onNavigate={vi.fn()} />);
+    expect(await screen.findByText("3 working · 87 on weekly off")).toBeTruthy();
+  });
+
+  it("on a working day such as Sunday, nothing entered is 'Not entered', not a weekly off", async () => {
+    vi.mocked(getDashboard).mockResolvedValue(data({ isWeeklyOffToday: false, attendanceTodayWeekOff: 0 }));
+    render(<AdminDashboard onNavigate={vi.fn()} />);
+    expect(await screen.findByText("Not entered")).toBeTruthy();
+    expect(screen.queryByText("Weekly off")).toBeNull();
+    expect(screen.getAllByText("Attendance not yet recorded today").length).toBeGreaterThan(0);
   });
 
   it("says no output yet early in the month instead of a red 0.0%", async () => {

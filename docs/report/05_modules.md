@@ -18,6 +18,25 @@ and the service role PERCEPTION_SERVICE. Each route declares the roles it
 accepts. For example, Store users get HTTP 403 on security data, and only
 ADMIN receives raw model output in the evidence view.
 
+### Plant calendar
+
+The plant's weekly off is Saturday. Sunday is a normal working day.
+This is one setting, `PLANT_WEEKLY_OFF` (default `SATURDAY`, in
+`backend/src/config/plant.ts`). An employee can have their own weekly off,
+set in the employee dialog; it is empty by default, which means the plant's.
+
+- **Attendance and dashboard:** on Saturday, anyone with nothing entered is
+  on the weekly off. The dashboard shows "Weekly off" instead of a 0%
+  warning, Saturday is left out of attendance rates, and it is a gap in the
+  7-day trend. Someone marked Present on a Saturday still counts. On Sunday,
+  nothing entered means "not entered yet", as on any working day.
+- **Production target pace:** "expected by now" counts working days only
+  (every day except Saturday), so the plant is never "behind" for a
+  Saturday. The card says "Working day N of M".
+- **Time zone:** "today" is the plant's day in India time, so 00:30 IST on a
+  Saturday is Saturday, although the server's UTC clock still says Friday.
+- **Ask DVS** is told the weekly off is Saturday.
+
 ## 4.2 Perception modules
 
 For each model: what it detects, the model type, why it was chosen over plain

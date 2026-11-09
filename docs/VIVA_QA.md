@@ -211,3 +211,11 @@ the AI cannot say what it is. A human always makes the final call.
 - Small fire and smoke test sets.
 - The anomaly detector is silent for 5 minutes while it calibrates.
 - The single-process SSE bus means several backend workers need a shared bus.
+
+**31. Which day is the plant's weekly off, and how does the system use it?**
+Saturday; Sunday is a working day. It is one setting (`PLANT_WEEKLY_OFF`,
+default `SATURDAY`), and an employee can have their own weekly off. On a
+Saturday with nothing entered, the dashboard shows "Weekly off" instead of a
+0% warning, Saturday is left out of attendance rates, and the production
+target pace counts working days only. "Today" is taken in India time, so
+00:30 IST on Saturday counts as Saturday even though UTC is still Friday.

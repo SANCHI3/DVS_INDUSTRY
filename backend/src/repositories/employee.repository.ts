@@ -42,6 +42,7 @@ const employeeSelect = {
   createdAt: true,
   updatedAt: true,
   userId: true,
+  weeklyOffDay: true,
   department: {
     select: { id: true, name: true, code: true },
   },
@@ -122,6 +123,7 @@ export class EmployeeRepository implements IEmployeeRepository {
         status: data.status ?? 'ACTIVE',
         departmentId: data.departmentId ?? null,
         shiftId: data.shiftId ?? null,
+        weeklyOffDay: data.weeklyOffDay ?? null,
         managerId: data.managerId ?? null,
         userId: data.userId ?? null,
         address: data.address ?? null,
@@ -156,6 +158,7 @@ export class EmployeeRepository implements IEmployeeRepository {
     if (data.salary !== undefined) updateData.salary = data.salary;
     if (data.dailyWageRate !== undefined) updateData.dailyWageRate = data.dailyWageRate;
     if (data.status !== undefined) updateData.status = data.status;
+    if (data.weeklyOffDay !== undefined) updateData.weeklyOffDay = data.weeklyOffDay;
     if (data.address !== undefined) updateData.address = data.address;
     if (data.city !== undefined) updateData.city = data.city;
     if (data.state !== undefined) updateData.state = data.state;

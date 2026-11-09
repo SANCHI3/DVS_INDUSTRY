@@ -60,6 +60,8 @@ export interface EmployeeDto {
   updatedAt: Date;
   department: DepartmentRefDto | null;
   shift: EmployeeShiftRef | null;
+  /** Own weekly off, 0 = Sunday … 6 = Saturday; null = the plant's (Saturday) */
+  weeklyOffDay: number | null;
   manager: EmployeeManagerDto | null;
   userId: number | null;
 }
@@ -139,6 +141,7 @@ export interface CreateEmployeeData {
   status?: EmployeeStatus | undefined;
   departmentId?: number | null | undefined;
   shiftId?: number | null | undefined;
+  weeklyOffDay?: number | null | undefined;
   managerId?: number | null | undefined;
   userId?: number | null | undefined;
   address?: string | null | undefined;
@@ -165,6 +168,7 @@ export interface UpdateEmployeeData {
   salary?: string | null | undefined;
   dailyWageRate?: string | null | undefined;
   status?: EmployeeStatus | undefined;
+  weeklyOffDay?: number | null | undefined;
   address?: string | null | undefined;
   city?: string | null | undefined;
   state?: string | null | undefined;

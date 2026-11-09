@@ -595,6 +595,9 @@ const getAttendanceSummary: AssistantTool = {
       late: s.late,
       halfDay: s.halfDay,
       onLeave: s.onLeave,
+      weekOff: s.weekOff,
+      plantWeeklyOff: s.plantWeeklyOff,
+      isPlantWeeklyOff: s.isPlantWeeklyOff,
       attendanceRate: s.attendanceRate,
       byDepartment: s.byDepartment
         .slice(0, MAX_ROWS)

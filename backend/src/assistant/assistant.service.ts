@@ -11,6 +11,7 @@
  * 4. Each question is written to the audit log (no tool payloads).
  */
 import { env } from '../config/env';
+import { plantToday, weekdayLabel } from '../config/plant';
 import { AppError, ForbiddenError } from '../errors';
 import { AuditRepository } from '../repositories/audit.repository';
 import { logger } from '../logger';
@@ -118,6 +119,12 @@ function parseArgs(raw: string): unknown {
   }
 }
 
+/** The plant's (IST) date with its weekday, e.g. "Saturday 2026-11-14". */
+export function plantDateText(now: Date): string {
+  const today = plantToday(now);
+  return `${weekdayLabel(today.getUTCDay())} ${today.toISOString().slice(0, 10)}`;
+}
+
 export class AssistantService {
   private readonly llm: LlmClient | null;
   private readonly audit: (entry: AuditEntry) => Promise<void>;
@@ -176,11 +183,11 @@ export class AssistantService {
     const tools = toolsForRole(user.role);
     const specs = toolSpecs(tools);
     const messages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt(day(now) ?? now.toDateString(), user.role) },
+      { role: 'system', content: systemPrompt(plantDateText(now), user.role) },
       { role: 'user', content: question },
     ];
     const runs: ToolRun[] = [];
-    const evidence: string[] = [question, day(now) ?? ''];
+    const evidence: string[] = [question, day(now) ?? '', plantDateText(now)];
     // Every model call shares one time budget, so the whole answer ends in time
     const deadline = Date.now() + ANSWER_BUDGET_MS;
     const timeLeft = (): number => {

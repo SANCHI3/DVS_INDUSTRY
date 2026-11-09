@@ -143,21 +143,39 @@ beforeEach(() => {
 describe('target maths', () => {
   const oct = monthStart('2026-10')!;
 
-  it('measures progress against a straight-line pace through the month', () => {
-    const p = computeTargetProgress(3100, 1200, oct, new Date('2026-10-10T12:00:00Z'));
+  // October 2026: 31 days, five Saturdays (3, 10, 17, 24, 31), so 26 working days
+  it('measures progress against a straight-line pace over working days', () => {
+    const p = computeTargetProgress(2600, 1000, oct, new Date('2026-10-10T12:00:00Z'));
     expect(p).toMatchObject({
-      daysInMonth: 31,
-      daysElapsed: 10,
-      progressPct: 38.7,
-      expectedToDate: 1000,
+      daysInMonth: 26,
+      daysElapsed: 8, // 1 to 10 October, less Saturdays 3 and 10
+      progressPct: 38.5,
+      expectedToDate: 800,
       pace: 'ON_TRACK',
     });
-    expect(computeTargetProgress(3100, 800, oct, new Date('2026-10-10T12:00:00Z')).pace).toBe(
+    expect(computeTargetProgress(2600, 700, oct, new Date('2026-10-10T12:00:00Z')).pace).toBe(
       'BEHIND',
     );
-    expect(computeTargetProgress(3100, 3100, oct, new Date('2026-10-10T12:00:00Z')).pace).toBe(
+    expect(computeTargetProgress(2600, 2600, oct, new Date('2026-10-10T12:00:00Z')).pace).toBe(
       'MET',
     );
+  });
+
+  it('a Saturday adds nothing to the expected output, so it never puts the plant behind', () => {
+    const friday = computeTargetProgress(2600, 800, oct, new Date('2026-10-09T12:00:00Z'));
+    const saturday = computeTargetProgress(2600, 800, oct, new Date('2026-10-10T12:00:00Z'));
+    expect(saturday.expectedToDate).toBe(friday.expectedToDate);
+    expect(saturday.pace).toBe('ON_TRACK');
+    // Sunday is a working day: it does add a day
+    const sunday = computeTargetProgress(2600, 800, oct, new Date('2026-10-11T12:00:00Z'));
+    expect(sunday.daysElapsed).toBe(9);
+    expect(sunday.pace).toBe('BEHIND');
+  });
+
+  it('counts the IST day: 00:15 IST on the 1st is already the 1st', () => {
+    const p = computeTargetProgress(2600, 0, oct, new Date('2026-09-30T18:45:00Z'));
+    expect(p.daysElapsed).toBe(1);
+    expect(p.pace).toBe('BEHIND');
   });
 
   it('handles past and future months', () => {
@@ -167,7 +185,7 @@ describe('target maths', () => {
       expectedToDate: 0,
     });
     expect(computeTargetProgress(100, 50, oct, new Date('2027-01-01Z'))).toMatchObject({
-      daysElapsed: 31,
+      daysElapsed: 26,
       expectedToDate: 100,
       pace: 'BEHIND',
     });

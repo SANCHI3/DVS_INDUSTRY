@@ -27,6 +27,7 @@
     "cleanup:test-data": "tsx scripts/cleanup-test-data.ts",
     "import:attendance": "tsx src/scripts/import-attendance.ts",
     "seed:production-demo": "tsx src/scripts/seed-production-demo.ts",
+    "fix:demo-weekly-off": "tsx src/scripts/fix-demo-weekly-off.ts",
     "eval:assistant": "tsx scripts/eval-assistant.ts",
     "prepare": "husky",
     "docs:api": "tsx scripts/api-reference.ts"

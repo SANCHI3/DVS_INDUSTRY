@@ -58,6 +58,15 @@ const optionalNullableString = (max = 255) => z.string().max(max).trim().optiona
 
 const optionalPositiveInt = z.coerce.number().int().positive().optional().nullable();
 
+// Own weekly off, 0 = Sunday … 6 = Saturday; null = the plant's (Saturday)
+const weeklyOffDayField = z
+  .number({ error: 'Weekly off must be a weekday number from 0 (Sunday) to 6 (Saturday)' })
+  .int()
+  .min(0, 'Weekly off must be from 0 (Sunday) to 6 (Saturday)')
+  .max(6, 'Weekly off must be from 0 (Sunday) to 6 (Saturday)')
+  .nullable()
+  .optional();
+
 // ── Create Schema ─────────────────────────────────────────────────────────────
 
 export const createEmployeeSchema = z.object({
@@ -87,6 +96,7 @@ export const createEmployeeSchema = z.object({
 
   departmentId: optionalPositiveInt,
   shiftId: optionalPositiveInt,
+  weeklyOffDay: weeklyOffDayField,
   managerId: optionalPositiveInt,
   userId: optionalPositiveInt,
 
@@ -125,6 +135,7 @@ export const updateEmployeeSchema = z
     salary: salaryField,
     dailyWageRate: dailyWageRateField,
     status: editableStatusField.optional(),
+    weeklyOffDay: weeklyOffDayField,
     address: optionalNullableString(500),
     city: optionalNullableString(100),
     state: optionalNullableString(100),

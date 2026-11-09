@@ -4,6 +4,7 @@ import {
   type AttendanceStatus,
   type EmploymentType,
 } from '@prisma/client';
+import { PLANT_WEEKLY_OFF_DAY, PLANT_WEEKLY_OFF_LABEL } from '../config/plant';
 
 /**
  * Demo data for the Production module only: departments, shifts, ten press
@@ -73,7 +74,7 @@ export interface DemoWorker {
   shift: ShiftName;
   employmentType: EmploymentType;
   joiningDate: string;
-  /** One code per day of the demo week, oldest first; Sundays are always Week Off */
+  /** One code per day of the demo week, oldest first; the plant's weekly off (Saturday) is always Week Off */
   week: string;
   /** Parts a press is planned to make per hour */
   partsPerHour: number;
@@ -230,7 +231,7 @@ const DAY_REMARK: Record<DayCode | 'W', string> = {
   H: 'Half day: left after 4 hours',
   A: 'Absent',
   V: 'On leave',
-  W: 'Weekly off (Sunday)',
+  W: `Weekly off (${PLANT_WEEKLY_OFF_LABEL})`,
 };
 
 interface DemoOutput {
@@ -404,12 +405,13 @@ const addMinutes = (d: Date, minutes: number): Date => new Date(d.getTime() + mi
 const hoursBetween = (from: Date, to: Date): number =>
   parseFloat(((to.getTime() - from.getTime()) / 3_600_000).toFixed(2));
 
-const isSunday = (now: Date, daysAgo: number): boolean =>
-  localAt(now, -daysAgo, '00:00').getDay() === 0;
+/** The plant's weekly off (Saturday; Sunday is a working day) */
+const isWeeklyOff = (now: Date, daysAgo: number): boolean =>
+  localAt(now, -daysAgo, '00:00').getDay() === PLANT_WEEKLY_OFF_DAY;
 
-/** Work-order activity on a Sunday moves to the Saturday before, when the factory works */
+/** Work-order activity on the weekly off moves to the day before (Friday), when the plant works */
 const workdayAgo = (now: Date, daysAgo: number): number =>
-  isSunday(now, daysAgo) ? daysAgo + 1 : daysAgo;
+  isWeeklyOff(now, daysAgo) ? daysAgo + 1 : daysAgo;
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -459,7 +461,7 @@ export function planWorkerWeek(
     let shiftEnd = localAt(now, -daysAgo, shift.endTime);
     if (shiftEnd <= shiftStart) shiftEnd = addMinutes(shiftEnd, 24 * 60); // overnight shift
 
-    const code: DayCode | 'W' = isSunday(now, daysAgo) ? 'W' : (w.week[i] as DayCode);
+    const code: DayCode | 'W' = isWeeklyOff(now, daysAgo) ? 'W' : (w.week[i] as DayCode);
     const remarks = `${DEMO_MARK} ${DAY_REMARK[code]}`;
     if (code === 'W' || code === 'A' || code === 'V') {
       const status = code === 'W' ? 'WEEK_OFF' : DAY_STATUS[code];

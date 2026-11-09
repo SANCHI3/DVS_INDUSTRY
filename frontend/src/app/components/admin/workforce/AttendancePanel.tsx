@@ -108,9 +108,14 @@ export function AttendancePanel() {
         <KPICard label="Late" value={kpi(s?.late)} sub={s ? `${s.halfDay} half day` : undefined} accent="#E65100" />
         <KPICard label="Absent" value={kpi(s?.absent)} accent="#C0392B" />
         <KPICard label="On Leave" value={kpi(s?.onLeave)} accent="#1565C0" />
-        <KPICard label="Week Off" value={kpi(s?.weekOff)} sub="Not counted as working days" accent="#6A1B9A" />
+        <KPICard label="Week Off" value={kpi(s?.weekOff)} sub={s?.isPlantWeeklyOff ? `Weekly off (${s.plantWeeklyOff ?? "Saturday"})` : "Not counted as working days"} accent="#6A1B9A" />
       </div>
       {summary.error && <div className="mb-4"><InlineNotice tone="error" onRetry={summary.reload}>{summary.error}</InlineNotice></div>}
+      {s?.isPlantWeeklyOff && (
+        <p className="mb-2" style={{ fontSize: "0.8rem", color: "#6A1B9A" }} data-testid="weekly-off-note">
+          {formatDay(toDate)} is the plant&apos;s weekly off ({s.plantWeeklyOff ?? "Saturday"}). No attendance is expected; anyone marked Present still counts.
+        </p>
+      )}
       {s && s.totalEmployees > 0 && (
         <p className="mb-4" style={{ fontSize: "0.75rem", color: "#9A8A88" }}>
           {s.totalEmployees} active employees; {Math.max(0, s.totalEmployees - (s.present + s.late + s.halfDay + s.absent + s.onLeave + s.weekOff))} have no attendance recorded {onDay}.

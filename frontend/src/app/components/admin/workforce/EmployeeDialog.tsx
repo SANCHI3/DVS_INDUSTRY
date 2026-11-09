@@ -5,6 +5,7 @@ import {
   assignDepartment, assignShift, createEmployee, updateEmployee, type EmployeeDto, type EmployeeStatus,
 } from "../../../../lib/services/employees.service";
 import { createDepartment, type DepartmentDto } from "../../../../lib/services/departments.service";
+import { PLANT_WEEKLY_OFF_LABEL, WEEKDAY_NAMES } from "../../../../lib/plant";
 import {
   createAttendance, createEmployeeOutput, createShift, getAttendance, getEmployeeOutputs, updateAttendance,
   updateEmployeeOutput, type AttendanceDto, type AttendanceStatus, type EmployeeOutputDto, type EmployeeOutputFields,
@@ -32,6 +33,8 @@ interface FormState {
   shiftName: string;
   newShiftStart: string;
   newShiftEnd: string;
+  /** "" = the plant's weekly off (Saturday), else "0" (Sunday) … "6" (Saturday) */
+  weeklyOff: string;
   joiningDate: string;
   employmentType: string;
   status: EmployeeStatus;
@@ -56,6 +59,7 @@ function initialForm(e: EmployeeDto | null, date: string): FormState {
     shiftName: e?.shift?.name ?? "",
     newShiftStart: "",
     newShiftEnd: "",
+    weeklyOff: e?.weeklyOffDay === null || e?.weeklyOffDay === undefined ? "" : String(e.weeklyOffDay),
     joiningDate: e ? apiDay(e.joiningDate) : localIsoDate(),
     employmentType: e?.employmentType ?? "FULL_TIME",
     status: e?.status ?? "ACTIVE",
@@ -226,6 +230,7 @@ export function EmployeeDialog({ mode, employee, initialDate, departments, shift
         }
 
         const wage = form.dailyWageRate.trim() === "" ? null : form.dailyWageRate.trim();
+        const weeklyOffDay = form.weeklyOff === "" ? null : Number(form.weeklyOff);
         if (emp === null) {
           step = "create the employee";
           emp = await createEmployee({
@@ -238,6 +243,7 @@ export function EmployeeDialog({ mode, employee, initialDate, departments, shift
             status: form.status === "TERMINATED" ? "ACTIVE" : form.status,
             departmentId,
             shiftId,
+            weeklyOffDay,
             ...(perms.viewPay ? { dailyWageRate: wage } : {}),
           });
           setSaved(emp);
@@ -252,6 +258,7 @@ export function EmployeeDialog({ mode, employee, initialDate, departments, shift
           text("employeeCode"); text("firstName"); text("lastName"); text("designation"); text("employmentType");
           if (form.joiningDate !== apiDay(emp.joiningDate)) patch["joiningDate"] = form.joiningDate;
           if (form.status !== emp.status && form.status !== "TERMINATED") patch["status"] = form.status;
+          if (weeklyOffDay !== (emp.weeklyOffDay ?? null)) patch["weeklyOffDay"] = weeklyOffDay;
           if (perms.viewPay && wage !== emp.dailyWageRate && Number(wage) !== Number(emp.dailyWageRate ?? NaN)) patch["dailyWageRate"] = wage;
           if (Object.keys(patch).length > 0) emp = await updateEmployee(emp.id, patch);
           if (departmentId !== (emp.department?.id ?? null)) {
@@ -405,6 +412,14 @@ export function EmployeeDialog({ mode, employee, initialDate, departments, shift
                 </div>
               </div>
             )}
+          </Field>
+          <Field id="emp-weekly-off" label="Weekly off"
+            hint={editProfile ? `Leave as the plant weekly off (${PLANT_WEEKLY_OFF_LABEL}) unless this person has a different day off. Sunday is a working day.` : undefined}>
+            <select id="emp-weekly-off" value={form.weeklyOff} onChange={(e) => set("weeklyOff", e.target.value)}
+              style={style(editProfile)} disabled={!editProfile} aria-describedby={describedBy("emp-weekly-off", editProfile)}>
+              <option value="">{`Plant weekly off (${PLANT_WEEKLY_OFF_LABEL})`}</option>
+              {WEEKDAY_NAMES.map((name, day) => <option key={name} value={String(day)}>{name}</option>)}
+            </select>
           </Field>
           <Field id="emp-joining" label="Joining date" required={editProfile} error={errors.joiningDate}>
             <input id="emp-joining" type="date" value={form.joiningDate} onChange={(e) => set("joiningDate", e.target.value)}

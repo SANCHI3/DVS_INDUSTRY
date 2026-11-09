@@ -3,10 +3,13 @@
  * data (the assistant is read-only, so these never reach the LLM).
  */
 
+import { PLANT_WEEKLY_OFF_LABEL } from '../config/plant';
+
 export function systemPrompt(today: string, role: string): string {
   return [
     'You are "Ask DVS", the assistant of the DVS Industries factory ERP.',
     `Today is ${today}. The person asking works in the factory with the role ${role}.`,
+    `The plant's weekly off is ${PLANT_WEEKLY_OFF_LABEL}; every other day, Sunday included, is a working day. If asked which day is the weekly off or holiday, answer ${PLANT_WEEKLY_OFF_LABEL}. Some employees may have their own weekly off set on their profile.`,
     '',
     'Rules:',
     '- Answer in 1 to 4 short sentences, in plain everyday words, in the same language the question was written in.',

@@ -3,10 +3,22 @@ import {
   completedShort,
   percentText,
   summariseAttendanceDay,
-  usualWeekOffDays,
 } from '../../services/reports/metrics';
+import {
+  PLANT_WEEKLY_OFF_DAY,
+  PLANT_WEEKLY_OFF_LABEL,
+  isWorkingDay,
+  parseWeekday,
+  plantToday,
+  weeklyOffFor,
+  weekdayOf,
+} from '../../config/plant';
 
-const sunday = (weeksAgo: number) => new Date(Date.UTC(2026, 10, 1 - 7 * weeksAgo)); // 1 Nov 2026 is a Sunday
+const SATURDAY = 6;
+const SUNDAY = 0;
+/** n active employees on the plant's weekly off (no own setting) */
+const roster = (n: number, own: Record<number, number> = {}) =>
+  Array.from({ length: n }, (_, i) => ({ id: i + 1, weeklyOffDay: own[i + 1] ?? null }));
 
 describe('completedShort', () => {
   it('flags a completed work order below its target', () => {
@@ -27,31 +39,95 @@ describe('percentText', () => {
   });
 });
 
-describe('weekly offs', () => {
-  it("learns each employee's usual off day from their records", () => {
-    const usual = usualWeekOffDays([
-      { employeeId: 1, date: sunday(1) },
-      { employeeId: 1, date: sunday(2) },
-      { employeeId: 2, date: sunday(1) }, // only once: not enough to call it usual
-    ]);
-    expect(usual.get(1)).toBe(0);
-    expect(usual.has(2)).toBe(false);
+describe('the plant calendar', () => {
+  it('has Saturday as the weekly off, and Sunday as a working day', () => {
+    expect(PLANT_WEEKLY_OFF_DAY).toBe(SATURDAY);
+    expect(PLANT_WEEKLY_OFF_LABEL).toBe('Saturday');
+    expect(isWorkingDay(new Date('2026-11-14T00:00:00Z'))).toBe(false); // Saturday
+    expect(isWorkingDay(new Date('2026-11-15T00:00:00Z'))).toBe(true); // Sunday
   });
 
-  it('treats a Sunday with no attendance as a weekly off, not 0% attendance', () => {
-    const day = summariseAttendanceDay({
-      records: [],
-      activeEmployeeIds: [1, 2, 3],
-      usualOff: new Map([
-        [1, 0],
-        [2, 0],
-        [3, 0],
-      ]),
-      weekday: 0,
-    });
+  it('reads PLANT_WEEKLY_OFF, and refuses anything that is not a weekday', () => {
+    expect(parseWeekday(undefined)).toBe(SATURDAY);
+    expect(parseWeekday('')).toBe(SATURDAY);
+    expect(parseWeekday('friday')).toBe(5);
+    expect(() => parseWeekday('weekend')).toThrow(/weekday name/);
+  });
+
+  it("uses an employee's own weekly off, else the plant's", () => {
+    expect(weeklyOffFor(null)).toBe(SATURDAY);
+    expect(weeklyOffFor(undefined)).toBe(SATURDAY);
+    expect(weeklyOffFor(SUNDAY)).toBe(SUNDAY);
+  });
+});
+
+describe('today is the IST calendar day', () => {
+  it('00:30 IST on Saturday is Saturday, although UTC is still Friday', () => {
+    const now = new Date('2026-11-13T19:00:00Z'); // Sat 14 Nov 00:30 IST
+    expect(now.getUTCDay()).toBe(5);
+    const today = plantToday(now);
+    expect(today.toISOString()).toBe('2026-11-14T00:00:00.000Z');
+    expect(weekdayOf(today)).toBe(SATURDAY);
+  });
+
+  it('23:59 IST on Friday is still Friday', () => {
+    const today = plantToday(new Date('2026-11-13T18:29:00Z')); // Fri 23:59 IST
+    expect(today.toISOString()).toBe('2026-11-13T00:00:00.000Z');
+    expect(weekdayOf(today)).toBe(5);
+  });
+
+  it('00:00 IST on Sunday is Sunday, a working day', () => {
+    const today = plantToday(new Date('2026-11-14T18:30:00Z')); // Sun 00:00 IST
+    expect(weekdayOf(today)).toBe(SUNDAY);
+    expect(isWorkingDay(today)).toBe(true);
+  });
+
+  it('a stored attendance date keeps its own weekday', () => {
+    expect(weekdayOf(new Date('2026-11-14T00:00:00.000Z'))).toBe(SATURDAY);
+  });
+});
+
+describe('weekly offs', () => {
+  it('Saturday with no attendance entered is the weekly off, not 0% attendance', () => {
+    const day = summariseAttendanceDay({ records: [], roster: roster(3), weekday: SATURDAY });
     expect(day.weekOff).toBe(3);
     expect(day.rate).toBeNull();
     expect(day.nonWorkingDay).toBe(true);
+  });
+
+  it('Sunday with no attendance entered is "not entered yet", like any working day', () => {
+    const day = summariseAttendanceDay({ records: [], roster: roster(3), weekday: SUNDAY });
+    expect(day.weekOff).toBe(0);
+    expect(day.recorded).toBe(0);
+    expect(day.rate).toBeNull();
+    expect(day.nonWorkingDay).toBe(false);
+  });
+
+  it('a worker marked Present on Saturday still counts', () => {
+    const day = summariseAttendanceDay({
+      records: [{ employeeId: 1, status: 'PRESENT' }],
+      roster: roster(3),
+      weekday: SATURDAY,
+    });
+    expect(day.present).toBe(1);
+    expect(day.weekOff).toBe(2);
+    expect(day.rate).toBe('100.0%');
+    expect(day.nonWorkingDay).toBe(true);
+  });
+
+  it("uses an employee's own weekly off instead of Saturday", () => {
+    // Employees 1 and 2 are off on Sundays, so they are due on Saturday
+    const own = { 1: SUNDAY, 2: SUNDAY };
+    const saturday = summariseAttendanceDay({
+      records: [],
+      roster: roster(3, own),
+      weekday: SATURDAY,
+    });
+    expect(saturday.weekOff).toBe(1);
+    expect(saturday.nonWorkingDay).toBe(false);
+    const sunday = summariseAttendanceDay({ records: [], roster: roster(3, own), weekday: SUNDAY });
+    expect(sunday.weekOff).toBe(2);
+    expect(sunday.nonWorkingDay).toBe(true);
   });
 
   it('leaves week-off records out of the attendance rate on a working day', () => {
@@ -62,23 +138,11 @@ describe('weekly offs', () => {
         { employeeId: 3, status: 'ABSENT' },
         { employeeId: 4, status: 'WEEK_OFF' },
       ],
-      activeEmployeeIds: [1, 2, 3, 4],
-      usualOff: new Map(),
+      roster: roster(4),
       weekday: 2,
     });
     expect(day.rate).toBe('66.7%');
     expect(day.weekOff).toBe(1);
-    expect(day.nonWorkingDay).toBe(false);
-  });
-
-  it('says nothing about a working day before attendance is entered', () => {
-    const day = summariseAttendanceDay({
-      records: [],
-      activeEmployeeIds: [1, 2],
-      usualOff: new Map([[1, 0]]),
-      weekday: 1,
-    });
-    expect(day.rate).toBeNull();
     expect(day.nonWorkingDay).toBe(false);
   });
 });

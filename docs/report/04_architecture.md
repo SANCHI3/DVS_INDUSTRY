@@ -98,7 +98,8 @@ erDiagram
     Employee { int id PK
         string employeeCode
         int departmentId FK
-        int shiftId FK }
+        int shiftId FK
+        int weeklyOffDay "null = plant's (Saturday)" }
     Material { int id PK
         string code
         decimal currentStock }

@@ -121,6 +121,7 @@ export function ProductionPage({ section = "production" }: { section?: "producti
     const met = atLeast ? actual >= limit : actual <= limit;
     return { trend: `${met ? "Meets" : "Misses"} ${atLeast ? "≥" : "≤"} ${limit}%`, trendDir: met ? ("up" as const) : ("down" as const) };
   };
+  // Per working day: the month target spread over the days the plant works (Saturdays left out)
   const dailyTarget = target && monthTarget.data ? target.outputTarget / monthTarget.data.progress.daysInMonth : null;
   const showActions = prod.recordOutput || prod.changeWorkOrderStatus || prod.editWorkOrders || prod.deleteWorkOrders;
 
@@ -283,7 +284,7 @@ export function ProductionPage({ section = "production" }: { section?: "producti
                             <Area id="prod-area-rejected" type="monotone" dataKey="rejected" stroke="#C0392B" fill="#FFEBEE" strokeWidth={1.5} name="Rejected" />
                             <Area id="prod-area-scrap" type="monotone" dataKey="scrap" stroke="#E65100" fill="#FFF3E0" strokeWidth={1.5} name="Scrap" />
                             {dailyTarget !== null && (
-                              <ReferenceLine y={dailyTarget} stroke="#1565C0" strokeDasharray="6 4" label={{ value: `Daily target ${formatQty(Math.round(dailyTarget * 10) / 10)}`, position: "insideTopRight", fontSize: 10, fill: "#1565C0" }} />
+                              <ReferenceLine y={dailyTarget} stroke="#1565C0" strokeDasharray="6 4" label={{ value: `Target per working day ${formatQty(Math.round(dailyTarget * 10) / 10)}`, position: "insideTopRight", fontSize: 10, fill: "#1565C0" }} />
                             )}
                           </AreaChart>
                         </ResponsiveContainer>

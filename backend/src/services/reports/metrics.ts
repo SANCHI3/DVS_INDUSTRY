@@ -3,6 +3,8 @@
  * analytics, so the same number never means two things on two screens.
  */
 
+import { weeklyOffFor } from '../../config/plant';
+
 export type AttendanceStatusName =
   'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LATE' | 'LEAVE' | 'WEEK_OFF';
 
@@ -31,27 +33,10 @@ export function completedShort(
 
 // ── Weekly offs ──────────────────────────────────────────────────────────────
 
-/**
- * Each employee's usual weekly-off weekday (0 = Sunday, UTC), learned from
- * their own WEEK_OFF records: the weekday that occurs most, if at least twice.
- * There is no week-off setting per employee or shift, so the attendance
- * sheets are the source.
- */
-export function usualWeekOffDays(
-  weekOffs: Array<{ employeeId: number; date: Date }>,
-): Map<number, number> {
-  const counts = new Map<number, number[]>();
-  for (const w of weekOffs) {
-    const days = counts.get(w.employeeId) ?? [0, 0, 0, 0, 0, 0, 0];
-    days[w.date.getUTCDay()] = (days[w.date.getUTCDay()] ?? 0) + 1;
-    counts.set(w.employeeId, days);
-  }
-  const usual = new Map<number, number>();
-  for (const [employeeId, days] of counts) {
-    const max = Math.max(...days);
-    if (max >= 2) usual.set(employeeId, days.indexOf(max));
-  }
-  return usual;
+/** An active employee and their own weekly off (null = the plant's, Saturday). */
+export interface RosterEntry {
+  id: number;
+  weeklyOffDay: number | null;
 }
 
 export interface AttendanceDay {
@@ -59,7 +44,7 @@ export interface AttendanceDay {
   late: number;
   absent: number;
   onLeave: number;
-  weekOff: number; // recorded WEEK_OFF, plus unrecorded people whose usual off day it is
+  weekOff: number; // recorded WEEK_OFF, plus unrecorded people whose weekly off it is
   recorded: number; // attendance rows for the day, any status
   /** (present + late) / working-day records; null when nobody was due to work or nothing is recorded */
   rate: string | null;
@@ -67,10 +52,15 @@ export interface AttendanceDay {
   nonWorkingDay: boolean;
 }
 
+/**
+ * One day's attendance. `weekday` is the day's weekday (0 = Sunday,
+ * 6 = Saturday). Each employee's weekly off is their own setting, else the
+ * plant's (Saturday). Someone marked Present on their weekly off still counts.
+ * A Sunday with nothing entered is "not entered yet", like any working day.
+ */
 export function summariseAttendanceDay(input: {
   records: Array<{ employeeId: number; status: AttendanceStatusName }>;
-  activeEmployeeIds: number[];
-  usualOff: Map<number, number>;
+  roster: RosterEntry[];
   weekday: number;
 }): AttendanceDay {
   const day: AttendanceDay = {
@@ -92,12 +82,12 @@ export function summariseAttendanceDay(input: {
     else if (r.status === 'LEAVE') day.onLeave++;
     else if (r.status === 'WEEK_OFF') day.weekOff++;
   }
-  for (const id of input.activeEmployeeIds) {
-    if (!seen.has(id) && input.usualOff.get(id) === input.weekday) day.weekOff++;
+  for (const e of input.roster) {
+    if (!seen.has(e.id) && weeklyOffFor(e.weeklyOffDay) === input.weekday) day.weekOff++;
   }
   const working = day.recorded - input.records.filter((r) => r.status === 'WEEK_OFF').length;
   day.rate = percentText(day.present + day.late, working);
-  const workforce = Math.max(input.activeEmployeeIds.length, day.recorded);
+  const workforce = Math.max(input.roster.length, day.recorded);
   day.nonWorkingDay = workforce > 0 && day.weekOff * 2 >= workforce;
   return day;
 }

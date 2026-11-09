@@ -20,6 +20,8 @@ export interface EmployeeDto {
   department:     { id: number; name: string; code: string } | null;
   shiftId:        number | null;
   shift:          { id: number; name: string } | null;
+  /** Own weekly off, 0 = Sunday … 6 = Saturday; null = the plant's (Saturday). Absent from older API versions. */
+  weeklyOffDay?:  number | null;
   managerId:      number | null;
   profileImage:   string | null;
   joiningDate:    string;

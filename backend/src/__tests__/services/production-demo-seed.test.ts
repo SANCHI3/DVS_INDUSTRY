@@ -139,7 +139,8 @@ function fakeDb() {
 
 const NOW = new Date(2026, 9, 27, 15, 0); // Tue 27 Oct 2026, 15:00 local
 const TODAY = storedDay(NOW);
-const SUNDAY = storedDay(new Date(2026, 9, 25));
+const SATURDAY = storedDay(new Date(2026, 9, 24)); // the plant's weekly off
+const SUNDAY = storedDay(new Date(2026, 9, 25)); // a working day
 const PERIOD_START = storedDay(new Date(2026, 9, 21));
 const snapshot = (tables: Record<string, Row[]>) =>
   JSON.parse(JSON.stringify(tables)) as Record<string, Row[]>;
@@ -286,18 +287,22 @@ describe('demo attendance week', () => {
     }
   });
 
-  it('uses every supported status, and Sunday is a week off for everyone', async () => {
+  it('uses every supported status; Saturday is the week off for everyone, Sunday is worked', async () => {
     const { db, tables } = fakeDb();
     await seedProductionDemo(db, NOW);
     const statuses = new Set(tables['attendance']!.map((a) => a['status']));
     expect([...statuses].sort()).toEqual(
       ['ABSENT', 'HALF_DAY', 'LATE', 'LEAVE', 'PRESENT', 'WEEK_OFF'].sort(),
     );
-    const sunday = tables['attendance']!.filter(
-      (a) => (a['date'] as Date).getTime() === SUNDAY.getTime(),
-    );
+    const on = (day: Date) =>
+      tables['attendance']!.filter((a) => (a['date'] as Date).getTime() === day.getTime());
+    const saturday = on(SATURDAY);
+    expect(saturday).toHaveLength(DEMO_WORKERS.length);
+    expect(saturday.every((a) => a['status'] === 'WEEK_OFF' && a['clockIn'] === null)).toBe(true);
+    expect(saturday.every((a) => a['remarks'] === '[DEMO] Weekly off (Saturday)')).toBe(true);
+    const sunday = on(SUNDAY);
     expect(sunday).toHaveLength(DEMO_WORKERS.length);
-    expect(sunday.every((a) => a['status'] === 'WEEK_OFF' && a['clockIn'] === null)).toBe(true);
+    expect(sunday.some((a) => a['status'] === 'WEEK_OFF')).toBe(false);
     const today = new Map(
       tables['attendance']!.filter((a) => (a['date'] as Date).getTime() === TODAY.getTime()).map(
         (a) => [codeById(tables).get(a['employeeId'] as number), a['status']],
@@ -357,7 +362,7 @@ describe('demo attendance week', () => {
 });
 
 describe('demo work orders', () => {
-  it('links every output to a started demo order, never in the future or on a Sunday', async () => {
+  it('links every output to a started demo order, never in the future or on a Saturday', async () => {
     const { db, tables } = fakeDb();
     await seedProductionDemo(db, NOW);
     const orders = new Map(tables['workOrder']!.map((w) => [w.id, w]));
@@ -368,7 +373,7 @@ describe('demo work orders', () => {
       expect(['IN_PROGRESS', 'ON_HOLD', 'COMPLETED']).toContain(wo!['status']);
       const at = o['recordedAt'] as Date;
       expect(at.getTime()).toBeLessThanOrEqual(NOW.getTime());
-      expect(at.getDay()).not.toBe(0);
+      expect(at.getDay()).not.toBe(6); // the plant's weekly off
     }
     expect(
       tables['workOrder']!.every((w) => String(w['workOrderNumber']).startsWith('DEMO-WO-')),

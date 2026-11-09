@@ -640,15 +640,73 @@ describe('POST /api/v1/workforce/attendance/bulk', () => {
 });
 
 describe('attendance summary and trend', () => {
+  /** n active employees in department 2; `own` sets someone's own weekly off */
+  const roster = (n: number, own: Record<number, number> = {}) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: i + 1,
+      departmentId: 2,
+      weeklyOffDay: own[i + 1] ?? null,
+    }));
+  const summary = async (date: string) => {
+    db['department']!['findMany']!.mockResolvedValue([{ id: 2, name: 'Machining' }]);
+    db['employee']!['groupBy']!.mockResolvedValue([{ departmentId: 2, _count: { id: 5 } }]);
+    const res = await request(app)
+      .get(`/api/v1/workforce/attendance/summary?date=${date}`)
+      .set(auth('manager-token'));
+    expect(res.status).toBe(200);
+    return res.body.data;
+  };
+
+  it('Saturday with nothing entered is the weekly off, not 0% attendance', async () => {
+    useToken('manager-token');
+    db['employee']!['findMany']!.mockResolvedValue(roster(5));
+    db['attendance']!['findMany']!.mockResolvedValue([]);
+    const data = await summary('2026-10-24'); // a Saturday
+    expect(data).toMatchObject({
+      weekOff: 5,
+      attendanceRate: 'N/A',
+      isPlantWeeklyOff: true,
+      plantWeeklyOff: 'Saturday',
+    });
+    expect(data.byDepartment[0]).toMatchObject({ weekOff: 5, attended: 0 });
+  });
+
+  it('a worker marked Present on Saturday still counts', async () => {
+    useToken('manager-token');
+    db['employee']!['findMany']!.mockResolvedValue(roster(5));
+    db['attendance']!['findMany']!.mockResolvedValue([
+      { employeeId: 1, status: 'PRESENT', employee: { departmentId: 2 } },
+    ]);
+    const data = await summary('2026-10-24');
+    expect(data).toMatchObject({ present: 1, weekOff: 4, attendanceRate: '100.0%' });
+  });
+
+  it('Sunday is a working day: nothing entered stays "not entered", no weekly off', async () => {
+    useToken('manager-token');
+    db['employee']!['findMany']!.mockResolvedValue(roster(5));
+    db['attendance']!['findMany']!.mockResolvedValue([]);
+    const data = await summary('2026-10-25'); // a Sunday
+    expect(data).toMatchObject({ weekOff: 0, isPlantWeeklyOff: false, attendanceRate: '0.0%' });
+  });
+
+  it("uses an employee's own weekly off instead of Saturday", async () => {
+    useToken('manager-token');
+    // Employee 1 is off on Sundays (0), so works on Saturdays
+    db['employee']!['findMany']!.mockResolvedValue(roster(5, { 1: 0 }));
+    db['attendance']!['findMany']!.mockResolvedValue([]);
+    expect((await summary('2026-10-25')).weekOff).toBe(1);
+    expect((await summary('2026-10-24')).weekOff).toBe(4);
+  });
+
   it('leaves week-offs out of the attendance rate and reports attended per department', async () => {
     useToken('manager-token');
-    db['employee']!['count']!.mockResolvedValue(5);
+    db['employee']!['findMany']!.mockResolvedValue(roster(5));
     db['attendance']!['findMany']!.mockResolvedValue([
-      { status: 'PRESENT', employee: { departmentId: 2 } },
-      { status: 'LATE', employee: { departmentId: 2 } },
-      { status: 'HALF_DAY', employee: { departmentId: 2 } },
-      { status: 'ABSENT', employee: { departmentId: 2 } },
-      { status: 'WEEK_OFF', employee: { departmentId: 2 } },
+      { employeeId: 1, status: 'PRESENT', employee: { departmentId: 2 } },
+      { employeeId: 2, status: 'LATE', employee: { departmentId: 2 } },
+      { employeeId: 3, status: 'HALF_DAY', employee: { departmentId: 2 } },
+      { employeeId: 4, status: 'ABSENT', employee: { departmentId: 2 } },
+      { employeeId: 5, status: 'WEEK_OFF', employee: { departmentId: 2 } },
     ]);
     db['department']!['findMany']!.mockResolvedValue([{ id: 2, name: 'Machining' }]);
     db['employee']!['groupBy']!.mockResolvedValue([{ departmentId: 2, _count: { id: 5 } }]);

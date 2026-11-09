@@ -68,6 +68,24 @@ describe("Attendance tab", () => {
     expect(screen.getByText("No attendance has been recorded in this period.")).toBeTruthy();
   });
 
+  it("on Saturday, the plant's weekly off, says so instead of showing missing attendance", async () => {
+    vi.mocked(getAttendanceSummary).mockResolvedValue({
+      ...summary, date: "2026-10-24", present: 1, absent: 0, onLeave: 0, weekOff: 3, attendanceRate: "100.0%",
+      isPlantWeeklyOff: true, plantWeeklyOff: "Saturday",
+    });
+    render(<AttendancePanel />);
+    expect((await screen.findByTestId("weekly-off-note")).textContent).toMatch(/plant's weekly off \(Saturday\)\. No attendance is expected; anyone marked Present still counts/);
+    expect(screen.getByText("Weekly off (Saturday)")).toBeTruthy();
+  });
+
+  it("on a working day (Sunday included) there is no weekly-off note", async () => {
+    vi.mocked(getAttendanceSummary).mockResolvedValue({ ...summary, isPlantWeeklyOff: false, plantWeeklyOff: "Saturday" });
+    render(<AttendancePanel />);
+    await screen.findByText("Ananya Iyer");
+    expect(screen.queryByTestId("weekly-off-note")).toBeNull();
+    expect(screen.getByText("Not counted as working days")).toBeTruthy();
+  });
+
   it("tells a production user that attendance is restricted and makes no requests", () => {
     vi.mocked(getStoredBackendRole).mockReturnValue("PRODUCTION");
     render(<AttendancePanel />);
