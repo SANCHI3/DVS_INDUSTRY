@@ -20,6 +20,7 @@ vi.mock('../../config/env', () => ({
     CORS_ORIGINS: 'http://localhost:5173',
     LOG_LEVEL: 'silent',
     RATE_LIMIT_MAX: 500,
+    DIAGNOSTICS_EMAILS: ' Support@Test.com ',
   },
 }));
 
@@ -47,7 +48,10 @@ const ROLE_OF: Record<string, { id: number; role: string }> = {
   production: { id: 2, role: 'PRODUCTION' },
   store: { id: 3, role: 'STORE' },
   admin: { id: 1, role: 'ADMIN' },
+  support: { id: 6, role: 'ADMIN' }, // listed in DIAGNOSTICS_EMAILS
+  storeSupport: { id: 7, role: 'STORE' },
 };
+const EMAIL_OF: Record<number, string> = { 6: 'support@test.com', 7: 'support@test.com' };
 
 vi.mock('../../utils/token', () => ({
   verifyAccessToken: vi.fn((token: string) => {
@@ -87,7 +91,7 @@ beforeEach(() => {
     const u = Object.values(ROLE_OF).find((x) => x.id === where.id)!;
     return Promise.resolve({
       id: u.id,
-      email: 'x@test.com',
+      email: EMAIL_OF[u.id] ?? 'x@test.com',
       fullName: 'X',
       isActive: true,
       role: { name: u.role },
@@ -358,6 +362,49 @@ describe('GET /api/v1/cameras/live-check', () => {
     expect((await check('store')).status).toBe(403);
     expect((await check()).status).toBe(401);
     expect((await check('admin')).status).toBe(200);
+    // Being on the support list does not open it to other roles
+    expect((await check('storeSupport')).status).toBe(403);
+  });
+
+  const LIVE_URL = 'https://server.taild7bde2.ts.net';
+  const withLiveAddress = async () => {
+    const hb = {
+      instanceId: 'plant-pc-url',
+      source: 'live',
+      info: { device: 'cpu', liveUrl: LIVE_URL, cpuPercent: 12 },
+      cameras: [{ id: 'dvr-ch8', channel: 8, name: 'Camera 08', status: 'ONLINE' }],
+    };
+    expect(
+      (await request(app).post('/api/v1/cameras/heartbeat').set(auth('service')).send(hb)).status,
+    ).toBe(200);
+  };
+
+  it('never sends the internal live address or technical details to a regular admin', async () => {
+    await withLiveAddress();
+    const res = await check('admin');
+    expect(res.status).toBe(200);
+    const body = JSON.stringify(res.body);
+    expect(body).not.toContain('ts.net');
+    expect(body).not.toContain('"liveUrl"');
+    expect(body).not.toContain('cpuPercent');
+    expect(res.body.data.technical).toBeUndefined();
+    expect(res.body.data.plants[0].technical).toBeUndefined();
+    expect(res.body.data.plants).toContainEqual(
+      expect.objectContaining({ liveReported: true, liveUrlAccepted: true, online: true }),
+    );
+  });
+
+  it('gives support staff the technical details', async () => {
+    await withLiveAddress();
+    const res = await check('support');
+    const plant = res.body.data.plants.find(
+      (p: { technical?: { id: string } }) => p.technical?.id === 'plant-pc-url',
+    );
+    expect(plant.technical).toMatchObject({
+      liveUrl: LIVE_URL,
+      infoFields: ['cpuPercent', 'device', 'liveUrl'],
+    });
+    expect(res.body.data.technical).toMatchObject({ streamAuth: [] });
   });
 
   it('shows the cctv-setup-5 heartbeat with no live address as not switched on', async () => {
@@ -370,9 +417,12 @@ describe('GET /api/v1/cameras/live-check', () => {
     expect(
       (await request(app).post('/api/v1/cameras/heartbeat').set(auth('service')).send(hb)).status,
     ).toBe(200);
-    const res = await check('admin');
-    const plant = res.body.data.plants.find((p: { id: string }) => p.id === 'plant-pc-old');
-    expect(plant).toMatchObject({ version: null, liveUrl: null, online: true });
+    const res = await check('support');
+    const plant = res.body.data.plants.find(
+      (p: { technical?: { id: string } }) => p.technical?.id === 'plant-pc-old',
+    );
+    expect(plant).toMatchObject({ liveReported: false, online: true });
+    expect(plant.technical).toMatchObject({ version: null, liveUrl: null });
     expect(res.body.data.cameras).toContainEqual(
       expect.objectContaining({ id: 'dvr-ch7', live: 'not-enabled' }),
     );
@@ -386,13 +436,15 @@ describe('GET /api/v1/cameras/live-check', () => {
     await send({ action: 'read', path: 'dvr-ch2-sd', protocol: 'hls', token });
     await send({ action: 'read', path: 'dvr-ch1-sd', protocol: 'hls' });
 
-    const res = await check('admin');
+    const res = await check('support');
     expect(
-      res.body.data.streamAuth.map((e: { protocol: string; allowed: boolean; reason: string }) => [
-        e.protocol,
-        e.allowed,
-        e.reason,
-      ]),
+      res.body.data.technical.streamAuth.map(
+        (e: { protocol: string; allowed: boolean; reason: string }) => [
+          e.protocol,
+          e.allowed,
+          e.reason,
+        ],
+      ),
     ).toEqual([
       ['hls', false, 'no-pass'],
       ['hls', false, 'wrong-path'],

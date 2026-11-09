@@ -467,16 +467,20 @@ describe('live view check', () => {
   it('shows a plant with no live address and no version, as cctv-setup-5 is', async () => {
     const { service } = setup();
     await service.heartbeat(setup5(), NOW);
-    const check = await service.liveCheck(later(10_000));
+    const check = await service.liveCheck(later(10_000), true);
     expect(check.plants).toEqual([
       expect.objectContaining({
-        id: 'plant-pc',
         online: true,
-        version: null,
-        liveUrl: null,
+        liveReported: false,
         liveUrlAccepted: false,
-        startedAt: null,
-        infoFields: ['device'],
+        technical: {
+          id: 'plant-pc',
+          version: null,
+          liveUrl: null,
+          startedAt: null,
+          resumedAt: null,
+          infoFields: ['device'],
+        },
       }),
     ]);
     expect(check.cameras.map((c) => [c.id, c.live])).toEqual([
@@ -488,10 +492,11 @@ describe('live view check', () => {
   it('says a camera is available once the live address arrives', async () => {
     const { service } = setup();
     await service.heartbeat(setup5({ liveUrl: 'https://server.taild7bde2.ts.net' }), NOW);
-    const check = await service.liveCheck(later(10_000));
+    const check = await service.liveCheck(later(10_000), true);
     expect(check.plants[0]).toMatchObject({
-      liveUrl: 'https://server.taild7bde2.ts.net',
+      liveReported: true,
       liveUrlAccepted: true,
+      technical: { liveUrl: 'https://server.taild7bde2.ts.net' },
     });
     expect(check.cameras[0]).toMatchObject({ id: 'dvr-ch1', live: 'available' });
   });
@@ -499,7 +504,7 @@ describe('live view check', () => {
   it('shows an address the website will not hand out', async () => {
     const { service } = setup();
     await service.heartbeat(setup5({ liveUrl: 'http://192.168.0.108:8889' }), NOW);
-    const check = await service.liveCheck(later(10_000));
+    const check = await service.liveCheck(later(10_000), true);
     expect(check.plants[0]).toMatchObject({ liveUrlAccepted: false });
     expect(check.cameras[0]?.live).toBe('not-enabled');
   });
@@ -508,9 +513,11 @@ describe('live view check', () => {
     const { service } = setup();
     await service.heartbeat(setup5(), NOW);
     await service.heartbeat(setup5(), later(30_000));
-    expect((await service.liveCheck(later(31_000))).plants[0]?.resumedAt).toBeNull();
+    expect(
+      (await service.liveCheck(later(31_000), true)).plants[0]?.technical?.resumedAt,
+    ).toBeNull();
     await service.heartbeat(setup5(), later(5 * 60_000));
-    expect((await service.liveCheck(later(5 * 60_000))).plants[0]?.resumedAt).toBe(
+    expect((await service.liveCheck(later(5 * 60_000), true)).plants[0]?.technical?.resumedAt).toBe(
       later(5 * 60_000).toISOString(),
     );
   });
@@ -526,12 +533,12 @@ describe('live view check', () => {
         lastHeartbeatAt: later(-20 * 60_000),
       },
     ]);
-    const before = await service.liveCheck(NOW);
+    const before = await service.liveCheck(NOW, true);
     expect(before.plants[0]).toMatchObject({ fromDatabase: true, online: false });
     await service.heartbeat(setup5(), NOW);
-    expect((await service.liveCheck(NOW)).plants[0]).toMatchObject({
+    expect((await service.liveCheck(NOW, true)).plants[0]).toMatchObject({
       fromDatabase: false,
-      resumedAt: null,
+      technical: { resumedAt: null },
     });
   });
 
@@ -541,9 +548,24 @@ describe('live view check', () => {
       setup5({ version: 'cctv-setup-10', startedAt: '2026-11-05T08:59:00Z' }),
       NOW,
     );
-    expect((await service.liveCheck(NOW)).plants[0]).toMatchObject({
+    expect((await service.liveCheck(NOW, true)).plants[0]?.technical).toMatchObject({
       version: 'cctv-setup-10',
       startedAt: '2026-11-05T08:59:00Z',
+    });
+  });
+  it('leaves out the live address and technical facts unless asked for diagnostics', async () => {
+    const { service } = setup();
+    await service.heartbeat(setup5({ liveUrl: 'https://server.taild7bde2.ts.net' }), NOW);
+    const check = await service.liveCheck(later(10_000));
+    expect(JSON.stringify(check)).not.toContain('ts.net');
+    expect(check.technical).toBeUndefined();
+    expect(check.plants[0]).toEqual({
+      source: 'LIVE',
+      online: true,
+      lastHeartbeatAt: NOW.toISOString(),
+      liveReported: true,
+      liveUrlAccepted: true,
+      fromDatabase: false,
     });
   });
 });

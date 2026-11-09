@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { AuditRepository } from '../repositories/audit.repository';
 import { CameraService, type LiveQuality } from '../services/camera.service';
 import type { AuthenticatedRequest } from '../types';
+import { canSeeDiagnostics } from '../utils/diagnostics';
 import { decideStreamAuth } from '../utils/liveToken';
 import { streamAuthLog } from '../utils/streamAuthLog';
 import { sendNoContent, sendSuccess } from '../utils/response';
@@ -92,6 +93,7 @@ export function streamAuth(req: Request, res: Response): void {
   res.status(allowed ? 200 : 401).end();
 }
 
-export async function liveCheck(_req: Request, res: Response): Promise<void> {
-  sendSuccess(res, await cameraService.liveCheck());
+export async function liveCheck(req: AuthenticatedRequest, res: Response): Promise<void> {
+  // Technical details, the plant's live address among them: support staff only
+  sendSuccess(res, await cameraService.liveCheck(new Date(), canSeeDiagnostics(req.user)));
 }

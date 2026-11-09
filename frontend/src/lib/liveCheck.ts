@@ -16,26 +16,36 @@ export interface StreamAuthEntry {
   reason: StreamAuthReason;
 }
 
-export interface LiveCheckPlant {
+/** Technical facts about one plant PC: only sent to support staff (DIAGNOSTICS_EMAILS). */
+export interface LiveCheckPlantTechnical {
   id: string;
-  source: "LIVE" | "DEV";
-  online: boolean;
-  lastHeartbeatAt: string;
   version: string | null;
+  /** The plant's internal live address: the server never sends it to other users */
   liveUrl: string | null;
-  liveUrlAccepted: boolean;
   startedAt: string | null;
   resumedAt: string | null;
-  fromDatabase: boolean;
   infoFields: string[];
 }
 
+export interface LiveCheckPlant {
+  source: "LIVE" | "DEV";
+  online: boolean;
+  lastHeartbeatAt: string;
+  /** The running plant software reports a live address */
+  liveReported: boolean;
+  liveUrlAccepted: boolean;
+  fromDatabase: boolean;
+  technical?: LiveCheckPlantTechnical;
+}
+
+export type CameraLive = "available" | LiveRefusal;
+
 export interface LiveCheck {
   checkedAt: string;
-  websiteStartedAt: string;
   plants: LiveCheckPlant[];
-  cameras: Array<{ id: string; channel: number | null; name: string; status: string; live: "available" | LiveRefusal }>;
-  streamAuth: StreamAuthEntry[];
+  cameras: Array<{ id: string; channel: number | null; name: string; status: string; live: CameraLive }>;
+  /** Present only for support staff: the panel then shows "Technical details" */
+  technical?: { websiteStartedAt: string; streamAuth: StreamAuthEntry[] };
 }
 
 /** The plant PC that matters: the live one heard most recently (the list comes sorted). */
@@ -48,32 +58,55 @@ export function versionText(version: string | null): string {
   return version ?? "cctv-setup-5 (no version reported)";
 }
 
-export const LIVE_RESULT_TEXT: Record<"available" | LiveRefusal, string> = {
-  available: "Available: the website gives out a live pass",
-  "monitoring-offline": "Monitoring offline: the plant computer is not reporting",
-  "camera-offline": "Camera offline: nothing to play",
-  "not-enabled": "Not enabled: the running plant software has no live address",
+/** Plain words for why one camera cannot be watched live. */
+export const LIVE_RESULT_TEXT: Record<CameraLive, string> = {
+  available: "Live view works",
+  "monitoring-offline": "The plant computer that serves this camera is not reporting",
+  "camera-offline": "No picture from the recorder for this camera",
+  "not-enabled": "Live view is not switched on for this camera",
 };
+
+/** Plant reporting, live view switched on and every camera live: nothing to show. */
+export function isHealthy(check: LiveCheck): boolean {
+  const plant = mainPlant(check);
+  return (
+    plant !== null && plant.online && plant.liveReported && plant.liveUrlAccepted &&
+    check.cameras.length > 0 && check.cameras.every((c) => c.live === "available")
+  );
+}
+
+/**
+ * Cameras to list one by one: only when some work and some do not. When they
+ * all share one problem the banner already says it.
+ */
+export function failingCameras(check: LiveCheck): LiveCheck["cameras"] {
+  const failing = check.cameras.filter((c) => c.live !== "available");
+  return failing.length > 0 && failing.length < check.cameras.length ? failing : [];
+}
 
 /** The one sentence at the top: where live view stops, and what to do. */
 export function liveVerdict(check: LiveCheck): string {
   const plant = mainPlant(check);
   if (!plant) {
-    return "The plant computer has not reported to the website yet. Wait a minute and press Refresh; if it stays empty, check the plant computer is on and has internet.";
+    return "The plant computer has not reported yet. Wait a minute and press Refresh; if nothing changes, check that it is on and has internet.";
   }
   if (!plant.online) {
     return "The plant computer is not reporting, so there is no live view. Check that it is on and has internet.";
   }
-  if (!plant.liveUrl) {
+  if (!plant.liveReported) {
     return "Live view is not switched on in the running plant software. Restart the plant computer once.";
   }
   if (!plant.liveUrlAccepted) {
-    return `The plant reports a live address the website does not accept (${plant.liveUrl}). It must look like https://name.tailnet.ts.net: check LIVE_VIEW_URL on the plant computer.`;
+    const address = plant.technical?.liveUrl ? ` (${plant.technical.liveUrl})` : "";
+    return `The plant computer's live view setting is not in the right form${address}. Ask support to check it on the plant computer.`;
   }
   if (check.cameras.length > 0 && !check.cameras.some((c) => c.live === "available")) {
-    return "Every camera is offline, so there is nothing to play. Check the DVR and its cables.";
+    return "Every camera is offline, so there is nothing to play. Check the recorder (DVR) and its cables.";
   }
-  return "The website gives out live passes. If Live still does not play, press Test live view to see where it stops.";
+  if (failingCameras(check).length > 0) {
+    return "Some cameras cannot be watched live. The ones below need attention.";
+  }
+  return "Live view is ready for every camera. If it still does not play, press Test live view to see where it stops.";
 }
 
 export const STREAM_AUTH_REASON_TEXT: Record<StreamAuthReason, string> = {
@@ -87,7 +120,7 @@ export const STREAM_AUTH_REASON_TEXT: Record<StreamAuthReason, string> = {
 
 /** The website's own answer before any video: no pass means the test cannot start. */
 export function tokenRefusedText(reason: LiveRefusal): string {
-  return `Token refused: ${LIVE_RESULT_TEXT[reason].toLowerCase()}.`;
+  return `Token refused: ${reason.replace("-", " ")}. ${LIVE_RESULT_TEXT[reason]}.`;
 }
 
 /**

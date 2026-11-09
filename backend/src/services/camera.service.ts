@@ -36,29 +36,35 @@ export type LiveAccess =
   | { available: true; token: string; whepUrl: string; hlsUrl: string; expiresAt: string }
   | { available: false; reason: LiveRefusal };
 
+/** Technical facts about one plant PC: support staff only (DIAGNOSTICS_EMAILS). */
+export interface LiveCheckPlantTechnical {
+  id: string;
+  /** null: an older version that does not report one (cctv-setup-5) */
+  version: string | null;
+  /** The plant's internal live address (*.ts.net): never sent to other users */
+  liveUrl: string | null;
+  /** Only if the plant software reports it */
+  startedAt: string | null;
+  /** Heartbeats came back after 2+ minutes of silence (seen by this server) */
+  resumedAt: string | null;
+  /** Names of the fields in the last heartbeat's info, never their values */
+  infoFields: string[];
+}
+
 /** Admin page: where live view stops, from what this process knows. */
 export interface LiveCheckDto {
   checkedAt: string;
-  /** This website server's start: memory, and the stream-auth log, begin here */
-  websiteStartedAt: string;
   plants: Array<{
-    id: string;
     source: 'LIVE' | 'DEV';
     online: boolean;
     lastHeartbeatAt: string;
-    /** null: an older version that does not report one (cctv-setup-5) */
-    version: string | null;
-    liveUrl: string | null;
+    /** The running plant software reports a live address */
+    liveReported: boolean;
     /** The address has the form the website hands out (https://name.tailnet.ts.net) */
     liveUrlAccepted: boolean;
-    /** Only if the plant software reports it */
-    startedAt: string | null;
-    /** Heartbeats came back after 2+ minutes of silence (seen by this server) */
-    resumedAt: string | null;
     /** Read from the database after a website restart; no heartbeat heard yet */
     fromDatabase: boolean;
-    /** Names of the fields in the last heartbeat's info, never their values */
-    infoFields: string[];
+    technical?: LiveCheckPlantTechnical;
   }>;
   cameras: Array<{
     id: string;
@@ -67,7 +73,12 @@ export interface LiveCheckDto {
     status: string;
     live: 'available' | LiveRefusal;
   }>;
-  streamAuth: StreamAuthEntry[];
+  /** Support staff only */
+  technical?: {
+    /** This website server's start: memory, and the stream-auth log, begin here */
+    websiteStartedAt: string;
+    streamAuth: StreamAuthEntry[];
+  };
 }
 
 export interface CameraDto {
@@ -391,8 +402,12 @@ export class CameraService {
     return base ? { base } : { reason: 'not-enabled' };
   }
 
-  /** Admin Live view check: the last heartbeat's facts and what /live-token would answer. */
-  async liveCheck(now: Date = new Date()): Promise<LiveCheckDto> {
+  /**
+   * Admin Live view check: the last heartbeat's facts and what /live-token
+   * would answer. Without `diagnostics` the technical facts, the plant's
+   * internal live address among them, are left out here on the server.
+   */
+  async liveCheck(now: Date = new Date(), diagnostics = false): Promise<LiveCheckDto> {
     await this.hydrate();
     const text = (info: Record<string, unknown> | null, key: string): string | null => {
       const value = info?.[key];
@@ -402,17 +417,24 @@ export class CameraService {
       .map(([id, i]) => {
         const liveUrl = text(i.info, 'liveUrl');
         return {
-          id,
           source: i.source,
           online: now.getTime() - i.lastHeartbeatAt.getTime() <= HEARTBEAT_STALE_MS,
           lastHeartbeatAt: i.lastHeartbeatAt.toISOString(),
-          version: text(i.info, 'version'),
-          liveUrl,
+          liveReported: liveUrl !== null,
           liveUrlAccepted: liveUrl !== null && LIVE_URL.test(liveUrl),
-          startedAt: text(i.info, 'startedAt'),
-          resumedAt: iso(i.resumedAt ?? null),
           fromDatabase: i.fromDatabase === true,
-          infoFields: Object.keys(i.info ?? {}).sort(),
+          ...(diagnostics
+            ? {
+                technical: {
+                  id,
+                  version: text(i.info, 'version'),
+                  liveUrl,
+                  startedAt: text(i.info, 'startedAt'),
+                  resumedAt: iso(i.resumedAt ?? null),
+                  infoFields: Object.keys(i.info ?? {}).sort(),
+                },
+              }
+            : {}),
         };
       })
       .sort(
@@ -434,10 +456,16 @@ export class CameraService {
       .sort((a, b) => (a.channel ?? 999) - (b.channel ?? 999) || a.id.localeCompare(b.id));
     return {
       checkedAt: now.toISOString(),
-      websiteStartedAt: this.state.bootedAt.toISOString(),
       plants,
       cameras,
-      streamAuth: streamAuthLog.latest(10),
+      ...(diagnostics
+        ? {
+            technical: {
+              websiteStartedAt: this.state.bootedAt.toISOString(),
+              streamAuth: streamAuthLog.latest(10),
+            },
+          }
+        : {}),
     };
   }
 

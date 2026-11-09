@@ -201,6 +201,7 @@ The backend reads `backend/.env`, which is ignored by Git. Important settings in
 - `JWT_SECRET`: access-token signing secret
 - `REFRESH_TOKEN_SECRET`: refresh-token signing secret
 - `CORS_ORIGINS`: allowed frontend origins
+- `DIAGNOSTICS_EMAILS`: comma-separated sign-in emails of admins who see the AI Security "Live view check" technical details (plant software version, internal live address, video-server calls, live test). Empty = nobody; other admins get a plain summary, and the server leaves the live address out of their response
 - `PLANT_WEEKLY_OFF`: the plant's weekly off, default `SATURDAY` (Sunday is a working day). An employee's own weekly off (`Employee.weeklyOffDay`, set in the employee dialog, empty = the plant's) overrides it. See README "Plant calendar"
 - `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`: seed credentials
 - `SEED_TEST_DATA`: set to `true` only on a development database to also seed the test logins (`SEED_STORE_PASSWORD` and friends) and "(Test)" partners. Leave it unset for Neon; `npm run cleanup:test-data` lists (dry run) and, with `-- --apply`, removes what earlier seeds left there

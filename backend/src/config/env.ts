@@ -66,6 +66,12 @@ const envSchema = z.object({
   // Shorter than 32 characters counts as not set (utils/serviceKey.ts).
   CAMERA_SERVICE_KEY: z.string().optional(),
 
+  // Admins who also see the Live view check's technical details (plant
+  // software version, live address, video-server calls, the live test).
+  // Comma-separated sign-in emails; empty = nobody. Everyone else gets a
+  // plain summary with the live address stripped on the server.
+  DIAGNOSTICS_EMAILS: z.string().optional(),
+
   // Incident pictures uploaded by the factory PC. Stored in the database
   // unless all four EVIDENCE_S3_* are set (any S3-compatible bucket, e.g.
   // Cloudflare R2). TODO(owner): R2/S3 bucket and keys, or keep the database.

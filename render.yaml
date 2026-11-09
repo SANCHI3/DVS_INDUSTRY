@@ -33,6 +33,9 @@ services:
       # The CCTV PC's key (entered in the installer). At least 32 characters.
       - key: CAMERA_SERVICE_KEY
         generateValue: true
+      # Admin emails that see the Live view check's technical details (comma-separated)
+      - key: DIAGNOSTICS_EMAILS
+        sync: false
       # Vercel proxy + Render's load balancer.
       - key: TRUST_PROXY
         value: "2"
